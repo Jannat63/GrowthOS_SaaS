@@ -1,0 +1,75 @@
+version: "3.9"
+
+# GrowthOS local dev stack — Section 6.1 / 6.3
+# Run: docker compose up --build
+# Then hit the gateway at http://localhost:8000
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: growthos
+      POSTGRES_USER: growthos
+      POSTGRES_PASSWORD: growthos
+    ports: ["5432:5432"]
+    volumes:
+      - ./db/postgres/migrations:/docker-entrypoint-initdb.d
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24
+    ports: ["8123:8123", "9000:9000"]
+    volumes:
+      - ./db/clickhouse/schema:/docker-entrypoint-initdb.d
+
+  auth-service:
+    build: ./services/auth-service
+    ports: ["8006:8006"]
+    environment:
+      DATABASE_URL: postgresql://growthos:growthos@postgres:5432/growthos
+      JWT_SECRET: dev-secret-change-in-production
+    depends_on: [postgres]
+
+  seo-service:
+    build: ./services/seo-service
+    ports: ["8001:8001"]
+
+  google-ads-service:
+    build: ./services/google-ads-service
+    ports: ["8002:8002"]
+
+  meta-ads-service:
+    build: ./services/meta-ads-service
+    ports: ["8003:8003"]
+
+  intelligence-service:
+    build: ./services/intelligence-service
+    ports: ["8004:8004"]
+    environment:
+      DATABASE_URL: postgresql://growthos:growthos@postgres:5432/growthos
+    depends_on: [redis, postgres]
+
+  notification-service:
+    build: ./services/notification-service
+    ports: ["8005:8005"]
+
+  api-gateway:
+    build: ./services/api-gateway
+    ports: ["8000:8000"]
+    depends_on:
+      - auth-service
+      - seo-service
+      - google-ads-service
+      - meta-ads-service
+      - intelligence-service
+      - notification-service
+
+  web:
+    build: ./apps/web
+    ports: ["3000:3000"]
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on: [api-gateway]
