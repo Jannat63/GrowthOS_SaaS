@@ -1,15 +1,18 @@
 import hashlib
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.orm import Session as DBSession
 from pydantic import BaseModel, EmailStr, ConfigDict
 from pydantic.alias_generators import to_camel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.db import get_db, User, Session as SessionRow, Workspace, WorkspaceMember
 from app.security import hash_password, verify_password, create_access_token, decode_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 class SignUpRequest(BaseModel):
@@ -43,7 +46,8 @@ def _issue_session_and_token(db: DBSession, user_id: uuid.UUID, workspace_id: uu
 
 
 @router.post("/sign-up", response_model=AuthResponse)
-def sign_up(req: SignUpRequest, db: DBSession = Depends(get_db)):
+@limiter.limit("5/hour")
+def sign_up(request: Request, req: SignUpRequest, db: DBSession = Depends(get_db)):
     """
     Real signup: hashes the password with bcrypt (never stores plaintext),
     creates a real `users` row, a real `workspaces` row, links them via
@@ -70,7 +74,8 @@ def sign_up(req: SignUpRequest, db: DBSession = Depends(get_db)):
 
 
 @router.post("/sign-in", response_model=AuthResponse)
-def sign_in(req: SignInRequest, db: DBSession = Depends(get_db)):
+@limiter.limit("10/minute")
+def sign_in(request: Request, req: SignInRequest, db: DBSession = Depends(get_db)):
     user = db.query(User).filter(User.email == req.email).first()
     if not user or not user.password_hash or not verify_password(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password.")

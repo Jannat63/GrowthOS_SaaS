@@ -35,7 +35,7 @@ export default function SignInPage() {
     <div className="max-w-sm w-full space-y-5">
       <h1 className="text-heading-1">Welcome back 👋</h1>
       {error && <Alert type="error" message={error} onDismiss={() => setError(null)} />}
-      <Button variant="secondary" className="w-full" disabled>Continue with Google (not wired yet)</Button>
+      <Button variant="secondary" className="w-full" onClick={() => window.location.href = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/google/login`}>Continue with Google</Button>
       <Input placeholder="Work email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
       <Input placeholder="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
       <Button className="w-full" loading={loading} onClick={handleSubmit}>Sign In</Button>

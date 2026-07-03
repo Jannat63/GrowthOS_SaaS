@@ -1,6 +1,7 @@
 ./
   .env.example
   .gitignore
+  DEPLOYMENT.md
   PROJECT_STRUCTURE.txt
   README.md
   docker-compose.yml
@@ -12,11 +13,16 @@
       package.json
       tailwind.config.ts
       tsconfig.json
+      vercel.json
       app/
         layout.tsx
         page.tsx
         (auth)/
           layout.tsx
+          auth/
+            google/
+              complete/
+                page.tsx
           business-info/
             page.tsx
           connect-accounts/
@@ -268,19 +274,24 @@
       Dockerfile
       README.md
       index.js
+      package-lock.json
       package.json
+      railway.json
     auth-service/
       Dockerfile
+      railway.json
       requirements.txt
       app/
         __init__.py
         db.py
+        google_oauth.py
         main.py
         routes.py
         security.py
     google-ads-service/
       Dockerfile
       README.md
+      railway.json
       requirements.txt
       app/
         __init__.py
@@ -292,6 +303,7 @@
     intelligence-service/
       Dockerfile
       README.md
+      railway.json
       requirements.txt
       app/
         __init__.py
@@ -305,6 +317,7 @@
       Dockerfile
       README.md
       package.json
+      railway.json
       tsconfig.json
       src/
         app.module.ts
@@ -315,11 +328,13 @@
       Dockerfile
       README.md
       package.json
+      railway.json
       src/
         index.js
     seo-service/
       Dockerfile
       README.md
+      railway.json
       requirements.txt
       app/
         __init__.py

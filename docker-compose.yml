@@ -30,16 +30,21 @@ services:
     ports: ["8006:8006"]
     environment:
       DATABASE_URL: postgresql://growthos:growthos@postgres:5432/growthos
-      JWT_SECRET: dev-secret-change-in-production
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
     depends_on: [postgres]
 
   seo-service:
     build: ./services/seo-service
     ports: ["8001:8001"]
+    environment:
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
 
   google-ads-service:
     build: ./services/google-ads-service
     ports: ["8002:8002"]
+    environment:
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
 
   meta-ads-service:
     build: ./services/meta-ads-service
@@ -50,6 +55,8 @@ services:
     ports: ["8004:8004"]
     environment:
       DATABASE_URL: postgresql://growthos:growthos@postgres:5432/growthos
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
     depends_on: [redis, postgres]
 
   notification-service:

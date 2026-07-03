@@ -39,7 +39,7 @@ export default function SignUpPage() {
         <p className="text-small text-neutral">Start your 14-day free trial. No credit card required.</p>
       </div>
       {error && <Alert type="error" message={error} onDismiss={() => setError(null)} />}
-      <Button variant="secondary" className="w-full" disabled>Sign up with Google (not wired yet)</Button>
+      <Button variant="secondary" className="w-full" onClick={() => window.location.href = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/google/login`}>Sign up with Google</Button>
       <Input placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
       <Input placeholder="Work email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
       <Input placeholder="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />

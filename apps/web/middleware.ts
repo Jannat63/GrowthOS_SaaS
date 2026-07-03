@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/connect-accounts",
   "/business-info",
   "/onboarding-complete",
+  "/auth/google/complete",
 ];
 
 export function middleware(req: NextRequest) {
