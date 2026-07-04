@@ -96,6 +96,39 @@ To exercise an `apps/api` route without opening a port, build then use Fastify's
 - **Workspace isolation** is by `workspace_id` at the application layer (Fastify), not Postgres RLS (see D1).
   Every data endpoint is nested under `/workspaces/:id/...` and guarded by workspace membership + role.
 
+## Backend — API contract & job model (`apps/api`, `apps/worker`)
+
+When building out `apps/api` (currently only `/health`), follow the blueprint contract so it matches what the
+frontend and legacy services already assume:
+
+- **JSON is camelCase** across the API boundary — the frontend TS types depend on it (the legacy Python services
+  serialized camelCase for exactly this reason).
+- Routes are versioned under **`/api/v1`**; data routes are nested under **`/workspaces/:id/...`** and guarded by
+  workspace membership + role (`owner` / `admin` / `manager` / `viewer` / `client`).
+- **Error envelope:** `{ error: { code, message, statusCode } }`. Fixed codes: `UNAUTHORIZED` (401),
+  `FORBIDDEN` (403), `WORKSPACE_NOT_FOUND` (404), `PLAN_LIMIT_REACHED` (402), `INTEGRATION_NOT_CONNECTED`,
+  `RATE_LIMITED` (429), `JOB_QUEUED` (202), `INTERNAL_ERROR` (500).
+- **Async work:** long operations return `202 { jobId, statusUrl }`; the client polls
+  `GET /workspaces/:id/jobs/:jobId` or listens for the `job:complete` WebSocket event. List endpoints paginate
+  via `limit`/`offset` and return a `total`.
+- **Fastify never calls AI or third-party marketing APIs directly.** It enqueues jobs (BullMQ/Redis) that the
+  Python **Celery worker** (`apps/worker`) consumes; the worker writes results to Neon and pushes updates over
+  WebSocket. TypeScript owns request/response; Python owns data/AI/crawling work.
+- Validate all inputs with **zod** (Fastify) / **Pydantic** (worker).
+- Better Auth and Drizzle move fast — check their current docs via context7 when wiring them, don't rely on memory.
+
+## Frontend architecture (`apps/web`)
+
+- **State:** TanStack Query for server state, Zustand for client state — both wired in
+  `apps/web/components/Providers.tsx`.
+- **Data-fetching pattern (preserve it):** each feature hook in `lib/hooks/*` calls the live API and, on failure,
+  runs the matching `lib/logic` engine over `lib/mock-data` locally, returning `{ data, source: "live" | "mock" }`.
+  `components/ui/DataSourceBadge` surfaces which was used. When re-pointing to `apps/api`, keep this graceful
+  live→mock fallback — it's what lets the app render without a backend.
+- **Routes** are grouped: `app/(auth)` (welcome, sign-in/up, onboarding steps) and `app/(dashboard)` (the
+  product), each with a shared `layout.tsx`. Dashboard navigation is module-based via
+  `components/layout/{Sidebar,TopBar,ModuleTabs}`.
+
 ## Frontend rules (`apps/web`)
 
 - **shadcn/ui, used maximally (D6).** Every UI primitive — button, input, select, dialog, dropdown, tabs, table,
