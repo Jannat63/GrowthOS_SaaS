@@ -1,0 +1,35 @@
+# P2.3 — Paid-to-Organic Bridge
+
+Milestone: M2 · Depends on: P2.1, P2.2 · Prerequisites: Neon URL · worker (P2.1)
+
+## Goal
+
+Turn paid search-term data into organic content opportunities: score search terms, flag them as
+recommendations with generated content briefs, and let the user act on them.
+
+## Subphases
+
+- [ ] Add the `recommendations` and `content_briefs` tables.
+- [ ] Build the search-terms scoring worker (canonical `apps/web/lib/logic/search-terms-bridge.ts`;
+  `legacy/services/google-ads-service/search_terms.py` as the port reference).
+- [ ] Add `GET /workspaces/:id/google-ads/search-terms`.
+- [ ] Add the rule-based content-brief generator (`legacy/services/seo-service/content_brief.py` spec).
+- [ ] Build the Content Pipeline UI (the google-ads/search-terms page).
+- [ ] Add recommendation dismiss / snooze / act (`PATCH /recommendations/:id`).
+
+## Reuse
+
+- `apps/web/lib/logic/search-terms-bridge.ts` → canonical scoring logic.
+- `legacy/services/google-ads-service/search_terms.py` → port reference.
+- `legacy/services/seo-service/content_brief.py` → spec (brief generator).
+
+## Surface
+
+- Tables: `recommendations`, `content_briefs`.
+- Worker: search-terms scoring (`apps/web/lib/logic/search-terms-bridge.ts`).
+- Endpoints: `GET /workspaces/:id/google-ads/search-terms`, `PATCH /recommendations/:id`.
+- UI: Content Pipeline (google-ads/search-terms page).
+
+## Verification
+
+- Seeded search terms → scored → a flagged recommendation + brief appear; acting on it persists.
