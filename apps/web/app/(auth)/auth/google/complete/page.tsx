@@ -1,10 +1,10 @@
 "use client";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { getMe, storeSession } from "@/lib/api/auth";
 
-export default function GoogleOAuthCompletePage() {
+function GoogleOAuthCompleteInner() {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -14,8 +14,6 @@ export default function GoogleOAuthCompletePage() {
       router.push("/sign-in");
       return;
     }
-    // The backend already issued a full session — fetch the user profile
-    // to populate storeSession() the same way sign-in/sign-up do.
     getMe(token)
       .then((me) => {
         storeSession({ token, userId: me.userId, workspaceId: me.workspaceId, fullName: me.fullName, email: me.email });
@@ -29,5 +27,15 @@ export default function GoogleOAuthCompletePage() {
       <Loader2 className="h-6 w-6 animate-spin text-primary" />
       <p className="text-body text-neutral">Finishing sign-in with Google...</p>
     </div>
+  );
+}
+
+// Next.js requires useSearchParams() to be wrapped in Suspense for production
+// builds — verified directly: `npm run build` fails without this wrapper.
+export default function GoogleOAuthCompletePage() {
+  return (
+    <Suspense fallback={<Loader2 className="h-6 w-6 animate-spin text-primary" />}>
+      <GoogleOAuthCompleteInner />
+    </Suspense>
   );
 }

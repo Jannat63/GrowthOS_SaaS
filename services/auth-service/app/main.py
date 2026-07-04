@@ -8,6 +8,8 @@ from slowapi.errors import RateLimitExceeded
 
 from app.routes import router
 from app.google_oauth import router as google_router
+from app.email_verification import router as verify_email_router
+from app.billing import router as billing_router
 from app.db import check_connection
 
 # Rate limiter: keyed by client IP. Applied per-endpoint in routes.py —
@@ -40,6 +42,8 @@ async def security_headers(request: Request, call_next):
 
 app.include_router(router)
 app.include_router(google_router)
+app.include_router(verify_email_router)
+app.include_router(billing_router)
 
 @app.get("/health")
 def health():

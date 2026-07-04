@@ -5,15 +5,19 @@
   PROJECT_STRUCTURE.txt
   README.md
   docker-compose.yml
+  package-lock.json
   package.json
   apps/
     web/
       Dockerfile
       middleware.ts
+      next-env.d.ts
       package.json
       tailwind.config.ts
       tsconfig.json
+      tsconfig.tsbuildinfo
       vercel.json
+      vitest.config.ts
       app/
         layout.tsx
         page.tsx
@@ -37,6 +41,8 @@
             page.tsx
           verify-email/
             page.tsx
+            confirm/
+              page.tsx
           welcome/
             page.tsx
         (dashboard)/
@@ -217,11 +223,17 @@
           useKeywordResearch.ts
           useSearchTerms.ts
         logic/
+          blended-mer.test.ts
           blended-mer.ts
+          creative-fatigue.test.ts
           creative-fatigue.ts
+          cross-channel-engine.test.ts
           cross-channel-engine.ts
+          goal-simulator.test.ts
           goal-simulator.ts
+          search-terms-bridge.test.ts
           search-terms-bridge.ts
+          seo-scoring.test.ts
           seo-scoring.ts
         mock-data/
           analytics.ts
@@ -247,6 +259,7 @@
         001_analytics_schema.sql
     postgres/
       README.md
+      seed.sql
       migrations/
         001_core_schema.sql
         002_seed_demo_workspace.sql
@@ -269,6 +282,8 @@
     ui/
       README.md
       tokens/
+  scripts/
+    run-all-tests.sh
   services/
     api-gateway/
       Dockerfile
@@ -283,11 +298,17 @@
       requirements.txt
       app/
         __init__.py
+        billing.py
         db.py
+        email.py
+        email_verification.py
         google_oauth.py
         main.py
         routes.py
         security.py
+      tests/
+        __init__.py
+        test_security.py
     google-ads-service/
       Dockerfile
       README.md
@@ -300,6 +321,9 @@
         routes/
           __init__.py
           search_terms.py
+      tests/
+        __init__.py
+        test_search_terms.py
     intelligence-service/
       Dockerfile
       README.md
@@ -313,9 +337,13 @@
         db.py
         main.py
         routes.py
+      tests/
+        __init__.py
+        test_cross_channel_engine.py
     meta-ads-service/
       Dockerfile
       README.md
+      package-lock.json
       package.json
       railway.json
       tsconfig.json
@@ -343,3 +371,6 @@
         routes/
           __init__.py
           keywords.py
+      tests/
+        __init__.py
+        test_scoring.py

@@ -166,3 +166,15 @@ CREATE TABLE usage_records (
 ALTER TABLE recommendations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY workspace_isolation ON recommendations
   USING (workspace_id = NULLIF(current_setting('app.current_workspace_id', true), '')::uuid);
+
+-- Email verification — added during dress-up pass
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);

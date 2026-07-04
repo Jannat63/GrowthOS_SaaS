@@ -25,15 +25,15 @@ export default function PredictiveAnalyticsPage() {
             {"predictedTraffic" in p && (
               <>
                 <div className="text-caption text-neutral">Predicted Traffic</div>
-                <div className="text-display-2 mb-2">{p.predictedTraffic.toLocaleString()}</div>
-                <div className="text-caption text-neutral">Actual: {p.actualTraffic.toLocaleString()}</div>
+                <div className="text-display-2 mb-2">{p.predictedTraffic!.toLocaleString()}</div>
+                <div className="text-caption text-neutral">Actual: {p.actualTraffic!.toLocaleString()}</div>
               </>
             )}
             {"predictedConversions" in p && (
               <>
                 <div className="text-caption text-neutral">Predicted Conversions</div>
-                <div className="text-display-2 mb-2">{p.predictedConversions.toLocaleString()}</div>
-                <div className="text-caption text-neutral">Actual: {p.actualConversions.toLocaleString()}</div>
+                <div className="text-display-2 mb-2">{p.predictedConversions!.toLocaleString()}</div>
+                <div className="text-caption text-neutral">Actual: {p.actualConversions!.toLocaleString()}</div>
               </>
             )}
             {"predictedROAS" in p && (

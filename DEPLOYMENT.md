@@ -13,7 +13,12 @@ Both have generous free tiers, which is enough for a demo/early-stage deployment
    psql "<DATABASE_URL>" -f db/postgres/migrations/001_core_schema.sql
    psql "<DATABASE_URL>" -f db/postgres/migrations/002_seed_demo_workspace.sql
    ```
-5. Skip ClickHouse for now — nothing in the current build writes to it yet (see README status). Add it later when you wire up the analytics pipeline for real.
+5. Optionally seed demo data so the app isn't empty on first login:
+   ```
+   psql "<DATABASE_URL>" -f db/postgres/seed.sql
+   ```
+   This creates a demo account (`demo@growthos.app` / `DemoPass123`) — tested and confirmed working. Useful for a demo/investor walkthrough; delete it before real customers sign up.
+6. Skip ClickHouse for now — nothing in the current build writes to it yet (see README status). Add it later when you wire up the analytics pipeline for real.
 
 ## 2. Backend services — Railway
 

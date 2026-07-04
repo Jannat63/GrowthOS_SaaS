@@ -1,19 +1,47 @@
+"use client";
+
+import { useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
+import { api, ApiError } from "@/lib/api/client";
 
 const plans = [
-  { name: "Starter", price: "$79/mo", features: ["1 website / ad account", "500 keywords tracked", "5 AI recommendations/week"] },
-  { name: "Growth", price: "$199/mo", features: ["5 websites / ad accounts", "2,500 keywords tracked", "Unlimited recommendations", "GEO tracking included"], current: true },
-  { name: "Scale", price: "$399/mo", features: ["Unlimited accounts", "10,000 keywords tracked", "Full API access", "Custom attribution models"] },
+  { id: "starter", name: "Starter", price: "$79/mo", features: ["1 website / ad account", "500 keywords tracked", "5 AI recommendations/week"] },
+  { id: "growth", name: "Growth", price: "$199/mo", features: ["5 websites / ad accounts", "2,500 keywords tracked", "Unlimited recommendations", "GEO tracking included"] },
+  { id: "scale", name: "Scale", price: "$399/mo", features: ["Unlimited accounts", "10,000 keywords tracked", "Full API access", "Custom attribution models"] },
 ];
 
 export default function WorkspaceBillingPage() {
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleUpgrade(planId: string) {
+    setError(null);
+    setLoadingPlan(planId);
+    try {
+      const res = await api.post<{ checkoutUrl: string }>("/api/auth/billing/checkout", { plan: planId });
+      window.location.href = res.checkoutUrl;
+    } catch (e) {
+      const err = e as ApiError;
+      setError(
+        err.status === 501
+          ? "Billing isn't configured yet on this server — Stripe keys haven't been set."
+          : "Couldn't start checkout. Please try again."
+      );
+    } finally {
+      setLoadingPlan(null);
+    }
+  }
+
   return (
     <div>
       <TopBar subtitle="Manage your workspace, team, and subscription." />
       <div className="p-6 space-y-6">
+        {error && <Alert type="warning" message={error} onDismiss={() => setError(null)} />}
+
         <Card>
           <div className="flex items-center justify-between mb-4">
             <div className="text-heading-2">Team Members</div>
@@ -41,8 +69,7 @@ export default function WorkspaceBillingPage() {
           <div className="text-heading-2 mb-4">Plan & Billing</div>
           <div className="grid grid-cols-3 gap-4">
             {plans.map((p) => (
-              <Card key={p.name} className={p.current ? "border-primary ring-1 ring-primary/20" : ""}>
-                {p.current && <Badge tone="primary" className="mb-2">Current Plan</Badge>}
+              <Card key={p.id}>
                 <div className="text-heading-1">{p.name}</div>
                 <div className="text-display-2 mb-3">{p.price}</div>
                 <ul className="space-y-1.5 mb-4">
@@ -50,8 +77,8 @@ export default function WorkspaceBillingPage() {
                     <li key={f} className="text-small text-neutral">• {f}</li>
                   ))}
                 </ul>
-                <Button variant={p.current ? "secondary" : "primary"} className="w-full" disabled={p.current}>
-                  {p.current ? "Current Plan" : "Upgrade"}
+                <Button className="w-full" loading={loadingPlan === p.id} onClick={() => handleUpgrade(p.id)}>
+                  Upgrade
                 </Button>
               </Card>
             ))}
