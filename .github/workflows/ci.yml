@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: Frontend (tests, types, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm install
+        working-directory: apps/web
+      - name: Run unit tests
+        run: npm test
+        working-directory: apps/web
+      - name: Type check
+        run: npx tsc --noEmit
+        working-directory: apps/web
+      - name: Production build
+        run: npm run build
+        working-directory: apps/web
+
+  backend:
+    name: Backend services (pytest)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [seo-service, google-ads-service, intelligence-service, auth-service]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+        working-directory: services/${{ matrix.service }}
+      - name: Run tests
+        run: python -m pytest tests/ -v
+        working-directory: services/${{ matrix.service }}
+
+  meta-ads-service:
+    name: Meta Ads Service (TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install
+        working-directory: services/meta-ads-service
+      - name: Type check
+        run: npx tsc --noEmit
+        working-directory: services/meta-ads-service
+
+  gateway-syntax:
+    name: API Gateway + Notification Service (syntax check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node -c index.js
+        working-directory: services/api-gateway
+      - run: node -c src/index.js
+        working-directory: services/notification-service

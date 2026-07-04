@@ -7,10 +7,18 @@ const express = require("express");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
 
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:3000";
+
 const app = express();
 app.use(express.json());
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", FRONTEND_ORIGIN);
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  next();
+});
+
 const httpServer = createServer(app);
-const io = new Server(httpServer, { cors: { origin: "*" } });
+const io = new Server(httpServer, { cors: { origin: FRONTEND_ORIGIN, credentials: true } });
 
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);

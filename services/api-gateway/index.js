@@ -7,7 +7,25 @@
 const express = require("express");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:3000";
+
 const app = express();
+
+// CORS + security headers here since this is the actual public-facing
+// entry point in production (individual services also have their own
+// copies as defense-in-depth, but the gateway is what the browser
+// actually talks to).
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", FRONTEND_ORIGIN);
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
 
 // This took several attempts, each verified against a real running gateway
 // + service (checked auth-service's own uvicorn access log to see exactly

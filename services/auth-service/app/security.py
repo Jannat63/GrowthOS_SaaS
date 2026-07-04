@@ -1,6 +1,6 @@
 import os
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from passlib.hash import bcrypt
 
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
@@ -17,7 +17,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def create_access_token(user_id: str, workspace_id: str) -> tuple[str, datetime]:
-    expires_at = datetime.utcnow() + timedelta(hours=JWT_EXPIRY_HOURS)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRY_HOURS)
     payload = {"sub": user_id, "workspace_id": workspace_id, "exp": expires_at}
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return token, expires_at
