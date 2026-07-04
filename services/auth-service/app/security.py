@@ -8,12 +8,28 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24 * 7  # 7 days
 
 
+def _normalize_for_bcrypt(password: str) -> str:
+    """Ensure the password is a text string and truncate its UTF-8 encoded
+    form to bcrypt's 72-byte limit. Returns a str that can be passed to passlib.
+    """
+    if isinstance(password, bytes):
+        password = password.decode("utf-8", errors="ignore")
+    pw_bytes = password.encode("utf-8")
+    if len(pw_bytes) > 72:
+        pw_bytes = pw_bytes[:72]
+        # decode back to text; ignore partial character errors
+        password = pw_bytes.decode("utf-8", errors="ignore")
+    return password
+
+
 def hash_password(password: str) -> str:
-    return bcrypt.hash(password)
+    pw = _normalize_for_bcrypt(password)
+    return bcrypt.hash(pw)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return bcrypt.verify(password, password_hash)
+    pw = _normalize_for_bcrypt(password)
+    return bcrypt.verify(pw, password_hash)
 
 
 def create_access_token(user_id: str, workspace_id: str) -> tuple[str, datetime]:
