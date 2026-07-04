@@ -55,6 +55,20 @@ These decisions were made while restructuring the existing GrowthOS build onto t
   the new Fastify api, adopting shadcn/ui + Tailwind v4 over time.
 - Full detail: `GrowthOS_SaaS/docs/superpowers/specs/2026-07-05-restructure-design.md`.
 
+## D6 — UI: shadcn/ui, used maximally
+
+- `apps/web` standardizes on **shadcn/ui** (Radix primitives + Tailwind) as **the** component layer.
+- **Maximum usage:** every UI primitive — buttons, inputs, selects, dialogs, dropdowns, tabs, tables,
+  cards, toasts, tooltips, sheets, etc. — uses the shadcn equivalent. Bespoke/ad-hoc components carried
+  from `/legacy` are **replaced** with shadcn components as the frontend migrates. New UI is built
+  shadcn-first; a hand-rolled component is the exception and needs a reason.
+- Shared shadcn components live in **`packages/ui`** (per ARCHITECTURE.md) and are consumed by `apps/web`;
+  app-specific compositions of them stay in `apps/web`.
+- Theming uses shadcn's CSS-variable tokens; Tailwind aligns with shadcn (target **Tailwind v4** per
+  blueprint — upgrade from the legacy v3 setup during the frontend-migration slice).
+- shadcn is initialized during the frontend-migration slice; components are added incrementally, but the
+  target is **broad coverage across the whole app**.
+
 ---
 
 ## Quick substitution key (applies to all other docs)

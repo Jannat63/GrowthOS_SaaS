@@ -52,6 +52,9 @@ version fresh, keep the old code as reference ("legacy"), and copy the good part
 5. **Carry the frontend forward, migrate incrementally.** The current `apps/web` becomes the starting
    point for the new `apps/web`; re-point it to the new Fastify API and adopt shadcn/ui / Tailwind v4
    over time rather than rebuilding.
+6. **shadcn/ui is the component layer, used maximally.** Every UI primitive uses its shadcn equivalent;
+   ad-hoc components from `/legacy` are replaced with shadcn during migration; shared ones live in
+   `packages/ui`. New UI is built shadcn-first. (See DECISIONS.md D6.)
 
 ---
 
