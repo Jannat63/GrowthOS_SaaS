@@ -4,8 +4,9 @@ from app.cross_channel_engine import (
 )
 from app.db import RecommendationRow
 from app.auth_dependency import get_scoped_db, get_workspace_id_from_token
+from app.budget_and_reports import recommend_budget_reallocation, generate_weekly_report
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict
 from pydantic import BaseModel
 import uuid
 
@@ -72,3 +73,33 @@ def get_recommendation_history(
         }
         for row in rows
     ]
+
+
+class ChannelPerformance(BaseModel):
+    channel: str
+    spend: float
+    revenue: float
+
+
+class BudgetReallocationRequest(BaseModel):
+    channel_performance: List[ChannelPerformance]
+
+
+@router.post("/budget/reallocation")
+def budget_reallocation(req: BudgetReallocationRequest):
+    return {"recommendations": recommend_budget_reallocation([c.model_dump() for c in req.channel_performance])}
+
+
+class WeeklyReportRequest(BaseModel):
+    week_start: str
+    channel_performance: List[ChannelPerformance]
+    top_recommendations: List[Dict] = []
+
+
+@router.post("/reports/weekly")
+def weekly_report(req: WeeklyReportRequest):
+    return generate_weekly_report(
+        req.week_start,
+        [c.model_dump() for c in req.channel_performance],
+        req.top_recommendations,
+    )

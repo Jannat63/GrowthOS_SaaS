@@ -1,7 +1,8 @@
-import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import keywords
+from app.routes import features
+import os
 
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
 
@@ -22,6 +23,7 @@ async def security_headers(request: Request, call_next):
     return response
 
 app.include_router(keywords.router)
+app.include_router(features.router)
 
 @app.get("/health")
 def health():

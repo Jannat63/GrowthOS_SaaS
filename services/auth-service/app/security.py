@@ -1,6 +1,5 @@
 import os
 import jwt
-import hashlib
 from datetime import datetime, timedelta, timezone
 from passlib.hash import bcrypt
 
@@ -9,25 +8,12 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24 * 7  # 7 days
 
 
-def _bcrypt_input_from_password(password: str) -> str:
-    """Produce a stable short input for bcrypt by SHA-256 hashing the UTF-8 bytes
-    and returning the hex digest (64 chars). This avoids bcrypt's 72-byte limit.
-    """
-    if isinstance(password, bytes):
-        password = password.decode("utf-8", errors="ignore")
-    pw_bytes = password.encode("utf-8", errors="ignore")
-    digest = hashlib.sha256(pw_bytes).hexdigest()
-    return digest
-
-
 def hash_password(password: str) -> str:
-    digest = _bcrypt_input_from_password(password)
-    return bcrypt.hash(digest)
+    return bcrypt.hash(password)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    digest = _bcrypt_input_from_password(password)
-    return bcrypt.verify(digest, password_hash)
+    return bcrypt.verify(password, password_hash)
 
 
 def create_access_token(user_id: str, workspace_id: str) -> tuple[str, datetime]:

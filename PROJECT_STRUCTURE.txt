@@ -316,13 +316,16 @@
       requirements.txt
       app/
         __init__.py
+        features.py
         main.py
         search_terms.py
         routes/
           __init__.py
+          features.py
           search_terms.py
       tests/
         __init__.py
+        test_features.py
         test_search_terms.py
     intelligence-service/
       Dockerfile
@@ -332,6 +335,7 @@
       app/
         __init__.py
         auth_dependency.py
+        budget_and_reports.py
         celery_app.py
         cross_channel_engine.py
         db.py
@@ -339,6 +343,7 @@
         routes.py
       tests/
         __init__.py
+        test_budget_and_reports.py
         test_cross_channel_engine.py
     meta-ads-service/
       Dockerfile
@@ -350,6 +355,7 @@
       src/
         app.module.ts
         creative-fatigue.ts
+        features.ts
         main.ts
         meta-ads.controller.ts
     notification-service/
@@ -366,11 +372,20 @@
       requirements.txt
       app/
         __init__.py
+        content_brief.py
+        crawler.py
+        keyword_clustering.py
+        long_tail.py
         main.py
+        pagespeed.py
+        schema_generator.py
         scoring.py
+        sitemap_and_links.py
         routes/
           __init__.py
+          features.py
           keywords.py
       tests/
         __init__.py
+        test_free_features.py
         test_scoring.py

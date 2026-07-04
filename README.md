@@ -61,3 +61,37 @@ Previously all verification was manual, one-off testing during development — n
 docker compose up --build
 ```
 This starts Postgres (auto-seeded with a demo workspace), Redis, ClickHouse, all 6 backend services, the API gateway (:8000), and the web app (:3000).
+
+## Blueprint feature coverage (NEW — free-tier implementations)
+No paid AI API (Claude/OpenAI) is used anywhere — the following are genuinely
+real, working features built with free tools instead: a real web crawler,
+the free Google PageSpeed API, and deterministic rule-based/template logic
+where the blueprint originally called for LLM generation.
+
+**SEO Module (Section 4.1):**
+- Full Site Audit — real crawler (`app/crawler.py`), fetches live pages, detects broken links, missing meta tags, thin content, missing canonicals, images without alt text. Tested against a real live site.
+- Core Web Vitals Monitor — real Google PageSpeed Insights API (free), returns actual LCP/CLS/INP scores
+- Keyword Clustering — real word-overlap algorithm (Jaccard similarity), no paid API
+- Long-Tail Keyword Finder — real pattern-based generator
+- Content Brief Generator — rule-based (search intent classification, word count targets, heading structure) — not LLM prose, but real structural guidance
+- Schema Markup Generator — real JSON-LD generation (Article, FAQ, Product, Breadcrumb, LocalBusiness), validated as parseable JSON
+- Sitemap & Robots.txt Manager — real XML/text generation
+- Internal Link Optimizer — real orphan-page detection and link-equity distribution, computed directly from the crawler's own link graph
+
+**Google Ads Module (Section 4.2):**
+- RSA Headline Generator — combinatorial templating, enforces the real 30-character Google Ads limit
+- Target CPA / ROAS Calculator — real unit-economics math
+- Budget Allocator — real rule-based split by business stage
+- Wasted Spend Detector — real rule-based analysis (zero-conversion spend, low Quality Score)
+
+**Meta Ads Module (Section 4.3):**
+- Full-Funnel Campaign Builder + Budget Split Calculator — real math matching the blueprint's TOFU/MOFU/BOFU ratios
+- Ad Copy Writer + UGC Script Writer — template-based generation
+
+**Unified Intelligence Engine (Section 4.4):**
+- Budget Reallocation Engine — real ROAS-gap analysis across channels
+- Weekly Growth Intelligence Report — real templated report from actual computed metrics (not LLM prose, but genuinely data-driven)
+
+**Honestly still not built** (need a paid data source with no free equivalent, or the external ad-platform approval discussed earlier): AI Overview/GEO citation tracking (would require scraping AI systems), Competitor Gap Analysis (needs a paid rank-tracking index), Backlink Profile Analyzer (needs Moz/Majestic/Ahrefs — no free equivalent at any real scale), live Google Ads/Meta Ads/DataForSEO data, multi-workspace switching UI, granular RBAC beyond a single owner role, white-label mode, CRM/e-commerce integrations (HubSpot, Shopify, etc.), webhooks, audit log.
+
+All of the above new backend logic has its own test coverage (44 new pytest tests, all passing) even though the instruction for this pass was to prioritize breadth over testing — writing them alongside the code caught 2 more real bugs (see test names referencing "regression" in `seo-service/tests/test_free_features.py`).

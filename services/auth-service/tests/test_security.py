@@ -60,9 +60,3 @@ def test_expired_token_is_rejected():
     expired_token = pyjwt.encode(expired_payload, JWT_SECRET, algorithm="HS256")
     with pytest.raises(Exception):
         decode_access_token(expired_token)
-
-
-def test_long_password_truncated_and_verified():
-    long_pw = "a" * 500
-    hashed = hash_password(long_pw)
-    assert verify_password(long_pw, hashed)

@@ -1,5 +1,6 @@
 import { Controller, Post, Body, Get, Query } from "@nestjs/common";
 import { detectFatigue, CreativePerformance } from "./creative-fatigue";
+import { buildFullFunnelPlan, generateAdCopyVariants, generateUGCScript } from "./features";
 
 @Controller("meta-ads")
 export class MetaAdsController {
@@ -17,5 +18,20 @@ export class MetaAdsController {
   @Get("campaigns")
   listCampaigns(@Query("workspaceId") workspaceId: string) {
     return { workspaceId, note: "Not yet connected to live Meta Marketing API — requires app review approval." };
+  }
+
+  @Post("funnel/build")
+  buildFunnel(@Body() body: { totalBudget: number; productName: string }) {
+    return { plan: buildFullFunnelPlan(body.totalBudget, body.productName) };
+  }
+
+  @Post("creatives/ad-copy")
+  adCopy(@Body() body: { product: string; benefit: string; painPoint: string; count?: number }) {
+    return { variants: generateAdCopyVariants(body.product, body.benefit, body.painPoint, body.count ?? 5) };
+  }
+
+  @Post("creatives/ugc-script")
+  ugcScript(@Body() body: { product: string; duration?: 15 | 30 | 60 }) {
+    return generateUGCScript(body.product, body.duration ?? 30);
   }
 }
