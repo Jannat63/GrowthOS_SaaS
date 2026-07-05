@@ -1,7 +1,7 @@
 # GrowthOS — Master Progress Dashboard
 
-Overall status: **🟨 In progress** — M0 nearly complete; M1 next (mostly blocked on the Neon
-connection string); M2–M4 not started.  ·  Updated: 2026-07-05
+Overall status: **🟨 In progress** — M0 done; M1 underway (Neon connected, P1.1 complete, Better Auth
+next); M2–M4 not started.  ·  Updated: 2026-07-05
 
 Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked (note blocker)
 
@@ -13,13 +13,13 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blo
 | P0.2 | API + web scaffold | [x] | Turborepo + `packages/config`; Fastify `/health` verified; `apps/web` builds. |
 | P0.3 | Planning system | [~] | This `docs/plan/` structure. |
 
-## M1 — Platform Spine  ⬜ Not started
+## M1 — Platform Spine  🟨 In progress
 
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
-| P1.1 | packages/db (Drizzle + Neon) | [!] | Blocked: Neon connection string. |
-| P1.2 | Better Auth + workspaces | [!] | Blocked: Neon connection string. |
-| P1.3 | Fastify domain skeleton | [!] | Blocked: Neon URL for full verify. |
+| P1.1 | packages/db (Drizzle + Neon) | [x] | Tenancy schema live on Neon; migration applied; write/read verified. |
+| P1.2 | Better Auth + workspaces | [ ] | Unblocked. Next up. |
+| P1.3 | Fastify domain skeleton | [ ] | Unblocked. Depends on P1.2. |
 | P1.4 | Web re-point to api | [ ] | Depends on P1.2. |
 | P1.5 | shadcn/ui foundation | [ ] | No Neon needed — parallelizable, can start anytime. |
 
@@ -64,7 +64,7 @@ Gate: 2,000 users / MRR >$200K.
 
 | Blocker | Affects |
 |---------|---------|
-| Neon connection string | P1.1, P1.2, P1.3, most of M2 |
+| ~~Neon connection string~~ | ✅ Resolved 2026-07-05 — connected, P1.1 live. |
 | Python 3.12 (current is 3.14) | P2.1 |
 | Docker not installed (local ClickHouse) | P2.1 |
 | Upstash Redis account (job broker) | P2.1 |
