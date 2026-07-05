@@ -31,7 +31,9 @@ root (live). Reusing legacy logic means porting/copying it into the new structur
    - **D3** **Maximize free tiers.** ClickHouse runs locally via Docker in dev (Cloud deferred); Upstash Kafka deferred.
    - **D4** **Claude/Anthropic API deferred.** Content briefs, recommendation text, and reports use
      deterministic/template logic. Claude is optional behind a flag (`ANTHROPIC_API_KEY`); it must fall back cleanly.
-   - **D5** Existing frontend is **carried forward, migrated incrementally** — not rebuilt.
+   - **D5** Frontend is **rebuilt fresh** on the blueprint stack (Next 15 / React 19 / Tailwind v4 /
+     shadcn), in slices — *not* carried forward (this reverses the original D5). Tested `lib/logic`
+     engines are ported unchanged; the backend auth in `apps/api` is kept. `/legacy` stays as reference.
    - **D6** **shadcn/ui is the component layer, used maximally.** New UI is shadcn-first; shared components go in `packages/ui`.
 3. **`docs/plan/`** — the living **Milestone → Phase → Subphase** tracker with a `progress.md` at every level.
    Start at `docs/plan/PROGRESS.md` for current status. When you do work, tick the subphase checkboxes in the
@@ -42,13 +44,20 @@ root (live). Reusing legacy logic means porting/copying it into the new structur
 
 ## Current state of the new build (what exists vs. not)
 
-- `apps/api` — Fastify v5 skeleton. **Only `GET /health` exists.** No DB, no auth, no domain routes yet.
-- `apps/web` — the legacy Next.js 15 / React 19 frontend **carried forward verbatim** (80+ pages, builds).
-  It still uses its **old API client** (`lib/api/client.ts`: localStorage JWT, points at the old `:8000`
-  gateway) with a live→mock fallback in `lib/hooks/*`. It is **not yet re-pointed to `apps/api` or on Better Auth** (that is milestone M1, phase P1.4).
+- `apps/api` — Fastify v5. `GET /health` plus **Better Auth mounted at `/api/auth/*`** (email/password +
+  organization plugin → workspaces). `apps/api/src/auth.ts` wires it to Neon via Drizzle. **No `/api/v1`
+  domain routes yet** (that's P1.3).
+- `apps/web` — **rebuilt fresh** on Next 15 / React 19 / **Tailwind v4** / shadcn (the old carried-forward
+  app was reset; `/legacy/apps/web` keeps the reference). **Slice 1 shipped:** design system (theme tokens
+  in `styles/globals.css`), landing page (`app/(marketing)`), and the full auth + onboarding flow
+  (`app/(auth)`) wired to Better Auth via `lib/auth/client.ts`. Dashboard modules are later slices. The
+  live→mock data hooks (`lib/hooks`) are **not rebuilt yet** — they return in the dashboard slices (P1.4b).
+- `packages/db` — Drizzle + Neon; Better Auth tables + tenancy (`workspaces`, `workspace_members`,
+  `platform_connections`). Migrations in `packages/db/drizzle`.
+- `packages/ui` — `@growthos/ui`, shared shadcn primitives (button, input, card, dialog, dropdown-menu,
+  table, tabs, sonner, label), consumed via `transpilePackages`.
 - `packages/config` — shared TypeScript base config only.
-- **Not created yet:** `packages/db`, `packages/types`, `packages/ui`, `apps/worker` (Python/Celery). These
-  are upcoming M1/M2 phases — check `docs/plan/` before assuming they exist.
+- **Not created yet:** `packages/types`, `apps/worker` (Python/Celery). Check `docs/plan/` before assuming.
 
 The canonical business logic lives in **`apps/web/lib/logic/*`** (6 pure, tested TS engines: `seo-scoring`,
 `search-terms-bridge`, `creative-fatigue`, `cross-channel-engine`, `blended-mer`, `goal-simulator`). The same
@@ -91,8 +100,11 @@ To exercise an `apps/api` route without opening a port, build then use Fastify's
   (e.g. `import { buildApp } from './app.js'`) even though the source is `.ts` — required by NodeNext/ESM and
   it will fail to build otherwise. Keep `app.ts` (routes/plugins, exercisable via `inject()`) separate from
   `index.ts` (the `listen` entrypoint).
-- **`apps/web` is still Tailwind v3 + ad-hoc components.** Migrating it to shadcn/ui + Tailwind v4 (D6) is
-  planned work — follow `docs/plan/` M1 P1.5, don't do it ad hoc.
+- **`apps/web` is Tailwind v4 + shadcn** (rebuilt fresh — D5/D6). Theme tokens (color/radius/shadow/font,
+  incl. the indigo `--primary` / green `--success` / deep-indigo `--ink` brand set) live in
+  `apps/web/styles/globals.css` and are consumed as utilities — **never hardcode hex in components**.
+  Fonts: Space Grotesk (display, `font-display`) + Inter (body), via `next/font`. Shared primitives come
+  from `@growthos/ui`; app-specific compositions stay in `apps/web`.
 - **Workspace isolation** is by `workspace_id` at the application layer (Fastify), not Postgres RLS (see D1).
   Every data endpoint is nested under `/workspaces/:id/...` and guarded by workspace membership + role.
 

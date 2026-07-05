@@ -1,7 +1,8 @@
 # GrowthOS — Master Progress Dashboard
 
-Overall status: **🟨 In progress** — M0 done; M1 underway (Neon connected, P1.1 complete, Better Auth
-next); M2–M4 not started.  ·  Updated: 2026-07-05
+Overall status: **🟨 In progress** — M0 done; M1 mostly done (auth + workspaces live; frontend rebuilt
+fresh — Slice 1: design system, landing, auth/onboarding verified browser→Neon). Remaining M1: P1.3
+(`/api/v1` domain skeleton) then P1.4b (data re-point). M2–M4 not started.  ·  Updated: 2026-07-05
 
 Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked (note blocker)
 
@@ -15,13 +16,17 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blo
 
 ## M1 — Platform Spine  🟨 In progress
 
-| Phase | Name | Status | Notes |
-|-------|------|--------|-------|
-| P1.1 | packages/db (Drizzle + Neon) | [x] | Tenancy schema live on Neon; migration applied; write/read verified. |
-| P1.2 | Better Auth + workspaces | [ ] | Unblocked. Next up. |
-| P1.3 | Fastify domain skeleton | [ ] | Unblocked. Depends on P1.2. |
-| P1.4 | Web re-point to api | [ ] | Depends on P1.2. |
-| P1.5 | shadcn/ui foundation | [ ] | No Neon needed — parallelizable, can start anytime. |
+Rows in **execution order** (UI-front-loaded now that auth is done: shadcn → landing → login). IDs stable.
+
+| # | Phase | Name | Layer | Status | Notes |
+|---|-------|------|-------|--------|-------|
+| 1 | P1.1 | packages/db (Drizzle + Neon) | 🔧 BE | [x] | Tenancy schema live on Neon; migration applied; write/read verified. |
+| 2 | P1.2 | Better Auth + workspaces | 🔧 BE | [x] | Live on Neon; sign-up + create-workspace(owner) verified. |
+| 3 | P1.5 | shadcn/ui foundation | 🎨 FE | [x] | Via Frontend Rebuild Slice 1 (`packages/ui`, Tailwind v4 tokens). |
+| 4 | P1.6 | Landing page | 🎨 FE | [x] | Via Slice 1 — redesigned (loop signature, bento, ink bands). |
+| 5 | P1.4a | Web login | 🎨 FE | [x] | Via Slice 1 — auth + onboarding; browser→Neon verified. |
+| 6 | P1.3 | Fastify domain skeleton | 🔧 BE | [ ] | **Next.** `/api/v1` routes, workspace guard, `packages/types`. |
+| 7 | P1.4b | Web data re-point | 🎨 FE | [ ] | Rebuild data hooks → `/api/v1`; live→mock fallback. Depends on P1.3. |
 
 ## M2 — MVP: The Insight Loop  ⬜ Not started
 

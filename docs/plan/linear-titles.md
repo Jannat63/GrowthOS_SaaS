@@ -13,7 +13,7 @@ Turborepo root + `packages/config`; Fastify `apps/api` with `/health` verified; 
 `docs/plan/` milestone→phase→subphase tracker + `progress.md` at every level; CLAUDE.md.
 
 ## M1 — Platform Spine
-Real database, real auth, shared packages, and the frontend wired to the new Fastify API.
+Real database, real auth, shared packages, and the frontend wired to the new Fastify API. Note: P1.5 (shadcn), P1.6 (landing) and P1.4a (login) were delivered together as **Frontend Rebuild Slice 1** (fresh Next 15 / Tailwind v4 / shadcn app — D5 reversed). Remaining M1: P1.3 then P1.4b.
 
 - P1.1 — packages/db (Drizzle + Neon)
 Create `packages/db`: drizzle-orm + `@neondatabase/serverless` + drizzle-kit; Neon client; tenancy schema (workspaces, workspace_members, platform_connections) reconciled with Better Auth tables; generate + push migration.
@@ -21,14 +21,20 @@ Create `packages/db`: drizzle-orm + `@neondatabase/serverless` + drizzle-kit; Ne
 - P1.2 — Better Auth + workspaces
 better-auth in `apps/api` with Drizzle/Neon adapter, email/password; organization plugin → workspaces/members/roles; mount `/api/auth/*`; secrets.
 
+- P1.5 — shadcn/ui foundation
+Init shadcn in `apps/web`; create `packages/ui`; decide Tailwind v3→v4; add core primitives (button, input, card, dialog, dropdown, table, tabs, toast) replacing existing `components/ui`. (Prerequisite for the landing page.)
+
+- P1.6 — Landing page
+Public marketing homepage at `/` (replace the `/welcome` redirect): hero, per-channel feature sections (SEO / Google Ads / Meta Ads), how-it-works, pricing teaser, social proof, footer, CTAs → sign-up/sign-in. Built shadcn-first; placeholder brand/copy the user swaps later.
+
+- P1.4a — Web login
+Better Auth React client on `apps/web` pointed at Fastify; wire sign-in/up pages to real auth; back `middleware.ts` with the Better Auth session; retire the legacy localStorage-JWT path.
+
 - P1.3 — Fastify domain skeleton
 Plugins (db, session-verify, cors, typed error envelope); `requireWorkspaceMember(role)` guard; routes `GET /api/v1/auth/me`, `POST/GET /workspaces`, `GET /workspaces/:id/connections`; zod validation; start `packages/types`.
 
-- P1.4 — Web re-point to API
-Swap `lib/api/client.ts` to Fastify `/api/v1`; replace localStorage-JWT with Better Auth client; update sign-in/up pages; `middleware.ts` on Better Auth session; keep live→mock fallback.
-
-- P1.5 — shadcn/ui foundation
-Init shadcn in `apps/web`; create `packages/ui`; decide Tailwind v3→v4; add core primitives (button, input, card, dialog, dropdown, table, tabs, toast) replacing existing `components/ui`.
+- P1.4b — Web data re-point
+Swap `lib/api/client.ts` base to Fastify `/api/v1`; point the dashboard data hooks at the real endpoints; keep the live→mock fallback + DataSourceBadge.
 
 ## M2 — MVP: The Insight Loop
 Prove the cross-channel insight loop end-to-end and reach launch readiness: onboarding → cross-channel recommendations → MER dashboard → subscribe.

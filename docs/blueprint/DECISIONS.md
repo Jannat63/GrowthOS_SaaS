@@ -51,9 +51,15 @@ These decisions were made while restructuring the existing GrowthOS build onto t
 - The existing codebase is preserved under **`/legacy`** in the `GrowthOS_SaaS` repo (reference-only).
 - The new **Turborepo + pnpm** structure is built at the repo root (`apps/web`, `apps/api`,
   `apps/worker`, `packages/*`) per ARCHITECTURE.md.
-- The existing **frontend is carried forward** (not rebuilt) and migrated incrementally: re-pointed to
-  the new Fastify api, adopting shadcn/ui + Tailwind v4 over time.
-- Full detail: `GrowthOS_SaaS/docs/superpowers/specs/2026-07-05-restructure-design.md`.
+- **The frontend is rebuilt fresh** on the blueprint stack (Next 15 / React 19 / **Tailwind v4** /
+  shadcn), **in slices** — not carried forward. The tested `lib/logic` engines (+ their tests) are
+  **ported in unchanged** and the working backend auth (`apps/api`) is kept as-is; the fresh frontend
+  is built against them rather than retyped. `/legacy` remains the visual/behavioral reference.
+  - **Superseded (2026-07-05):** the original D5 said the frontend was *carried forward and migrated
+    incrementally*. After the carried-forward `apps/web` proved not worth migrating, we reset it and
+    rebuilt fresh. Slice 1 = design system + landing page + full auth/onboarding flow.
+- Full detail: `GrowthOS_SaaS/docs/superpowers/specs/2026-07-05-restructure-design.md` (original) and
+  `.../2026-07-05-frontend-rebuild-design.md` (the rebuild).
 
 ## D6 — UI: shadcn/ui, used maximally
 
