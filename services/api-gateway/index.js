@@ -43,6 +43,7 @@ app.use((req, res, next) => {
 const routes = {
   "/api/auth": { target: "http://localhost:8006", addPrefix: "/auth" },
   "/api/keywords": { target: "http://localhost:8001", addPrefix: "/keywords" },
+  "/api/seo": { target: "http://localhost:8001", addPrefix: "/seo" },
   "/api/google-ads": { target: "http://localhost:8002", addPrefix: "/google-ads" },
   "/api/meta-ads": { target: "http://localhost:8003", addPrefix: "/meta-ads" },
   "/api/intelligence": { target: "http://localhost:8004", addPrefix: "/intelligence" },

@@ -1,8 +1,15 @@
+"use client";
+
+import { useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { ModuleTabs } from "@/components/layout/ModuleTabs";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { siteAuditIssues } from "@/lib/mock-data/seo";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
+import { Loader2, Search } from "lucide-react";
+import { api } from "@/lib/api/client";
 
 const tabs = [
   { label: "Overview", href: "/seo" },
@@ -15,49 +22,105 @@ const tabs = [
   { label: "AI Citations", href: "/seo/ai-citations" },
 ];
 
+interface CrawledPage {
+  url: string;
+  statusCode: number | null;
+  title: string | null;
+  wordCount: number;
+  h1Count: number;
+  hasCanonical: boolean;
+  issues: string[];
+}
+
 export default function SiteAuditPage() {
-  const allIssues = [...siteAuditIssues.critical, ...siteAuditIssues.warnings, ...siteAuditIssues.notices];
+  const [url, setUrl] = useState("https://github.com/about");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [results, setResults] = useState<CrawledPage[] | null>(null);
+
+  async function runAudit() {
+    setLoading(true);
+    setError(null);
+    setResults(null);
+    try {
+      const res = await api.post<{ pagesAudited: number; pages: CrawledPage[] }>("/api/seo/audit/crawl", {
+        startUrl: url,
+        maxPages: 8,
+      });
+      setResults(res.pages);
+    } catch (e) {
+      setError("Couldn't crawl that URL — is the backend running, and is the URL reachable?");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const totalIssues = results?.reduce((sum, p) => sum + p.issues.length, 0) ?? 0;
 
   return (
     <div>
-      <TopBar subtitle="Full site crawl results — broken links, meta issues, crawlability." />
+      <TopBar subtitle="Real site crawl — fetches live pages and inspects them for real SEO issues." />
       <ModuleTabs items={tabs} />
       <div className="p-6 space-y-6">
-        <div className="grid grid-cols-4 gap-4">
-          <Card className="flex flex-col items-center justify-center py-6">
-            <div className="text-display-1 text-success">{siteAuditIssues.score}</div>
-            <div className="text-small text-neutral">Site Health Score</div>
-          </Card>
-          <Card className="flex flex-col items-center justify-center py-6">
-            <div className="text-display-2 text-danger">{siteAuditIssues.critical.reduce((s, i) => s + i.pages, 0)}</div>
-            <div className="text-small text-neutral">Critical Issues</div>
-          </Card>
-          <Card className="flex flex-col items-center justify-center py-6">
-            <div className="text-display-2 text-warning">{siteAuditIssues.warnings.reduce((s, i) => s + i.pages, 0)}</div>
-            <div className="text-small text-neutral">Warnings</div>
-          </Card>
-          <Card className="flex flex-col items-center justify-center py-6">
-            <div className="text-display-2 text-success">{siteAuditIssues.passed.toLocaleString()}</div>
-            <div className="text-small text-neutral">Passed Checks</div>
-          </Card>
-        </div>
-
         <Card>
-          <div className="text-heading-2 mb-4">All Issues</div>
-          <div className="space-y-2">
-            {allIssues.map((i) => (
-              <div key={i.issue} className="flex items-center justify-between border border-slate-100 rounded-lg p-3">
-                <div className="text-body">{i.issue}</div>
-                <div className="flex items-center gap-3">
-                  <span className="text-small text-neutral">{i.pages} pages</span>
-                  <Badge tone={i.severity === "Critical" ? "danger" : i.severity === "Warning" ? "warning" : "neutral"}>
-                    {i.severity}
-                  </Badge>
-                </div>
-              </div>
-            ))}
+          <div className="text-heading-2 mb-3">Run a Real Site Audit</div>
+          <p className="text-body text-neutral mb-4">
+            This actually crawls the URL you enter — no mock data. It fetches up to 8 pages, following internal links, and checks for broken links, missing meta tags, thin content, and more.
+          </p>
+          <div className="flex gap-3">
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" leftIcon={<Search className="h-4 w-4" />} className="flex-1" />
+            <Button onClick={runAudit} loading={loading}>Run Audit</Button>
           </div>
         </Card>
+
+        {error && <Alert type="error" message={error} onDismiss={() => setError(null)} />}
+
+        {loading && (
+          <div className="flex items-center justify-center py-16 text-neutral">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Crawling live pages...
+          </div>
+        )}
+
+        {results && (
+          <>
+            <div className="grid grid-cols-3 gap-4">
+              <Card className="text-center py-6">
+                <div className="text-display-2">{results.length}</div>
+                <div className="text-small text-neutral">Pages Crawled</div>
+              </Card>
+              <Card className="text-center py-6">
+                <div className="text-display-2 text-danger">{totalIssues}</div>
+                <div className="text-small text-neutral">Issues Found</div>
+              </Card>
+              <Card className="text-center py-6">
+                <div className="text-display-2 text-success">{results.filter((p) => p.issues.length === 0).length}</div>
+                <div className="text-small text-neutral">Clean Pages</div>
+              </Card>
+            </div>
+
+            <Card>
+              <div className="text-heading-2 mb-4">Page-by-Page Results</div>
+              <div className="space-y-3">
+                {results.map((p) => (
+                  <div key={p.url} className="border border-slate-100 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-body font-medium truncate max-w-md">{p.url}</span>
+                      <Badge tone={p.statusCode && p.statusCode < 400 ? "success" : "danger"}>{p.statusCode ?? "Failed"}</Badge>
+                    </div>
+                    <div className="text-caption text-neutral mb-2">{p.title || "No title"} · {p.wordCount} words</div>
+                    {p.issues.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {p.issues.map((issue, i) => <Badge key={i} tone="warning">{issue}</Badge>)}
+                      </div>
+                    ) : (
+                      <Badge tone="success">No issues found</Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </>
+        )}
       </div>
     </div>
   );
