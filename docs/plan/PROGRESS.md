@@ -1,8 +1,8 @@
 # GrowthOS — Master Progress Dashboard
 
-Overall status: **🟨 In progress** — M0 done; M1 mostly done (auth + workspaces live; frontend rebuilt
-fresh — Slice 1: design system, landing, auth/onboarding verified browser→Neon). Remaining M1: P1.3
-(`/api/v1` domain skeleton) then P1.4b (data re-point). M2–M4 not started.  ·  Updated: 2026-07-05
+Overall status: **🟨 In progress** — M0 done; **M1 spine complete** (Neon + Better Auth + workspaces;
+fresh frontend Slice 1; `/api/v1` domain skeleton with workspace guard, all verified). Only P1.4b (data
+re-point) remains and is deferred until dashboard pages exist. M2–M4 not started.  ·  Updated: 2026-07-05
 
 Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked (note blocker)
 
@@ -25,8 +25,8 @@ Rows in **execution order** (UI-front-loaded now that auth is done: shadcn → l
 | 3 | P1.5 | shadcn/ui foundation | 🎨 FE | [x] | Via Frontend Rebuild Slice 1 (`packages/ui`, Tailwind v4 tokens). |
 | 4 | P1.6 | Landing page | 🎨 FE | [x] | Via Slice 1 — redesigned (loop signature, bento, ink bands). |
 | 5 | P1.4a | Web login | 🎨 FE | [x] | Via Slice 1 — auth + onboarding; browser→Neon verified. |
-| 6 | P1.3 | Fastify domain skeleton | 🔧 BE | [ ] | **Next.** `/api/v1` routes, workspace guard, `packages/types`. |
-| 7 | P1.4b | Web data re-point | 🎨 FE | [ ] | Rebuild data hooks → `/api/v1`; live→mock fallback. Depends on P1.3. |
+| 6 | P1.3 | Fastify domain skeleton | 🔧 BE | [x] | `/api/v1` + member guard + `@growthos/types`; verified (member/403/401). |
+| 7 | P1.4b | Web data re-point | 🎨 FE | [ ] | Deferred — needs dashboard pages (later slice). Not blocking M1 exit. |
 
 ## M2 — MVP: The Insight Loop  ⬜ Not started
 

@@ -1,7 +1,9 @@
-import Fastify, { type FastifyInstance } from 'fastify'
+import Fastify, { type FastifyInstance, type FastifyError } from 'fastify'
 import cors from '@fastify/cors'
 import { fromNodeHeaders } from 'better-auth/node'
 import { auth } from './auth.js'
+import { AppError } from './errors.js'
+import { registerV1Routes } from './routes/v1.js'
 
 /**
  * Build the Fastify app. Kept separate from `listen` so it can be exercised
@@ -15,9 +17,30 @@ export function buildApp(): FastifyInstance {
     credentials: true,
   })
 
+  // Typed error envelope: { error: { code, message, statusCode } } (see CLAUDE.md).
+  app.setErrorHandler((err: FastifyError, request, reply) => {
+    if (err instanceof AppError) {
+      return reply
+        .status(err.statusCode)
+        .send({ error: { code: err.code, message: err.message, statusCode: err.statusCode } })
+    }
+    if (err.validation) {
+      return reply
+        .status(400)
+        .send({ error: { code: 'VALIDATION_ERROR', message: err.message, statusCode: 400 } })
+    }
+    request.log.error(err)
+    return reply.status(500).send({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error', statusCode: 500 },
+    })
+  })
+
   app.get('/health', async () => {
     return { status: 'ok', service: 'api', time: new Date().toISOString() }
   })
+
+  // Versioned domain routes.
+  app.register(registerV1Routes)
 
   // Better Auth (D1) owns /api/auth/* — sign-up/in, sessions, and the organization
   // (workspace) endpoints. Convert Fastify's req/reply to the Web Request/Response

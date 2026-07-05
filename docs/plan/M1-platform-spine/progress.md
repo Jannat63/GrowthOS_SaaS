@@ -1,6 +1,6 @@
 # M1 — Progress
 
-Status: [~]  ·  Updated: 2026-07-05
+Status: [~]  ·  Updated: 2026-07-05  —  P1.1–P1.3 + P1.4a/P1.5/P1.6 done; only P1.4b (data re-point) remains, and it's deferred until dashboard pages exist.
 
 Rows in **execution order** (interleaved BE↔FE — see README). IDs kept stable.
 
@@ -11,8 +11,8 @@ Rows in **execution order** (interleaved BE↔FE — see README). IDs kept stabl
 | 3 | P1.5 shadcn/ui foundation | 🎨 FE | [x] | Delivered via Frontend Rebuild Slice 1 (`packages/ui`, Tailwind v4, theme tokens). |
 | 4 | P1.6 Landing page | 🎨 FE | [x] | Delivered via Slice 1 — redesigned (loop signature, bento, ink bands). |
 | 5 | P1.4a Web login | 🎨 FE | [x] | Delivered via Slice 1 — sign-in/up + onboarding + middleware; browser→Neon verified. |
-| 6 | P1.3 Fastify domain skeleton | 🔧 BE | [ ] | **Next.** `/api/v1` routes + workspace guard + `packages/types`. |
-| 7 | P1.4b Web data re-point | 🎨 FE | [ ] | Rebuild dashboard data hooks → `/api/v1`; live→mock fallback. Depends on P1.3. |
+| 6 | P1.3 Fastify domain skeleton | 🔧 BE | [x] | `/api/v1` (auth/me, workspaces, connections) + member guard + `@growthos/types`; verified. |
+| 7 | P1.4b Web data re-point | 🎨 FE | [ ] | Deferred — needs dashboard pages (a later slice). Not blocking M1 exit. |
 
 ## Log
 
@@ -32,3 +32,7 @@ Rows in **execution order** (interleaved BE↔FE — see README). IDs kept stabl
   shipped: fresh Next 15 / Tailwind v4 / shadcn app, `packages/ui`, theme tokens, redesigned landing
   page, and the full auth + onboarding flow. Browser sign-up + create-workspace verified against Neon.
   This completes **P1.5, P1.6, and P1.4a**. Remaining M1: **P1.3** (domain routes) then **P1.4b**.
+- 2026-07-05 — **P1.3 done**: `@growthos/types`, typed error envelope, session-verify, the
+  `requireWorkspaceMember` guard, and the `/api/v1` routes (auth/me, workspaces, connections) with zod.
+  Verified member/non-member (403)/unauth (401). Only **P1.4b** remains (deferred — needs dashboard
+  pages), so M1's spine is effectively complete.

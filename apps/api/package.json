@@ -12,8 +12,11 @@
   "dependencies": {
     "@fastify/cors": "^10.0.1",
     "@growthos/db": "workspace:*",
+    "@growthos/types": "workspace:*",
     "better-auth": "1.4.21",
-    "fastify": "^5.1.0"
+    "drizzle-orm": "^0.38.3",
+    "fastify": "^5.1.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@better-auth/cli": "1.4.21",
