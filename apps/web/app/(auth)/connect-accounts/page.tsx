@@ -1,46 +1,81 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Search, BadgeDollarSign, Instagram, BarChart3, Globe } from "lucide-react";
-import { Button } from "@/components/ui/Button";
 
-const platforms = [
-  { name: "Google Search Console", icon: Search },
-  { name: "Google Ads", icon: BadgeDollarSign },
-  { name: "Meta Ads (Facebook)", icon: Instagram },
-  { name: "Google Analytics 4", icon: BarChart3 },
-  { name: "Website", icon: Globe },
+import { useRouter } from "next/navigation";
+import { Search, MousePointerClick, Megaphone, ShoppingBag, Check } from "lucide-react";
+import { useOnboarding } from "@/lib/stores/onboarding";
+import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
+import { Button } from "@growthos/ui/components/button";
+
+const CHANNELS = [
+  { id: "google_search_console", name: "Search Console", desc: "Organic search & SEO", icon: Search },
+  { id: "google_ads", name: "Google Ads", desc: "Paid search & shopping", icon: MousePointerClick },
+  { id: "meta", name: "Meta Ads", desc: "Facebook & Instagram", icon: Megaphone },
+  { id: "shopify", name: "Shopify", desc: "Revenue & orders", icon: ShoppingBag },
 ];
 
 export default function ConnectAccountsPage() {
   const router = useRouter();
-  const [connected, setConnected] = useState<string[]>([]);
+  const { connected, toggleChannel } = useOnboarding();
 
   return (
-    <div className="max-w-sm w-full space-y-4">
-      <h1 className="text-heading-1">Connect your accounts</h1>
-      <p className="text-small text-neutral">You can add more later.</p>
-      <div className="space-y-2">
-        {platforms.map((p) => {
-          const Icon = p.icon;
-          const isConnected = connected.includes(p.name);
-          return (
-            <div key={p.name} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2.5">
-              <div className="flex items-center gap-2 text-sm"><Icon className="h-4 w-4 text-neutral" /> {p.name}</div>
+    <OnboardingShell step={2}>
+      <div className="rounded-2xl border bg-card p-8 shadow-sm">
+        <h1 className="font-display text-2xl font-semibold tracking-tight">
+          Connect your channels
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          The loop gets smarter with every channel you connect. You can add more
+          later.
+        </p>
+
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          {CHANNELS.map(({ id, name, desc, icon: Icon }) => {
+            const isOn = connected.includes(id);
+            return (
               <button
-                onClick={() => setConnected((c) => (isConnected ? c.filter((n) => n !== p.name) : [...c, p.name]))}
-                className={`text-small font-medium ${isConnected ? "text-success" : "text-primary"}`}
+                key={id}
+                type="button"
+                onClick={() => toggleChannel(id)}
+                aria-pressed={isOn}
+                className={[
+                  "flex items-center gap-3 rounded-xl border p-4 text-left transition-colors",
+                  isOn
+                    ? "border-primary bg-primary/5"
+                    : "hover:border-primary/40 hover:bg-muted/50",
+                ].join(" ")}
               >
-                {isConnected ? "Connected ✓" : "Connect"}
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-foreground">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold">{name}</span>
+                  <span className="block text-xs text-muted-foreground">{desc}</span>
+                </span>
+                <span
+                  className={[
+                    "flex h-6 w-6 items-center justify-center rounded-full border",
+                    isOn
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border text-transparent",
+                  ].join(" ")}
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </span>
               </button>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+
+        {/* OAuth connect flows are wired up in a later milestone (M2). */}
+        <div className="mt-8 flex items-center justify-between">
+          <Button variant="ghost" onClick={() => router.push("/create-workspace")}>
+            Skip for now
+          </Button>
+          <Button onClick={() => router.push("/create-workspace")}>
+            Continue{connected.length > 0 ? ` (${connected.length})` : ""}
+          </Button>
+        </div>
       </div>
-      <div className="flex justify-between pt-2">
-        <button className="text-small text-neutral" onClick={() => router.push("/business-info")}>Skip for now</button>
-        <Button onClick={() => router.push("/business-info")}>Continue</Button>
-      </div>
-    </div>
+    </OnboardingShell>
   );
 }

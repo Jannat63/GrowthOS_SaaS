@@ -1,34 +1,35 @@
+"use client";
+
 import Link from "next/link";
-import { Hexagon, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { ArrowRight, Repeat } from "lucide-react";
+import { useSession } from "@/lib/auth/client";
+import { Button } from "@growthos/ui/components/button";
 
 export default function WelcomePage() {
-  const points = [
-    "AI-powered recommendations",
-    "Cross-channel insights",
-    "Unified analytics & reporting",
-    "Save time. Get more growth.",
-  ];
+  const { data: session } = useSession();
+  const firstName = session?.user?.name?.split(" ")[0];
+
   return (
-    <div className="max-w-md w-full text-center space-y-6">
-      <div className="flex items-center justify-center gap-2">
-        <Hexagon className="h-7 w-7 text-primary" fill="currentColor" strokeWidth={0} />
-        <span className="font-semibold text-lg">GrowthOS</span>
-      </div>
-      <h1 className="text-display-2">One Platform. All Channels. Unlimited Growth.</h1>
-      <p className="text-body text-neutral">
-        GrowthOS unifies SEO, Google Ads, and Meta Ads in one intelligent growth operating system.
-      </p>
-      <ul className="text-left space-y-2 inline-block">
-        {points.map((p) => (
-          <li key={p} className="flex items-center gap-2 text-body">
-            <CheckCircle2 className="h-4 w-4 text-success" /> {p}
-          </li>
-        ))}
-      </ul>
-      <div className="flex flex-col gap-3 pt-2">
-        <Link href="/sign-up"><Button className="w-full">Get Started Free</Button></Link>
-        <Button variant="secondary" className="w-full">Book a Demo</Button>
+    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-6">
+      <div className="w-full max-w-lg rounded-2xl border bg-card p-10 text-center shadow-sm">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+          <Repeat className="h-6 w-6" />
+        </span>
+        <h1 className="mt-6 font-display text-3xl font-semibold tracking-tight">
+          {firstName ? `Welcome, ${firstName}.` : "Welcome to GrowthOS."}
+        </h1>
+        <p className="mt-3 text-muted-foreground">
+          Let&rsquo;s set up your workspace and connect your first channels. It
+          takes about three minutes, and you can change anything later.
+        </p>
+        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <Button asChild size="lg" className="group">
+            <Link href="/business-info">
+              Set up my workspace
+              <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          </Button>
+        </div>
       </div>
     </div>
   );

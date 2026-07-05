@@ -1,21 +1,101 @@
 "use client";
+
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+import { authClient } from "@/lib/auth/client";
+import { useOnboarding } from "@/lib/stores/onboarding";
+import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
+import { Button } from "@growthos/ui/components/button";
+import { Input } from "@growthos/ui/components/input";
+import { Label } from "@growthos/ui/components/label";
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 export default function CreateWorkspacePage() {
   const router = useRouter();
+  const businessName = useOnboarding((s) => s.businessName);
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Seed from onboarding state once it's available.
+  useEffect(() => {
+    if (businessName && !name) {
+      setName(businessName);
+      setSlug(slugify(businessName));
+    }
+  }, [businessName, name]);
+
+  function onNameChange(value: string) {
+    setName(value);
+    if (!slugEdited) setSlug(slugify(value));
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    const { error } = await authClient.organization.create({ name, slug });
+    setLoading(false);
+    if (error) {
+      toast.error(error.message ?? "Could not create the workspace.");
+      return;
+    }
+    router.push("/onboarding-complete");
+  }
+
   return (
-    <div className="max-w-sm w-full space-y-4">
-      <h1 className="text-heading-1">Let's create your workspace</h1>
-      <p className="text-small text-neutral">This will be the home for your projects and team.</p>
-      <Input placeholder="Workspace name" defaultValue="Acme Marketing" />
-      <select className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm">
-        <option>Marketing Agency</option>
-        <option>E-commerce Business</option>
-        <option>In-house Team</option>
-      </select>
-      <Button className="w-full" onClick={() => router.push("/connect-accounts")}>Continue</Button>
-    </div>
+    <OnboardingShell step={3}>
+      <div className="rounded-2xl border bg-card p-8 shadow-sm">
+        <h1 className="font-display text-2xl font-semibold tracking-tight">
+          Name your workspace
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          This is where your channels, insights, and team live.
+        </p>
+
+        <form onSubmit={onSubmit} className="mt-8 space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="ws-name">Workspace name</Label>
+            <Input
+              id="ws-name"
+              value={name}
+              onChange={(e) => onNameChange(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ws-slug">Workspace URL</Label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">growthos.app/</span>
+              <Input
+                id="ws-slug"
+                value={slug}
+                onChange={(e) => {
+                  setSlugEdited(true);
+                  setSlug(slugify(e.target.value));
+                }}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button type="submit" disabled={loading || !name || !slug}>
+              {loading && <Loader2 className="animate-spin" />}
+              {loading ? "Creating…" : "Create workspace"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </OnboardingShell>
   );
 }

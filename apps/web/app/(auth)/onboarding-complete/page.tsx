@@ -1,22 +1,32 @@
-"use client";
-import { useRouter } from "next/navigation";
-import { PartyPopper } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import Link from "next/link";
+import { PartyPopper, ArrowRight } from "lucide-react";
+import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
+import { Button } from "@growthos/ui/components/button";
 
 export default function OnboardingCompletePage() {
-  const router = useRouter();
   return (
-    <div className="max-w-sm w-full text-center space-y-4">
-      <div className="h-16 w-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
-        <PartyPopper className="h-7 w-7" />
+    <OnboardingShell step={4}>
+      <div className="rounded-2xl border bg-card p-10 text-center shadow-sm">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-success/10 text-success">
+          <PartyPopper className="h-7 w-7" />
+        </span>
+        <h1 className="mt-6 font-display text-2xl font-semibold tracking-tight">
+          Your workspace is ready
+        </h1>
+        <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
+          GrowthOS is scanning your channels for the first cross-channel plays.
+          They&rsquo;ll appear on your dashboard shortly.
+        </p>
+        {/* The dashboard (/growth-hub) is built in a later slice; link is live-ready. */}
+        <div className="mt-8 flex justify-center">
+          <Button asChild size="lg" className="group">
+            <Link href="/growth-hub">
+              Go to dashboard
+              <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          </Button>
+        </div>
       </div>
-      <h1 className="text-heading-1">You're all set!</h1>
-      <p className="text-small text-neutral">Your workspace is ready. Let's start growing your business.</p>
-      <div className="rounded-xl border border-slate-200 p-4 inline-block">
-        <div className="text-small text-neutral">Your Growth Score is ready</div>
-        <div className="text-display-2 text-success">82</div>
-      </div>
-      <Button className="w-full" onClick={() => router.push("/growth-hub")}>Go to Growth Hub</Button>
-    </div>
+    </OnboardingShell>
   );
 }

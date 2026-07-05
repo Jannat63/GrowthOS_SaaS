@@ -1,32 +1,29 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { betterFetch } from "@better-fetch/fetch";
 
-const PUBLIC_PATHS = [
-  "/welcome",
-  "/sign-up",
-  "/sign-in",
-  "/verify-email",
-  "/create-workspace",
-  "/connect-accounts",
-  "/business-info",
-  "/onboarding-complete",
-  "/auth/google/complete",
-];
+type Session = { user?: { id: string } } | null;
 
-export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
-  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
-  const token = req.cookies.get("gos_token")?.value;
+export async function middleware(request: NextRequest) {
+  const { data: session } = await betterFetch<Session>(
+    "/api/auth/get-session",
+    {
+      baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001",
+      headers: { cookie: request.headers.get("cookie") ?? "" },
+    }
+  );
 
-  if (!isPublic && !token) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/welcome";
+  if (!session) {
+    const url = new URL("/sign-in", request.url);
     return NextResponse.redirect(url);
   }
-
   return NextResponse.next();
 }
 
 export const config = {
-  // Run on everything except static assets / API routes
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/business-info/:path*",
+    "/connect-accounts/:path*",
+    "/create-workspace/:path*",
+    "/onboarding-complete/:path*",
+  ],
 };
