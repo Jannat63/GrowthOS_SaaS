@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   GrowthOS Design Tokens — Phase 01 Foundation
+   ============================================ */
+:root {
+  /* Color System */
+  --color-primary: #4f46e5;
+  --color-primary-light: #818cf8;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-neutral: #64748b;
+
+  --color-ink: #0f172a; /* used in shadow rgba base + sidebar bg */
+  --color-sidebar: #0b1220;
+  --color-border: #e5e7eb;
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+
+  /* Gradient */
+  --gradient-primary: linear-gradient(90deg, #4f46e5 0%, #10b981 100%);
+
+  /* Spacing (8px base unit) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 6px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 10px 15px rgba(15, 23, 42, 0.1);
+  --shadow-xl: 0 20px 25px rgba(15, 23, 42, 0.12);
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Type scale — Phase 01 Typography */
+.text-display-1 {
+  font-size: 36px;
+  line-height: 44px;
+  font-weight: 700;
+}
+.text-display-2 {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 700;
+}
+.text-heading-1 {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+.text-heading-2 {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+}
+.text-body-lg {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+.text-body {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+.text-small {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+.text-caption {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 400;
+}
+
+/* Visible keyboard focus (accessibility floor) */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,6 @@
+fastapi==0.111.0
+uvicorn[standard]==0.30.0
+pydantic==2.7.0
+# google-ads==24.0.0   # uncomment once Google Ads API access is approved
+pytest==8.3.0
+pytest-mock==3.14.0
