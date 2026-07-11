@@ -37,13 +37,13 @@ Plugins (db, session-verify, cors, typed error envelope); `requireWorkspaceMembe
 Swap `lib/api/client.ts` base to Fastify `/api/v1`; point the dashboard data hooks at the real endpoints; keep the live→mock fallback + DataSourceBadge.
 
 ## M2 — MVP: The Insight Loop
-Prove the cross-channel insight loop end-to-end and reach launch readiness: onboarding → cross-channel recommendations → MER dashboard → subscribe.
+Build the whole basic app on SEEDED DATA and prove the cross-channel loop end-to-end: onboarding → cross-channel recommendations → act on them → MER dashboard. Each feature is a full vertical slice (worker + API + UI). NO billing (→ M5). NO real OAuth (→ M3 P3.0). Replanned 2026-07-12.
 
 - P2.1 — Worker & data plumbing
-`apps/worker` (Celery + Redis broker, FastAPI health); job pattern (Fastify → BullMQ → Celery → Neon → `202 {jobId}` + `/jobs/:jobId`); `background_jobs` table; local ClickHouse; platform_connections + OAuth.
+`apps/worker` (Celery + Redis broker, FastAPI health); job pattern via an explicit shared Redis contract — NOTE BullMQ and Celery are not wire-compatible, do not bridge them directly; `background_jobs` table; local SEEDED ClickHouse; SEEDED `platform_connections` stubs (real OAuth deferred to M3 P3.0). Prereqs: Python 3.12 (on 3.14), Docker, Upstash Redis.
 
 - P2.2 — Onboarding Wizard
-Onboarding fields on `workspaces`; wizard steps 1–7; site-crawler worker; channel-mix + 90-day strategy (deterministic templates); land on dashboard with 5 seeded recs.
+Onboarding fields on `workspaces`; 7-step wizard UI; site-crawler worker; channel-mix + 90-day strategy (deterministic templates); land on dashboard with 5 seeded recs.
 
 - P2.3 — Paid-to-Organic Bridge
 `recommendations` + `content_briefs` tables; search-terms scoring worker; `GET /workspaces/:id/google-ads/search-terms`; rule-based brief generator; Content Pipeline UI; dismiss/snooze/act.
@@ -55,16 +55,19 @@ Daily GSC top-pages worker; Meta creative-brief generator (templated); Creative 
 `meta_ad_sets` table; 4-hourly fatigue worker; alert (freq>3 & CTR −20% WoW); email + WebSocket `meta:fatigue_alert`; alert-card UI.
 
 - P2.6 — Blended MER Dashboard
-Revenue entry + Shopify pull; MER calc; `GET /analytics/mer` (ClickHouse + revenue); Recharts 30/60/90 trend; anomaly >15% WoW.
+Revenue entry; MER calc; `GET /analytics/mer` (seeded ClickHouse + revenue); Recharts 30/60/90 trend UI; anomaly >15% WoW. (Live Shopify pull deferred to M3.)
 
 - P2.7 — Unified Dashboard + notifications
 Growth-hub KPI cards; impact-sorted recommendation queue by `composite_score`; WebSocket notification center; real-time client.
 
-- P2.8 — Billing & launch readiness
-`subscriptions` + `usage_records`; Stripe checkout + webhook; metering + `PLAN_LIMIT_REACHED` (402); white-label PDF; security + perf pass; workspace settings.
+- P2.8 — Hardening & polish (no billing)
+Security pass (secret handling, workspace scoping, rate limiting); perf pass (<2s dashboards); workspace settings (invites/roles); optional white-label PDF (Puppeteer). Billing/Stripe MOVED to M5.
 
 ## M3 — V1: Full Channel Coverage
-Full depth on each channel. Gate to start: 500 users / MRR >$50K / agency tier.
+Full depth on each channel, and the app goes live-data. Gate to start: 500 users / MRR >$50K / agency tier.
+
+- P3.0 — Real platform integrations (OAuth)
+Real connect/disconnect + encrypted tokens for Google Ads / Meta / GSC / Shopify; live sync workers replacing the M2 seeded fixtures; account-registration paperwork (Meta App Review, Google Ads dev token — start early, they take weeks). Deferred out of M2 P2.1.
 
 - P3.1 — SEO module
 DataForSEO keywords, rank tracking, site audit, Core Web Vitals, clustering (pgvector), backlinks, schema, internal links, content editor, GEO citation tracker.
@@ -98,3 +101,18 @@ Daily AI-citation monitoring, competitor GEO, AEO recs, public REST API (Scale t
 
 - P4.5 — Mobile app
 iOS + Android (Expo/RN) dashboard, recommendations, push, mobile report viewer.
+
+## M5 — Launch & Monetization
+DEFERRED — not launching this season. The billing/launch work pulled out of M2 P2.8 so the basic app is built first. Independent of M3/M4 — pull forward when a launch is scheduled.
+
+- P5.1 — Billing core
+`subscriptions` + `usage_records` tables; Stripe checkout + webhook; trial→paid lifecycle (reuse `legacy/services/auth-service/billing.py` as spec).
+
+- P5.2 — Plan limits & metering
+Usage metering; `PLAN_LIMIT_REACHED` (HTTP 402) enforcement; in-app upgrade prompts.
+
+- P5.3 — Customer portal & lifecycle emails
+Stripe customer portal; Resend trial / dunning / receipt emails.
+
+- P5.4 — Launch readiness
+Final security + perf hardening beyond M2; legal/pricing pages; analytics; go-live checklist.

@@ -16,6 +16,12 @@ alert card and brief suggestions.
 - [ ] Build the alert-card UI + brief suggestions.
 - [ ] Track acted / ignored.
 
+## Frontend (vertical slice)
+
+- **Fatigue alert card** UI on shadcn — the fatiguing ad set, its brief suggestions, and acted /
+  ignored tracking; live-updates via the `meta:fatigue_alert` WebSocket event. Full states.
+- Runs on seeded `meta_ad_sets` fixtures in M2.
+
 ## Reuse
 
 - `apps/web/lib/logic/creative-fatigue.ts` → canonical fatigue logic.

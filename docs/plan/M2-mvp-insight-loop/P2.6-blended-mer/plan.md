@@ -16,6 +16,13 @@ channel breakdowns, and anomaly alerts.
 - [ ] Add anomaly detection > 15% WoW (WebSocket `analytics:mer_alert`).
 - [ ] Add annotations.
 
+## Frontend (vertical slice)
+
+- **MER dashboard** module on shadcn + Recharts — 30/60/90-day trend, channel breakdown, revenue
+  entry form, annotations, and the anomaly alert (`analytics:mer_alert`). Full loading/empty states.
+- Runs on seeded ClickHouse `ad_performance` + seeded revenue in M2. The live **Shopify pull** is
+  deferred to M3 (real integrations); M2 uses manual revenue entry + seeded revenue.
+
 ## Reuse
 
 - `apps/web/lib/logic/blended-mer.ts` → canonical MER calculation.

@@ -14,6 +14,13 @@ live WebSocket notification center.
 - [ ] Build the WebSocket notification center (`recommendation:new`, `job:complete`, …).
 - [ ] Wire the real-time client.
 
+## Frontend (vertical slice — FE-heavy)
+
+- The unified **Growth Hub**: KPI cards, the impact-sorted recommendation queue, and a live WebSocket
+  **notification center** — building on the Growth Hub shell shipped in M1. This is the phase that ties
+  every M2 module together into one view. Full real-time states.
+- Runs on the seeded data flowing from P2.2–P2.6.
+
 ## Reuse
 
 - Existing growth-hub page + mock-data → as-is (repointed to live data).

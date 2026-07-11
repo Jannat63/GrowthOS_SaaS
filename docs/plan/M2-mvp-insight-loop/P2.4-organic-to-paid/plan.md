@@ -14,6 +14,12 @@ queue, and feed high-CTR winners back into SEO.
 - [ ] Build the Creative Queue UI.
 - [ ] Add the CTR > 3% reverse-loop → SEO brief.
 
+## Frontend (vertical slice)
+
+- **Creative Queue** module page on shadcn — top organic pages turned into Meta creative-brief cards,
+  with act / dismiss controls and the CTR>3% reverse-loop surfaced back into SEO. Full states.
+- Runs on seeded GSC fixtures in M2.
+
 ## Reuse
 
 - Cross-channel engine → reuse.

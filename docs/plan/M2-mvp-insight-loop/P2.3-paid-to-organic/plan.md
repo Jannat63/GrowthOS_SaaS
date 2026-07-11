@@ -17,6 +17,13 @@ recommendations with generated content briefs, and let the user act on them.
 - [ ] Build the Content Pipeline UI (the google-ads/search-terms page).
 - [ ] Add recommendation dismiss / snooze / act (`PATCH /recommendations/:id`).
 
+## Frontend (vertical slice)
+
+- **Content Pipeline** module page (`google-ads/search-terms`) on shadcn — scored terms table,
+  a recommendation detail with its generated content brief, and the act / dismiss / snooze controls
+  wired to `PATCH /recommendations/:id`. Full loading / empty / error states.
+- Runs on seeded search-term fixtures in M2.
+
 ## Reuse
 
 - `apps/web/lib/logic/search-terms-bridge.ts` → canonical scoring logic.

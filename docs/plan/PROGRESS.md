@@ -2,8 +2,9 @@
 
 Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE** (Neon + Better Auth + workspaces;
 `/api/v1` domain skeleton with workspace guard; fresh frontend — design system, landing, auth/onboarding,
-and the dashboard shell + Growth Hub with the data layer re-pointed to `/api/v1`). M2–M4 not started.
-·  Updated: 2026-07-11
+and the dashboard shell + Growth Hub with the data layer re-pointed to `/api/v1`). M2–M5 not started.
+M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
+·  Updated: 2026-07-12
 
 Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked (note blocker)
 
@@ -31,21 +32,26 @@ Rows in **execution order** (UI-front-loaded now that auth is done: shadcn → l
 
 ## M2 — MVP: The Insight Loop  ⬜ Not started
 
-| Phase | Name | Status | Notes |
-|-------|------|--------|-------|
-| P2.1 | Worker & data plumbing | [ ] | Prereqs: Python 3.12 (current 3.14); Docker for local ClickHouse; Upstash Redis broker. |
-| P2.2 | Onboarding Wizard | [ ] | |
-| P2.3 | Paid-to-Organic Bridge | [ ] | |
-| P2.4 | Organic-to-Paid Bridge | [ ] | |
-| P2.5 | Creative Fatigue Monitor | [ ] | |
-| P2.6 | Blended MER Dashboard | [ ] | |
-| P2.7 | Unified Dashboard + notifications | [ ] | |
-| P2.8 | Billing, plan limits, launch readiness | [ ] | |
+Build the whole basic app on **seeded data**, each feature a full **vertical slice** (BE + FE).
+**No billing** (→ M5). **No real OAuth** (→ M3 P3.0). Critical path:
+`P2.1 → P2.2 → {P2.3, P2.4, P2.5, P2.6 ∥} → P2.7 → P2.8`.
+
+| Phase | Name | Layer | Status | Notes |
+|-------|------|-------|--------|-------|
+| P2.1 | Worker & data plumbing | 🔧 BE | [ ] | Celery worker + Redis job-bridge contract (BullMQ ≠ Celery), `background_jobs`, **seeded** ClickHouse + `platform_connections`. Prereqs: Python 3.12 (current 3.14); Docker; Upstash Redis. |
+| P2.2 | Onboarding Wizard | 🔁 Slice | [ ] | Wizard UI + crawler worker + strategy; 5 seeded recs. |
+| P2.3 | Paid-to-Organic Bridge | 🔁 Slice | [ ] | Scoring + briefs + Content Pipeline UI. |
+| P2.4 | Organic-to-Paid Bridge | 🔁 Slice | [ ] | GSC top-pages + Creative Queue UI. |
+| P2.5 | Creative Fatigue Monitor | 🔁 Slice | [ ] | Fatigue worker + alert-card UI. |
+| P2.6 | Blended MER Dashboard | 🔁 Slice | [ ] | MER calc + Recharts UI. Shopify pull → M3. |
+| P2.7 | Unified Dashboard + notifications | 🎨 FE | [ ] | KPI cards + queue + WS notification center. |
+| P2.8 | Hardening & polish (no billing) | 🔧 Opt | [ ] | Security + perf + workspace settings + optional PDF. Billing moved to M5. |
 
 ## M3 — V1: Full Channel Coverage  ⬜ Not started (outline only)
 
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
+| P3.0 | Real platform integrations (OAuth) | [ ] | Real OAuth + live sync for Google/Meta/GSC/Shopify; replaces M2 seeds. Deferred out of M2. Start app-review paperwork early. |
 | P3.1 | SEO module | [ ] | Outline — expand to folder when reached. |
 | P3.2 | Google Ads module | [ ] | Outline — expand to folder when reached. |
 | P3.3 | Meta Ads module | [ ] | Outline — expand to folder when reached. |
@@ -65,6 +71,18 @@ Gate: 500 users / MRR >$50K / agency tier.
 | P4.5 | Mobile app | [ ] | Outline — expand to folder when reached. |
 
 Gate: 2,000 users / MRR >$200K.
+
+## M5 — Launch & Monetization  ⬜ Not started (deferred — not launching this season)
+
+Billing pulled out of M2 P2.8 so the basic app is built first. Independent of M3/M4 — pull forward
+when a launch is scheduled.
+
+| Phase | Name | Status | Notes |
+|-------|------|--------|-------|
+| P5.1 | Billing core | [ ] | `subscriptions` + `usage_records`; Stripe checkout + webhook; trial→paid. |
+| P5.2 | Plan limits & metering | [ ] | Metering + `PLAN_LIMIT_REACHED` (402) + upgrade prompts. |
+| P5.3 | Customer portal & lifecycle emails | [ ] | Stripe portal; Resend trial/dunning emails. |
+| P5.4 | Launch readiness | [ ] | Final hardening, legal/pricing, analytics, go-live checklist. |
 
 ## Known blockers
 

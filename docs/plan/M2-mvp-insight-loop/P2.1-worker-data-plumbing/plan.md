@@ -5,35 +5,49 @@ Milestone: M2 · Depends on: P1.1, P1.3 · Prerequisites: Neon URL · Python 3.1
 ## Goal
 
 Stand up the async worker and the data plumbing every MVP feature relies on: a Python/Celery worker,
-the enqueue→process→status job pattern, the background-jobs table, local ClickHouse, and OAuth
-`platform_connections`.
+the enqueue→process→status job pattern, the background-jobs table, and local ClickHouse. This is the
+one infra phase in M2 — it has **no user-facing UI** beyond a small job-status surface.
+
+> **Seeded, not live (M2 rule).** M2 runs entirely on **seeded fixtures** — the `lib/mock-data`
+> fixtures + the tested `lib/logic` engines are the data source. `platform_connections` rows exist but
+> are **seeded stubs**; there is **no real OAuth in M2**. Real OAuth connect/disconnect for Google /
+> Meta / GSC / Shopify is a dedicated phase in **M3 (P3.0)** — see the "Deferred" section. This keeps
+> M2 off the critical path of external app-review timelines (Meta App Review, Google Ads dev token).
 
 ## Subphases
 
 - [ ] Create `apps/worker` — Python 3.12 venv, Celery + Redis broker, FastAPI health endpoint.
-- [ ] Implement the job pattern: Fastify enqueues via BullMQ/Redis → Celery → writes Neon →
-  responds `202 {jobId}`, with `GET /jobs/:jobId` for status.
+- [ ] **Define the job-bridge contract explicitly.** Fastify (Node) and Celery (Python) do **not**
+  share a queue format — BullMQ and Celery are not wire-compatible. Decide and document the bridge:
+  Fastify writes jobs to a **plain Redis stream/list with a shared JSON contract** that the Python
+  worker consumes (recommended), *not* "BullMQ → Celery." Capture the chosen contract in the plan.
+- [ ] Implement the job pattern end-to-end: Fastify enqueues → worker processes → writes Neon →
+  Fastify responds `202 {jobId, statusUrl}`, with `GET /workspaces/:id/jobs/:jobId` for status.
 - [ ] Add the `background_jobs` table.
-- [ ] Run local ClickHouse (Docker) and load the `legacy/db/clickhouse` schema.
-- [ ] Add `platform_connections` OAuth connect/disconnect for Google / Meta / GSC / Shopify with
-  encrypted tokens.
+- [ ] Run local ClickHouse (Docker) and load the `legacy/db/clickhouse` schema; **seed** it with
+  fixture `ad_performance` rows so P2.6 has data.
+- [ ] Add **seeded** `platform_connections` rows (stub tokens) so the UI shows "connected" channels
+  without live OAuth.
+
+## Frontend
+
+- Minimal: a job-status affordance the later phases reuse (poll `GET .../jobs/:jobId`; surface
+  `job:complete`). No new module page — the product UI arrives with P2.2+.
 
 ## Reuse
 
 - `legacy/services/intelligence-service/celery_app.py` → as-is / spec.
-- `legacy/db/clickhouse` → as-is / spec (schema loaded into local ClickHouse).
+- `legacy/db/clickhouse` → as-is / spec (schema loaded + seeded into local ClickHouse).
 
-## Surface
+## Deferred to a later milestone (do NOT build here)
 
-- `apps/worker/` — Python 3.12 venv, Celery app, Redis broker, FastAPI `/health`.
-- Job flow: Fastify enqueue (BullMQ/Redis) → Celery → Neon; `202 {jobId}`; `GET /jobs/:jobId`.
-- Tables: `background_jobs`; `platform_connections` (encrypted tokens).
-- ClickHouse: local Docker instance with `legacy/db/clickhouse` schema.
-- OAuth connect/disconnect: Google, Meta, GSC, Shopify.
+- **Real OAuth** connect/disconnect for Google, Meta, GSC, Shopify with encrypted tokens →
+  **M3 P3.0 (Real platform integrations)**. M2 uses seeded `platform_connections` only.
 
 ## Verification
 
-- A dummy job is enqueued → processed → status flips via `GET /jobs/:jobId`.
+- A dummy job is enqueued → processed → status flips via `GET /workspaces/:id/jobs/:jobId`.
+- Seeded ClickHouse returns fixture `ad_performance` rows.
 
 ## Prerequisite notes
 

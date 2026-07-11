@@ -1,40 +1,42 @@
-# P2.8 — Billing, plan limits, launch readiness
+# P2.8 — Hardening & polish
 
-Milestone: M2 · Depends on: P2.1–P2.7 · Prerequisites: Neon URL · Stripe · Resend
+Milestone: M2 · Depends on: P2.1–P2.7 · Prerequisites: Neon URL · Resend (for invites, optional)
 
 ## Goal
 
-Make the product launch-ready: Stripe billing with plan limits, a white-label PDF report, and passes
-on security and performance.
+Tighten the basic app once the loop works: a security pass, a performance pass, workspace
+team-management, and an optional white-label PDF export. **No billing** — Stripe, plan limits, and
+monetization are deliberately deferred to **M5 (Launch & Monetization)**, since we are not launching
+this season.
+
+> **Optional phase.** This is quality/hardening, not a feature. Do it when the loop (P2.2–P2.7) is
+> solid. The security and perf passes are recommended; the PDF export is nice-to-have.
 
 ## Subphases
 
-- [ ] Add the `subscriptions` and `usage_records` tables.
-- [ ] Add Stripe checkout + webhook (reuse `legacy/services/auth-service/billing.py` as spec) with
-  trial → paid.
-- [ ] Add metering + `PLAN_LIMIT_REACHED` (HTTP 402) + upgrade prompts.
-- [ ] Add the white-label PDF export (Puppeteer).
-- [ ] Do the security pass: token encryption, workspace scoping, rate limiting.
-- [ ] Do the performance pass: dashboards < 2s.
-- [ ] Add Resend trial emails.
-- [ ] Add workspace settings (invites / roles).
-- [ ] Add the Stripe customer portal.
+- [ ] **Security pass** — token/secret handling, workspace scoping audit on every data route,
+  rate limiting. (Recommended.)
+- [ ] **Performance pass** — dashboards render < 2s on seeded data. (Recommended.)
+- [ ] **Workspace settings** — invites / roles UI on top of the Better Auth org roles from M1.
+- [ ] **White-label PDF export** (Puppeteer). (Optional / nice-to-have.)
+
+## Frontend
+
+- Workspace **Settings** page (members, roles, invites) on shadcn.
+- Export affordance on the dashboard (if PDF export is built).
+
+## Deferred to M5 — Launch & Monetization (do NOT build here)
+
+- `subscriptions` + `usage_records` tables.
+- Stripe checkout + webhook, trial→paid, customer portal.
+- Metering + `PLAN_LIMIT_REACHED` (402) + upgrade prompts.
+- Resend trial/billing emails.
 
 ## Reuse
 
-- `legacy/services/auth-service/billing.py` → spec (Stripe checkout + webhook).
-
-## Surface
-
-- Tables: `subscriptions`, `usage_records`.
-- Stripe: checkout + webhook, trial→paid, customer portal.
-- Metering: `PLAN_LIMIT_REACHED` (402) + upgrade prompts.
-- White-label PDF (Puppeteer).
-- Security: token encryption, workspace scoping, rate limiting.
-- Perf: dashboards < 2s.
-- Resend trial emails; workspace settings (invites/roles).
+- Better Auth organization roles (M1) → workspace settings/invites.
 
 ## Verification
 
-- A test-mode checkout completes.
-- Hitting a plan limit returns a 402 + an upgrade prompt.
+- Every data route is workspace-scoped and rate-limited; a cross-workspace request is rejected.
+- Dashboards load < 2s on seeded data.
