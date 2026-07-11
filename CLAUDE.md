@@ -18,6 +18,11 @@ root (live). Reusing legacy logic means porting/copying it into the new structur
 
 ## The three sources of truth (read these before planning work)
 
+0. **`docs/GrowthOS_SaaS_Blueprint.md`** — the original product/research blueprint & full application
+   specification (market research, personas, product vision, the three-channel insight loop, complete feature
+   spec, technical design). The **source narrative** the `docs/blueprint/*` docs below were distilled from —
+   read it for the "why" and full feature intent behind a module; the engineering-facing specs below remain the
+   day-to-day reference. Where it predates the locked decisions, `DECISIONS.md` still wins.
 1. **`docs/blueprint/`** — the full spec: target architecture, data model, API surface, roadmap (ARCHITECTURE,
    DATA_MODELS, API_SPEC, ENGINEERING, PRD, ROADMAP, REPO_SETUP, GETTING_STARTED). **Read the relevant blueprint
    doc before implementing any feature** — DB tables are in `DATA_MODELS.md`, endpoints in `API_SPEC.md`, route/code
@@ -44,20 +49,26 @@ root (live). Reusing legacy logic means porting/copying it into the new structur
 
 ## Current state of the new build (what exists vs. not)
 
-- `apps/api` — Fastify v5. `GET /health` plus **Better Auth mounted at `/api/auth/*`** (email/password +
-  organization plugin → workspaces). `apps/api/src/auth.ts` wires it to Neon via Drizzle. **No `/api/v1`
-  domain routes yet** (that's P1.3).
+- `apps/api` — Fastify v5. `GET /health`, **Better Auth mounted at `/api/auth/*`** (email/password +
+  organization plugin → workspaces; `src/auth.ts` wires it to Neon via Drizzle), and the **`/api/v1` domain
+  skeleton shipped (P1.3)** in `src/routes/v1.ts`: `GET /api/v1/auth/me`, `POST/GET /workspaces`,
+  `GET /workspaces/:id/connections`, behind the `requireWorkspaceMember(role)` guard (`src/guards.ts`) + typed
+  error envelope (`src/errors.ts`). `app.ts` = routes/plugins (inject-able); `index.ts` = the `listen`
+  entrypoint. Dev runs via `tsx watch --env-file=.env`. **No `apps/worker` yet** (that's M2 P2.1).
 - `apps/web` — **rebuilt fresh** on Next 15 / React 19 / **Tailwind v4** / shadcn (the old carried-forward
-  app was reset; `/legacy/apps/web` keeps the reference). **Slice 1 shipped:** design system (theme tokens
-  in `styles/globals.css`), landing page (`app/(marketing)`), and the full auth + onboarding flow
-  (`app/(auth)`) wired to Better Auth via `lib/auth/client.ts`. Dashboard modules are later slices. The
-  live→mock data hooks (`lib/hooks`) are **not rebuilt yet** — they return in the dashboard slices (P1.4b).
+  app was reset; `/legacy/apps/web` keeps the reference). **M1 complete (Slices 1 + 2):** design system (theme
+  tokens in `styles/globals.css`), landing page (`app/(marketing)`), full auth + onboarding (`app/(auth)`)
+  wired to Better Auth via `lib/auth/client.ts`, and the **dashboard shell + Growth Hub** (`app/(dashboard)`)
+  with the **live→mock data layer rebuilt (P1.4b)** — `lib/api/client.ts` points at `/api/v1`, `lib/hooks`
+  fall back through `liveOrMock` to `lib/logic` over `lib/mock-data`, surfaced by `DataSourceBadge`. Remaining
+  dashboard modules are later M2 slices.
 - `packages/db` — Drizzle + Neon; Better Auth tables + tenancy (`workspaces`, `workspace_members`,
   `platform_connections`). Migrations in `packages/db/drizzle`.
 - `packages/ui` — `@growthos/ui`, shared shadcn primitives (button, input, card, dialog, dropdown-menu,
   table, tabs, sonner, label), consumed via `transpilePackages`.
+- `packages/types` — `@growthos/types`, shared request/response + domain types across `apps/api` and `apps/web`.
 - `packages/config` — shared TypeScript base config only.
-- **Not created yet:** `packages/types`, `apps/worker` (Python/Celery). Check `docs/plan/` before assuming.
+- **Not created yet:** `apps/worker` (Python/Celery — M2 P2.1). Check `docs/plan/` before assuming.
 
 The canonical business logic lives in **`apps/web/lib/logic/*`** (6 pure, tested TS engines: `seo-scoring`,
 `search-terms-bridge`, `creative-fatigue`, `cross-channel-engine`, `blended-mer`, `goal-simulator`). The same
