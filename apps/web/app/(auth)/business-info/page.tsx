@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { ArrowRight } from "lucide-react";
 import { useOnboarding } from "@/lib/stores/onboarding";
 import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
 import { Button } from "@growthos/ui/components/button";
@@ -20,7 +21,7 @@ export default function BusinessInfoPage() {
 
   return (
     <OnboardingShell step={1}>
-      <div className="rounded-2xl border bg-card p-8 shadow-sm">
+      <div className="rounded-2xl border bg-card p-8 shadow-lg shadow-black/[0.03] dark:shadow-black/20">
         <h1 className="font-display text-2xl font-semibold tracking-tight">
           Tell us about your business
         </h1>
@@ -72,7 +73,10 @@ export default function BusinessInfoPage() {
           </div>
 
           <div className="flex justify-end pt-2">
-            <Button type="submit">Continue</Button>
+            <Button type="submit" className="group">
+              Continue
+              <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
+            </Button>
           </div>
         </form>
       </div>

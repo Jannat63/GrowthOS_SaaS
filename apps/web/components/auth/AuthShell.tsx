@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Repeat, Check } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const POINTS = [
   "Connect SEO, Google Ads & Meta in minutes",
@@ -47,8 +48,8 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
       {/* Form side */}
       <main className="flex flex-col">
-        <div className="flex items-center justify-between p-6 lg:hidden">
-          <Link href="/" className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between p-6">
+          <Link href="/" className="flex items-center gap-2.5 lg:invisible">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <span className="h-3 w-3 rounded-sm bg-primary-foreground" />
             </span>
@@ -56,9 +57,10 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
               GrowthOS
             </span>
           </Link>
+          <ThemeToggle />
         </div>
         <div className="flex flex-1 items-center justify-center px-6 pb-12">
-          <div className="w-full max-w-sm">{children}</div>
+          <div className="w-full max-w-sm animate-rise">{children}</div>
         </div>
       </main>
     </div>

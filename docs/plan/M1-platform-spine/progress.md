@@ -1,6 +1,8 @@
 # M1 — Progress
 
-Status: [~]  ·  Updated: 2026-07-05  —  P1.1–P1.3 + P1.4a/P1.5/P1.6 done; only P1.4b (data re-point) remains, and it's deferred until dashboard pages exist.
+Status: [x]  ·  Updated: 2026-07-11  —  **M1 complete.** All phases done: platform spine (db, auth,
+`/api/v1`), fresh frontend (design system, landing, auth/onboarding), and the dashboard shell +
+Growth Hub with the data layer re-pointed to `/api/v1` (P1.4b).
 
 Rows in **execution order** (interleaved BE↔FE — see README). IDs kept stable.
 
@@ -12,7 +14,7 @@ Rows in **execution order** (interleaved BE↔FE — see README). IDs kept stabl
 | 4 | P1.6 Landing page | 🎨 FE | [x] | Delivered via Slice 1 — redesigned (loop signature, bento, ink bands). |
 | 5 | P1.4a Web login | 🎨 FE | [x] | Delivered via Slice 1 — sign-in/up + onboarding + middleware; browser→Neon verified. |
 | 6 | P1.3 Fastify domain skeleton | 🔧 BE | [x] | `/api/v1` (auth/me, workspaces, connections) + member guard + `@growthos/types`; verified. |
-| 7 | P1.4b Web data re-point | 🎨 FE | [ ] | Deferred — needs dashboard pages (a later slice). Not blocking M1 exit. |
+| 7 | P1.4b Web data re-point | 🎨 FE | [x] | Via Slice 2 — dashboard shell + Growth Hub; `lib/api`→`/api/v1`, hooks live/mock via `liveOrMock`, `DataSourceBadge`. |
 
 ## Log
 
@@ -36,3 +38,10 @@ Rows in **execution order** (interleaved BE↔FE — see README). IDs kept stabl
   `requireWorkspaceMember` guard, and the `/api/v1` routes (auth/me, workspaces, connections) with zod.
   Verified member/non-member (403)/unauth (401). Only **P1.4b** remains (deferred — needs dashboard
   pages), so M1's spine is effectively complete.
+- 2026-07-11 — **P1.4b done → M1 COMPLETE.** Frontend Rebuild Slice 2: dashboard shell (ink `Sidebar`,
+  `TopBar` workspace switcher + user menu, `ModuleTabs`) + **Growth Hub** (Loop Masthead signature that
+  lights channel spokes on rec hover, KPI cards, cross-channel recommendation queue). Data layer
+  re-pointed to `/api/v1` — `useWorkspace`/`useConnections` live from Neon, `useGrowthHub`/
+  `useRecommendations` fall back to the tested `lib/logic` engines over ported mock data via the pure
+  `liveOrMock()` helper; `DataSourceBadge` surfaces the source. `/growth-hub` middleware-guarded.
+  Full turbo build green; 53 web tests pass.

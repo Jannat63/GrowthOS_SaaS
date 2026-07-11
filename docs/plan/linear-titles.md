@@ -12,8 +12,8 @@ Turborepo root + `packages/config`; Fastify `apps/api` with `/health` verified; 
 - P0.3 — Planning & docs system
 `docs/plan/` milestone→phase→subphase tracker + `progress.md` at every level; CLAUDE.md.
 
-## M1 — Platform Spine
-Real database, real auth, shared packages, and the frontend wired to the new Fastify API. Note: P1.5 (shadcn), P1.6 (landing) and P1.4a (login) were delivered together as **Frontend Rebuild Slice 1** (fresh Next 15 / Tailwind v4 / shadcn app — D5 reversed). Remaining M1: P1.3 then P1.4b.
+## M1 — Platform Spine ✅ Complete
+Real database, real auth, shared packages, and the frontend wired to the new Fastify API. Delivered in two frontend slices on the rebuilt stack (Next 15 / Tailwind v4 / shadcn — D5 reversed): **Slice 1** = P1.5 (shadcn), P1.6 (landing), P1.4a (login/onboarding); **Slice 2** = the dashboard shell + Growth Hub + P1.4b (data layer re-pointed to `/api/v1`). Backend: P1.1 (db), P1.2 (auth), P1.3 (`/api/v1`).
 
 - P1.1 — packages/db (Drizzle + Neon)
 Create `packages/db`: drizzle-orm + `@neondatabase/serverless` + drizzle-kit; Neon client; tenancy schema (workspaces, workspace_members, platform_connections) reconciled with Better Auth tables; generate + push migration.

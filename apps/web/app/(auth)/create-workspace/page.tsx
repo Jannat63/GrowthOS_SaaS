@@ -54,7 +54,7 @@ export default function CreateWorkspacePage() {
 
   return (
     <OnboardingShell step={3}>
-      <div className="rounded-2xl border bg-card p-8 shadow-sm">
+      <div className="rounded-2xl border bg-card p-8 shadow-lg shadow-black/[0.03] dark:shadow-black/20">
         <h1 className="font-display text-2xl font-semibold tracking-tight">
           Name your workspace
         </h1>
@@ -74,8 +74,10 @@ export default function CreateWorkspacePage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="ws-slug">Workspace URL</Label>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">growthos.app/</span>
+            <div className="flex items-stretch overflow-hidden rounded-md border transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background">
+              <span className="flex select-none items-center bg-muted px-3 text-sm text-muted-foreground">
+                growthos.app/
+              </span>
               <Input
                 id="ws-slug"
                 value={slug}
@@ -84,6 +86,7 @@ export default function CreateWorkspacePage() {
                   setSlug(slugify(e.target.value));
                 }}
                 required
+                className="rounded-none border-0 border-l bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
               />
             </div>
           </div>

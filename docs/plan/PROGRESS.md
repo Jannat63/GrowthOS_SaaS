@@ -1,8 +1,9 @@
 # GrowthOS — Master Progress Dashboard
 
-Overall status: **🟨 In progress** — M0 done; **M1 spine complete** (Neon + Better Auth + workspaces;
-fresh frontend Slice 1; `/api/v1` domain skeleton with workspace guard, all verified). Only P1.4b (data
-re-point) remains and is deferred until dashboard pages exist. M2–M4 not started.  ·  Updated: 2026-07-05
+Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE** (Neon + Better Auth + workspaces;
+`/api/v1` domain skeleton with workspace guard; fresh frontend — design system, landing, auth/onboarding,
+and the dashboard shell + Growth Hub with the data layer re-pointed to `/api/v1`). M2–M4 not started.
+·  Updated: 2026-07-11
 
 Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked (note blocker)
 
@@ -14,7 +15,7 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blo
 | P0.2 | API + web scaffold | [x] | Turborepo + `packages/config`; Fastify `/health` verified; `apps/web` builds. |
 | P0.3 | Planning system | [~] | This `docs/plan/` structure. |
 
-## M1 — Platform Spine  🟨 In progress
+## M1 — Platform Spine  ✅ Complete
 
 Rows in **execution order** (UI-front-loaded now that auth is done: shadcn → landing → login). IDs stable.
 
@@ -26,7 +27,7 @@ Rows in **execution order** (UI-front-loaded now that auth is done: shadcn → l
 | 4 | P1.6 | Landing page | 🎨 FE | [x] | Via Slice 1 — redesigned (loop signature, bento, ink bands). |
 | 5 | P1.4a | Web login | 🎨 FE | [x] | Via Slice 1 — auth + onboarding; browser→Neon verified. |
 | 6 | P1.3 | Fastify domain skeleton | 🔧 BE | [x] | `/api/v1` + member guard + `@growthos/types`; verified (member/403/401). |
-| 7 | P1.4b | Web data re-point | 🎨 FE | [ ] | Deferred — needs dashboard pages (later slice). Not blocking M1 exit. |
+| 7 | P1.4b | Web data re-point | 🎨 FE | [x] | Via Slice 2 — dashboard shell + Growth Hub; `lib/api`→`/api/v1`, hooks live/mock via `liveOrMock`, `DataSourceBadge`. |
 
 ## M2 — MVP: The Insight Loop  ⬜ Not started
 

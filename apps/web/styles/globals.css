@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@source "../../packages/ui/src";
+@source "../../../packages/ui/src";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -110,10 +110,58 @@
   * {
     @apply border-border;
   }
+  html {
+    color-scheme: light;
+    scroll-behavior: smooth;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 28%, transparent);
+  }
+  /* Themed, unobtrusive scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Ambient loop backdrop — faint concentric rings, used behind onboarding/auth */
+.loop-backdrop {
+  background-image:
+    radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--primary) 9%, transparent) 0, transparent 42%),
+    repeating-radial-gradient(circle at 50% 42%, transparent 0, transparent 78px, color-mix(in oklab, var(--primary) 6%, transparent) 79px, transparent 80px);
+}
+
+/* Reusable entrance for cards/sections */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-rise {
+  animation: rise-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise {
+    animation: none;
   }
 }
 

@@ -25,5 +25,6 @@ export const config = {
     "/connect-accounts/:path*",
     "/create-workspace/:path*",
     "/onboarding-complete/:path*",
+    "/growth-hub/:path*",
   ],
 };

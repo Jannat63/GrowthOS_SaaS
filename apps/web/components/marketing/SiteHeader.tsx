@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@growthos/ui/components/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function SiteHeader() {
   return (
@@ -27,7 +28,8 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm">
+          <ThemeToggle />
+          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
             <Link href="/sign-in">Sign in</Link>
           </Button>
           <Button asChild size="sm">

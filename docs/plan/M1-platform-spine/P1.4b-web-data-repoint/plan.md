@@ -10,9 +10,12 @@ built yet.
 
 ## Subphases
 
-- [ ] Swap `apps/web/lib/api/client.ts` base URL to the Fastify `/api/v1`.
-- [ ] Point the feature data hooks (`lib/hooks/*`) at the real endpoints.
-- [ ] Keep the hooks' live→mock fallback + `DataSourceBadge` intact.
+- [x] Swap `apps/web/lib/api/client.ts` base URL to the Fastify `/api/v1`.
+- [x] Point the feature data hooks (`lib/hooks/*`) at the real endpoints.
+- [x] Keep the hooks' live→mock fallback + `DataSourceBadge` intact.
+
+Delivered via Frontend Rebuild Slice 2 (see `docs/superpowers/specs/2026-07-11-frontend-rebuild-slice-2-design.md`),
+which built the dashboard shell + Growth Hub that this data layer feeds.
 
 ## Reuse
 

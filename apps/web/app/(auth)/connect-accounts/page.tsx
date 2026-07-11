@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Search, MousePointerClick, Megaphone, ShoppingBag, Check } from "lucide-react";
+import { Search, MousePointerClick, Megaphone, ShoppingBag, Check, ArrowRight } from "lucide-react";
 import { useOnboarding } from "@/lib/stores/onboarding";
 import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
 import { Button } from "@growthos/ui/components/button";
+import { cn } from "@/lib/utils/cn";
 
 const CHANNELS = [
   { id: "google_search_console", name: "Search Console", desc: "Organic search & SEO", icon: Search },
@@ -19,7 +20,7 @@ export default function ConnectAccountsPage() {
 
   return (
     <OnboardingShell step={2}>
-      <div className="rounded-2xl border bg-card p-8 shadow-sm">
+      <div className="rounded-2xl border bg-card p-8 shadow-lg shadow-black/[0.03] dark:shadow-black/20">
         <h1 className="font-display text-2xl font-semibold tracking-tight">
           Connect your channels
         </h1>
@@ -37,14 +38,21 @@ export default function ConnectAccountsPage() {
                 type="button"
                 onClick={() => toggleChannel(id)}
                 aria-pressed={isOn}
-                className={[
-                  "flex items-center gap-3 rounded-xl border p-4 text-left transition-colors",
+                className={cn(
+                  "group flex cursor-pointer items-center gap-3 rounded-xl border p-4 text-left transition-all duration-200",
                   isOn
-                    ? "border-primary bg-primary/5"
-                    : "hover:border-primary/40 hover:bg-muted/50",
-                ].join(" ")}
+                    ? "border-primary bg-primary/[0.06] ring-1 ring-primary/20"
+                    : "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+                )}
               >
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-foreground">
+                <span
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
+                    isOn
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted text-muted-foreground group-hover:text-foreground"
+                  )}
+                >
                   <Icon className="h-5 w-5" />
                 </span>
                 <span className="flex-1">
@@ -52,12 +60,12 @@ export default function ConnectAccountsPage() {
                   <span className="block text-xs text-muted-foreground">{desc}</span>
                 </span>
                 <span
-                  className={[
-                    "flex h-6 w-6 items-center justify-center rounded-full border",
+                  className={cn(
+                    "flex h-6 w-6 items-center justify-center rounded-full border transition-colors",
                     isOn
                       ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border text-transparent",
-                  ].join(" ")}
+                      : "border-border text-transparent group-hover:border-primary/40"
+                  )}
                 >
                   <Check className="h-3.5 w-3.5" />
                 </span>
@@ -71,8 +79,9 @@ export default function ConnectAccountsPage() {
           <Button variant="ghost" onClick={() => router.push("/create-workspace")}>
             Skip for now
           </Button>
-          <Button onClick={() => router.push("/create-workspace")}>
+          <Button onClick={() => router.push("/create-workspace")} className="group">
             Continue{connected.length > 0 ? ` (${connected.length})` : ""}
+            <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
           </Button>
         </div>
       </div>

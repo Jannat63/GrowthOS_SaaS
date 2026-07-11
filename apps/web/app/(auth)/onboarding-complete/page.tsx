@@ -6,8 +6,8 @@ import { Button } from "@growthos/ui/components/button";
 export default function OnboardingCompletePage() {
   return (
     <OnboardingShell step={4}>
-      <div className="rounded-2xl border bg-card p-10 text-center shadow-sm">
-        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-success/10 text-success">
+      <div className="rounded-2xl border bg-card p-10 text-center shadow-lg shadow-black/[0.03] dark:shadow-black/20">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-success/10 text-success ring-8 ring-success/5">
           <PartyPopper className="h-7 w-7" />
         </span>
         <h1 className="mt-6 font-display text-2xl font-semibold tracking-tight">
