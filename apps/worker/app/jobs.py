@@ -41,3 +41,26 @@ async def mark_failed(pool: asyncpg.Pool, job_id: str, error: str) -> None:
         "UPDATE background_jobs SET status='failed', error=$2, completed_at=now() WHERE id=$1",
         job_id, error,
     )
+
+
+async def mark_progress(pool: asyncpg.Pool, job_id: str, progress: int) -> None:
+    await pool.execute("UPDATE background_jobs SET progress=$2 WHERE id=$1", job_id, progress)
+
+
+async def set_onboarding_step(pool: asyncpg.Pool, workspace_id: str, step: str) -> None:
+    await pool.execute("UPDATE workspaces SET onboarding_step=$2 WHERE id=$1", workspace_id, step)
+
+
+async def upsert_onboarding_analysis(
+    pool: asyncpg.Pool, workspace_id: str, crawl: dict, strategy: dict
+) -> None:
+    await pool.execute(
+        """
+        INSERT INTO onboarding_analyses (workspace_id, crawl_summary, strategy, generated_at, updated_at)
+        VALUES ($1, $2::jsonb, $3::jsonb, now(), now())
+        ON CONFLICT (workspace_id)
+        DO UPDATE SET crawl_summary=EXCLUDED.crawl_summary, strategy=EXCLUDED.strategy,
+                      generated_at=now(), updated_at=now()
+        """,
+        workspace_id, json.dumps(crawl), json.dumps(strategy),
+    )
