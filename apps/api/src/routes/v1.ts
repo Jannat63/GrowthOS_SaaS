@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { fromNodeHeaders } from 'better-auth/node'
 import { db, schema } from '@growthos/db'
-import type { MeResponse, Membership, Role } from '@growthos/types'
+import type { JobStatusResponse, MeResponse, Membership, Role } from '@growthos/types'
 import { auth } from '../auth.js'
 import { AppError } from '../errors.js'
 import { requireUser } from '../auth-context.js'
@@ -106,5 +106,30 @@ export async function registerV1Routes(app: FastifyInstance) {
       .where(eq(schema.platformConnections.workspaceId, id))
 
     return { data: connections, total: connections.length }
+  })
+
+  // Poll async job status — guarded by workspace membership. A job outside the caller's
+  // workspace returns WORKSPACE_NOT_FOUND (don't leak existence).
+  app.get('/api/v1/workspaces/:id/jobs/:jobId', async (request): Promise<JobStatusResponse> => {
+    const user = await requireUser(request)
+    const { id, jobId } = request.params as { id: string; jobId: string }
+    await requireWorkspaceMember(user.id, id)
+
+    const [job] = await db
+      .select()
+      .from(schema.backgroundJobs)
+      .where(eq(schema.backgroundJobs.id, jobId))
+
+    if (!job || job.workspaceId !== id) {
+      throw new AppError('WORKSPACE_NOT_FOUND', 'Job not found in this workspace.')
+    }
+
+    return {
+      jobId: job.id,
+      status: job.status as JobStatusResponse['status'],
+      progress: job.progress,
+      ...(job.result != null ? { result: job.result } : {}),
+      ...(job.error != null ? { error: job.error } : {}),
+    }
   })
 }
