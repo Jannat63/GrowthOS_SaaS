@@ -15,6 +15,13 @@
       "when": 1784241113576,
       "tag": "0001_slow_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784244205822,
+      "tag": "0002_happy_mephisto",
+      "breakpoints": true
     }
   ]
 }
