@@ -110,6 +110,46 @@ export interface JobStatusResponse {
   error?: string;
 }
 
+// ── Onboarding (M2 P2.2) ─────────────────────────────────────────────────────
+
+export interface StrategyChannel {
+  channel: "seo" | "google_ads" | "meta_ads";
+  allocationPct: number;
+  rationale: string;
+}
+
+export interface StrategyPhase {
+  phase: string;
+  focus: string;
+  milestones: string[];
+}
+
+export interface OnboardingStrategy {
+  summary: string;
+  channelMix: StrategyChannel[];
+  ninetyDayPlan: StrategyPhase[];
+}
+
+export interface CrawlSummary {
+  pagesCrawled: number;
+  topKeywords: string[];
+  issues: string[];
+  seeded: boolean;
+}
+
+export interface OnboardingProfile {
+  websiteUrl: string | null;
+  businessCategory: string | null;
+  monthlyAdBudget: number | null;
+  onboardingStep: string;
+  onboardingComplete: boolean;
+}
+
+export interface OnboardingStatusResponse {
+  profile: OnboardingProfile;
+  analysis: { crawlSummary: CrawlSummary; strategy: OnboardingStrategy } | null;
+}
+
 // ── WebSocket events (stub — fleshed out in M2) ──────────────────────────────
 
 export type WebSocketEvent =
