@@ -89,6 +89,8 @@ when a launch is scheduled.
 | Blocker | Affects |
 |---------|---------|
 | ~~Neon connection string~~ | ✅ Resolved 2026-07-05 — connected, P1.1 live. |
-| Python 3.12 (current is 3.14) | P2.1 |
-| Docker not installed (local ClickHouse) | P2.1 |
-| Upstash Redis account (job broker) | P2.1 |
+| ~~Python 3.12 (current is 3.14)~~ | ✅ Resolved 2026-07-17 — 3.12.10 installed alongside 3.14. |
+| ~~Docker not installed (local ClickHouse)~~ | ✅ Resolved 2026-07-17 — WSL2 + Docker Desktop 29.6.1; ClickHouse up. |
+| ~~Redis job broker~~ | ✅ Resolved 2026-07-17 — **local Redis via Docker** (`redis://localhost:6379`); Upstash cloud deferred to prod. |
+
+**No open blockers.** M2 P2.1 is fully unblocked.
