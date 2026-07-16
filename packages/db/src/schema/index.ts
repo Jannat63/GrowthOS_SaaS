@@ -3,3 +3,5 @@
 export * from './auth.js';
 // Domain tables that hang off a workspace.
 export * from './tenancy.js';
+// Async job tracking (M2 · P2.1).
+export * from './jobs.js';
