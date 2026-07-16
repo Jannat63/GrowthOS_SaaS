@@ -84,6 +84,32 @@ export interface Recommendation {
   status: "new" | "acted" | "dismissed" | "snoozed";
 }
 
+// ── Jobs (async operations — M2 P2.1) ────────────────────────────────────────
+
+export type JobStatus = "queued" | "processing" | "complete" | "failed";
+
+// The JSON contract Fastify LPUSHes onto Redis and the Python worker consumes. Versioned.
+export interface JobEnvelope {
+  v: 1;
+  jobId: string;
+  workspaceId: string;
+  type: string;
+  payload: Record<string, unknown>;
+}
+
+export interface EnqueueResponse {
+  jobId: string;
+  statusUrl: string;
+}
+
+export interface JobStatusResponse {
+  jobId: string;
+  status: JobStatus;
+  progress: number;
+  result?: unknown;
+  error?: string;
+}
+
 // ── WebSocket events (stub — fleshed out in M2) ──────────────────────────────
 
 export type WebSocketEvent =
