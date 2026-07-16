@@ -1,13 +1,13 @@
 # M2 — Progress
 
-Status: [ ]  ·  Updated: 2026-07-12
+Status: [~]  ·  Updated: 2026-07-17
 
 Scope: the 5 insight-loop features + unified dashboard, each as a full **vertical slice** (BE + FE),
 on **seeded data**. **No billing** (→ M5). **No real OAuth** (→ M3 P3.0).
 
 | Item | Layer | Status | Notes |
 |------|-------|--------|-------|
-| P2.1 Worker & data plumbing | 🔧 BE | [ ] | Celery worker, Redis job-bridge contract, `background_jobs`, seeded ClickHouse + seeded `platform_connections`. Prereqs: Python 3.12, Docker, Upstash Redis. |
+| P2.1 Worker & data plumbing | 🔧 BE | [x] | **Done 2026-07-17.** Plain Python worker (not Celery), Redis job-bridge (JSON envelope on `jobs:queue`), `background_jobs`, seeded ClickHouse (60 rows) + stub `platform_connections`. E2E verified. Local Redis/ClickHouse via Docker. |
 | P2.2 Onboarding Wizard | 🔁 Slice | [ ] | Wizard UI + crawler worker + strategy; 5 seeded recs. |
 | P2.3 Paid-to-Organic Bridge | 🔁 Slice | [ ] | Scoring + briefs + Content Pipeline UI. |
 | P2.4 Organic-to-Paid Bridge | 🔁 Slice | [ ] | GSC top-pages + Creative Queue UI. |
@@ -23,3 +23,5 @@ on **seeded data**. **No billing** (→ M5). **No real OAuth** (→ M3 P3.0).
   Monetization**; P2.8 is now hardening/polish only. (2) Every feature phase reframed as a full
   BE+FE **vertical slice**. (3) M2 declared **seeded-data**; **real OAuth deferred to M3 (P3.0)**.
   (4) P2.1 job-bridge correctness note added (BullMQ ≠ Celery).
+- 2026-07-17 — **P2.1 complete** (plain worker + job bridge + seeds; E2E verified). M2 now in progress.
+  Next: **P2.2 Onboarding Wizard**.

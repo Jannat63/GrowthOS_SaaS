@@ -1,10 +1,10 @@
 # GrowthOS — Master Progress Dashboard
 
-Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE** (Neon + Better Auth + workspaces;
-`/api/v1` domain skeleton with workspace guard; fresh frontend — design system, landing, auth/onboarding,
-and the dashboard shell + Growth Hub with the data layer re-pointed to `/api/v1`). M2–M5 not started.
+Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 IN PROGRESS** — **P2.1 done**
+(plain Python worker + Redis job bridge + `background_jobs` + seeded ClickHouse/`platform_connections`;
+E2E verified). Next: P2.2 Onboarding Wizard. M3–M5 not started.
 M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
-·  Updated: 2026-07-12
+·  Updated: 2026-07-17
 
 Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked (note blocker)
 
@@ -30,7 +30,7 @@ Rows in **execution order** (UI-front-loaded now that auth is done: shadcn → l
 | 6 | P1.3 | Fastify domain skeleton | 🔧 BE | [x] | `/api/v1` + member guard + `@growthos/types`; verified (member/403/401). |
 | 7 | P1.4b | Web data re-point | 🎨 FE | [x] | Via Slice 2 — dashboard shell + Growth Hub; `lib/api`→`/api/v1`, hooks live/mock via `liveOrMock`, `DataSourceBadge`. |
 
-## M2 — MVP: The Insight Loop  ⬜ Not started
+## M2 — MVP: The Insight Loop  🟨 In progress
 
 Build the whole basic app on **seeded data**, each feature a full **vertical slice** (BE + FE).
 **No billing** (→ M5). **No real OAuth** (→ M3 P3.0). Critical path:
@@ -38,7 +38,7 @@ Build the whole basic app on **seeded data**, each feature a full **vertical sli
 
 | Phase | Name | Layer | Status | Notes |
 |-------|------|-------|--------|-------|
-| P2.1 | Worker & data plumbing | 🔧 BE | [ ] | Celery worker + Redis job-bridge contract (BullMQ ≠ Celery), `background_jobs`, **seeded** ClickHouse + `platform_connections`. Prereqs: Python 3.12 (current 3.14); Docker; Upstash Redis. |
+| P2.1 | Worker & data plumbing | 🔧 BE | [x] | **Done 2026-07-17.** Plain Python worker (not Celery) + Redis job-bridge (JSON envelope), `background_jobs`, **seeded** ClickHouse (60 rows) + stub `platform_connections`. Local Redis/ClickHouse via Docker. E2E verified. |
 | P2.2 | Onboarding Wizard | 🔁 Slice | [ ] | Wizard UI + crawler worker + strategy; 5 seeded recs. |
 | P2.3 | Paid-to-Organic Bridge | 🔁 Slice | [ ] | Scoring + briefs + Content Pipeline UI. |
 | P2.4 | Organic-to-Paid Bridge | 🔁 Slice | [ ] | GSC top-pages + Creative Queue UI. |

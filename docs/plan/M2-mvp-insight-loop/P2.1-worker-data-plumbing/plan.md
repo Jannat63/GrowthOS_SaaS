@@ -16,18 +16,22 @@ one infra phase in M2 — it has **no user-facing UI** beyond a small job-status
 
 ## Subphases
 
-- [ ] Create `apps/worker` — Python 3.12 venv, Celery + Redis broker, FastAPI health endpoint.
-- [ ] **Define the job-bridge contract explicitly.** Fastify (Node) and Celery (Python) do **not**
-  share a queue format — BullMQ and Celery are not wire-compatible. Decide and document the bridge:
-  Fastify writes jobs to a **plain Redis stream/list with a shared JSON contract** that the Python
-  worker consumes (recommended), *not* "BullMQ → Celery." Capture the chosen contract in the plan.
-- [ ] Implement the job pattern end-to-end: Fastify enqueues → worker processes → writes Neon →
-  Fastify responds `202 {jobId, statusUrl}`, with `GET /workspaces/:id/jobs/:jobId` for status.
-- [ ] Add the `background_jobs` table.
-- [ ] Run local ClickHouse (Docker) and load the `legacy/db/clickhouse` schema; **seed** it with
-  fixture `ad_performance` rows so P2.6 has data.
-- [ ] Add **seeded** `platform_connections` rows (stub tokens) so the UI shows "connected" channels
-  without live OAuth.
+> **Implemented as a plain Python worker, not Celery** (design decision — see
+> `docs/superpowers/specs/2026-07-17-p2.1-worker-job-bridge-design.md`). Celery's retries/scheduling
+> aren't needed on M2's seeded, on-demand jobs; handlers are plain functions so a Celery swap in M3
+> is contained. Contract: Fastify writes an authoritative `background_jobs` row then LPUSHes a
+> versioned JSON envelope to Redis list `jobs:queue`; the worker BLPOPs it.
+
+- [x] Create `apps/worker` — Python 3.12 venv, **plain Redis consumer** + FastAPI health endpoint.
+- [x] **Job-bridge contract defined** — versioned JSON envelope on a plain Redis list (not BullMQ→Celery),
+  documented in the design spec + implementation plan.
+- [x] Job pattern end-to-end: Fastify `enqueue()` → worker processes → writes Neon; `202 {jobId, statusUrl}`
+  shape + `GET /workspaces/:id/jobs/:jobId` status route. E2E verified (see `VERIFY.md`).
+- [x] Add the `background_jobs` table (Drizzle migration applied to Neon).
+- [x] Run local ClickHouse (Docker) + load schema; **seeded** with 60 fixture `ad_performance` rows.
+- [x] Add **seeded** stub `platform_connections` rows (stub tokens) — idempotent seed script.
+
+Deferred by design: WebSocket `job:complete` push → **P2.7**; real OAuth → **M3 P3.0**.
 
 ## Frontend
 
