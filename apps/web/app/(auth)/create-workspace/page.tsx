@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
+import { api } from "@/lib/api/client";
 import { useOnboarding } from "@/lib/stores/onboarding";
 import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
 import { Button } from "@growthos/ui/components/button";
@@ -43,11 +44,33 @@ export default function CreateWorkspacePage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { error } = await authClient.organization.create({ name, slug });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message ?? "Could not create the workspace.");
+    const { data, error } = await authClient.organization.create({ name, slug });
+    if (error || !data) {
+      setLoading(false);
+      toast.error(error?.message ?? "Could not create the workspace.");
       return;
+    }
+
+    // Persist the profile collected earlier + kick off the analysis pipeline (P2.2).
+    // If it can't run (e.g. no valid website), fall through to the ready screen.
+    const workspaceId = data.id;
+    const { websiteUrl, category, monthlyBudget } = useOnboarding.getState();
+    const normalizedUrl = websiteUrl && !/^https?:\/\//.test(websiteUrl) ? `https://${websiteUrl}` : websiteUrl;
+    try {
+      if (normalizedUrl) {
+        const { jobId } = await api.post<{ jobId: string }>(
+          `/workspaces/${workspaceId}/onboarding`,
+          {
+            websiteUrl: normalizedUrl,
+            businessCategory: (category || "other").toLowerCase(),
+            monthlyAdBudget: Number(monthlyBudget) || 0,
+          }
+        );
+        router.push(`/onboarding-complete?ws=${workspaceId}&job=${jobId}`);
+        return;
+      }
+    } catch {
+      // fall through — workspace exists; just skip the analysis screen
     }
     router.push("/onboarding-complete");
   }
