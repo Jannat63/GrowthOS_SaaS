@@ -8,7 +8,7 @@ on **seeded data**. **No billing** (→ M5). **No real OAuth** (→ M3 P3.0).
 | Item | Layer | Status | Notes |
 |------|-------|--------|-------|
 | P2.1 Worker & data plumbing | 🔧 BE | [x] | **Done 2026-07-17.** Plain Python worker (not Celery), Redis job-bridge (JSON envelope on `jobs:queue`), `background_jobs`, seeded ClickHouse (60 rows) + stub `platform_connections`. E2E verified. Local Redis/ClickHouse via Docker. |
-| P2.2 Onboarding Wizard | 🔁 Slice | [ ] | Wizard UI + crawler worker + strategy; 5 seeded recs. |
+| P2.2 Onboarding Wizard | 🔁 Slice | [x] | **Done 2026-07-17 (Option B).** Wizard wired to real pipeline (persist profile → onboarding_analyze job: stub crawl → strategy → review → complete gate). Recs deferred to P2.3. |
 | P2.3 Paid-to-Organic Bridge | 🔁 Slice | [ ] | Scoring + briefs + Content Pipeline UI. |
 | P2.4 Organic-to-Paid Bridge | 🔁 Slice | [ ] | GSC top-pages + Creative Queue UI. |
 | P2.5 Creative Fatigue Monitor | 🔁 Slice | [ ] | Fatigue worker + alert-card UI. |
@@ -24,4 +24,6 @@ on **seeded data**. **No billing** (→ M5). **No real OAuth** (→ M3 P3.0).
   BE+FE **vertical slice**. (3) M2 declared **seeded-data**; **real OAuth deferred to M3 (P3.0)**.
   (4) P2.1 job-bridge correctness note added (BullMQ ≠ Celery).
 - 2026-07-17 — **P2.1 complete** (plain worker + job bridge + seeds; E2E verified). M2 now in progress.
-  Next: **P2.2 Onboarding Wizard**.
+- 2026-07-17 — **P2.2 complete** (onboarding pipeline, Option B — recs deferred to P2.3). Next:
+  **P2.3 Paid-to-Organic Bridge** — which now also owns the recommendations table + endpoint +
+  frontend `Recommendation` unification.

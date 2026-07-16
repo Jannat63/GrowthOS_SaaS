@@ -1,8 +1,8 @@
 # GrowthOS — Master Progress Dashboard
 
-Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 IN PROGRESS** — **P2.1 done**
-(plain Python worker + Redis job bridge + `background_jobs` + seeded ClickHouse/`platform_connections`;
-E2E verified). Next: P2.2 Onboarding Wizard. M3–M5 not started.
+Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 IN PROGRESS** — **P2.1 + P2.2 done**
+(job pipeline; onboarding wizard wired to a real crawl-stub→strategy pipeline with a review + gate).
+Next: P2.3 Paid-to-Organic Bridge (also owns the deferred recommendations table/endpoint). M3–M5 not started.
 M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
 ·  Updated: 2026-07-17
 
@@ -39,8 +39,8 @@ Build the whole basic app on **seeded data**, each feature a full **vertical sli
 | Phase | Name | Layer | Status | Notes |
 |-------|------|-------|--------|-------|
 | P2.1 | Worker & data plumbing | 🔧 BE | [x] | **Done 2026-07-17.** Plain Python worker (not Celery) + Redis job-bridge (JSON envelope), `background_jobs`, **seeded** ClickHouse (60 rows) + stub `platform_connections`. Local Redis/ClickHouse via Docker. E2E verified. |
-| P2.2 | Onboarding Wizard | 🔁 Slice | [ ] | Wizard UI + crawler worker + strategy; 5 seeded recs. |
-| P2.3 | Paid-to-Organic Bridge | 🔁 Slice | [ ] | Scoring + briefs + Content Pipeline UI. |
+| P2.2 | Onboarding Wizard | 🔁 Slice | [x] | **Done 2026-07-17.** Wizard → real pipeline (stub crawl → strategy → review → gate). Recs deferred to P2.3. |
+| P2.3 | Paid-to-Organic Bridge | 🔁 Slice | [ ] | Scoring + briefs + Content Pipeline UI. **+ owns recommendations table/endpoint + frontend `Recommendation` unification (deferred from P2.2).** |
 | P2.4 | Organic-to-Paid Bridge | 🔁 Slice | [ ] | GSC top-pages + Creative Queue UI. |
 | P2.5 | Creative Fatigue Monitor | 🔁 Slice | [ ] | Fatigue worker + alert-card UI. |
 | P2.6 | Blended MER Dashboard | 🔁 Slice | [ ] | MER calc + Recharts UI. Shopify pull → M3. |

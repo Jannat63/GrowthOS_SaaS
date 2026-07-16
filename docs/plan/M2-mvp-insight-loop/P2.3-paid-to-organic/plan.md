@@ -7,9 +7,18 @@ Milestone: M2 · Depends on: P2.1, P2.2 · Prerequisites: Neon URL · worker (P2
 Turn paid search-term data into organic content opportunities: score search terms, flag them as
 recommendations with generated content briefs, and let the user act on them.
 
+> **Deferred from P2.2 — this phase owns the recommendations contract.** P2.2 intentionally did NOT
+> build recommendations (to avoid a second producer alongside the canonical TS cross-channel engine).
+> P2.3 is the first slice with a **real** recommendation producer, so it locks the contract here:
+> (1) the `recommendations` table, (2) `GET /workspaces/:id/recommendations` endpoint, and
+> (3) **unify the frontend shape** — evolve `apps/web/lib/logic/cross-channel-engine.ts`'s
+> `CrossChannelRecommendation` (and `RecommendationQueue` + `useRecommendations`) onto the blueprint
+> `Recommendation` shape, retiring the mock-compute fallback in favor of live persisted recs.
+
 ## Subphases
 
 - [ ] Add the `recommendations` and `content_briefs` tables.
+- [ ] Add `GET /workspaces/:id/recommendations` + unify the frontend `Recommendation` shape (deferred from P2.2).
 - [ ] Build the search-terms scoring worker (canonical `apps/web/lib/logic/search-terms-bridge.ts`;
   `legacy/services/google-ads-service/search_terms.py` as the port reference).
 - [ ] Add `GET /workspaces/:id/google-ads/search-terms`.
