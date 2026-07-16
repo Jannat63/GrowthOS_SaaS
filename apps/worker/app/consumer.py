@@ -18,7 +18,7 @@ async def process_one(pool, raw: str) -> None:
 
     await mark_processing(pool, env.job_id)
     try:
-        result = await dispatch(env.type, env.payload)
+        result = await dispatch(env.type, env.payload, env.job_id, env.workspace_id)
         await mark_complete(pool, env.job_id, result)
     except Exception as exc:  # one bad job never kills the loop
         log.exception("job %s failed", env.job_id)
