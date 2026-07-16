@@ -1,13 +1,22 @@
 import type { FastifyInstance } from 'fastify'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { fromNodeHeaders } from 'better-auth/node'
 import { db, schema } from '@growthos/db'
-import type { JobStatusResponse, MeResponse, Membership, Role } from '@growthos/types'
+import type {
+  CrawlSummary,
+  JobStatusResponse,
+  MeResponse,
+  Membership,
+  OnboardingStatusResponse,
+  OnboardingStrategy,
+  Role,
+} from '@growthos/types'
 import { auth } from '../auth.js'
 import { AppError } from '../errors.js'
 import { requireUser } from '../auth-context.js'
 import { requireWorkspaceMember } from '../guards.js'
+import { enqueue } from '../jobs/enqueue.js'
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -131,5 +140,107 @@ export async function registerV1Routes(app: FastifyInstance) {
       ...(job.result != null ? { result: job.result } : {}),
       ...(job.error != null ? { error: job.error } : {}),
     }
+  })
+
+  // Persist the onboarding profile + kick off analysis. Idempotent: an in-flight
+  // onboarding_analyze job is returned rather than duplicated.
+  app.post('/api/v1/workspaces/:id/onboarding', async (request, reply) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+
+    const body = z
+      .object({
+        websiteUrl: z.string().url(),
+        businessCategory: z.string().min(1),
+        monthlyAdBudget: z.number().int().nonnegative(),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    await db
+      .update(schema.workspaces)
+      .set({
+        websiteUrl: body.data.websiteUrl,
+        businessCategory: body.data.businessCategory,
+        monthlyAdBudget: body.data.monthlyAdBudget,
+        onboardingStep: 'analyzing',
+      })
+      .where(eq(schema.workspaces.id, id))
+
+    const [inflight] = await db
+      .select({ id: schema.backgroundJobs.id })
+      .from(schema.backgroundJobs)
+      .where(
+        and(
+          eq(schema.backgroundJobs.workspaceId, id),
+          eq(schema.backgroundJobs.type, 'onboarding_analyze'),
+          inArray(schema.backgroundJobs.status, ['queued', 'processing']),
+        ),
+      )
+
+    reply.status(202)
+    if (inflight) {
+      return { jobId: inflight.id, statusUrl: `/api/v1/workspaces/${id}/jobs/${inflight.id}` }
+    }
+    return enqueue({ workspaceId: id, type: 'onboarding_analyze', payload: body.data })
+  })
+
+  // Profile + generated analysis — the review step reads the strategy here.
+  app.get(
+    '/api/v1/workspaces/:id/onboarding',
+    async (request): Promise<OnboardingStatusResponse> => {
+      const user = await requireUser(request)
+      const { id } = request.params as { id: string }
+      await requireWorkspaceMember(user.id, id)
+
+      const [ws] = await db
+        .select({
+          websiteUrl: schema.workspaces.websiteUrl,
+          businessCategory: schema.workspaces.businessCategory,
+          monthlyAdBudget: schema.workspaces.monthlyAdBudget,
+          onboardingStep: schema.workspaces.onboardingStep,
+          onboardingComplete: schema.workspaces.onboardingComplete,
+        })
+        .from(schema.workspaces)
+        .where(eq(schema.workspaces.id, id))
+      if (!ws) throw new AppError('WORKSPACE_NOT_FOUND', 'Workspace not found.')
+
+      const [an] = await db
+        .select()
+        .from(schema.onboardingAnalyses)
+        .where(eq(schema.onboardingAnalyses.workspaceId, id))
+
+      return {
+        profile: {
+          websiteUrl: ws.websiteUrl,
+          businessCategory: ws.businessCategory,
+          monthlyAdBudget: ws.monthlyAdBudget,
+          onboardingStep: ws.onboardingStep ?? 'business_intake',
+          onboardingComplete: ws.onboardingComplete ?? false,
+        },
+        analysis:
+          an?.strategy != null
+            ? {
+                crawlSummary: an.crawlSummary as CrawlSummary,
+                strategy: an.strategy as OnboardingStrategy,
+              }
+            : null,
+      }
+    },
+  )
+
+  // Completion gate — the single source of truth for "onboarding done".
+  app.post('/api/v1/workspaces/:id/onboarding/complete', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    await db
+      .update(schema.workspaces)
+      .set({ onboardingComplete: true, onboardingStep: 'complete' })
+      .where(eq(schema.workspaces.id, id))
+    return { onboardingComplete: true }
   })
 }
