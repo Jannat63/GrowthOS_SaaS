@@ -30,3 +30,26 @@ Report, budget reallocation, and first-party-data orchestration. **Template-firs
 ## Recommendation
 Prime candidate to build **right after P3.0** — it deepens the M2 loop with no external approvals, and the
 scheduled-loop + WebSocket work also unblocks the notification center deferred from P2.7.
+
+---
+
+## V1 build scope (2026-07-17) — honest slice
+
+**Reality check:** the legacy `cross_channel_engine.py` is the *same 5 rules* already in
+`packages/logic` — there is **no existing 47-rule implementation** to port. "47 rules" is a product
+vision, not code. So V1 ships the concrete pieces with **real logic** and grows the rule set
+incrementally (no fabricated fillers):
+
+- [ ] `packages/logic/src/intelligence.ts` — port the two **real** deterministic engines from legacy
+  `budget_and_reports.py`: `recommendBudgetReallocation(channels)` + `generateWeeklyReport({weekStart,
+  channels, topRecommendations})`. TDD.
+- [ ] `@growthos/types` — `ChannelPerformance`, `BudgetReallocation`, `WeeklyReport`.
+- [ ] DB `intelligence_reports` table (workspace, period_start, report jsonb) + migration.
+- [ ] API `GET /workspaces/:id/intelligence/report` — channel performance from ClickHouse
+  `ad_performance` (reuse `analytics.ts`), top recs from `ensureAllRecommendations`, generate + persist
+  latest week, return. Includes the budget-reallocation suggestion.
+- [ ] Frontend — Intelligence Report page (`/intelligence`) + sidebar nav.
+
+**Deferred (documented):** the 4-hourly **scheduled loop** (needs a scheduler process — low value until
+real data flows; report is generate-on-read for now) and **WebSocket real-time** (needs WS infra) →
+revisit when real channel data lands. First-party-data orchestrator → after P3.2/P3.3 live.

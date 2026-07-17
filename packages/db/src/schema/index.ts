@@ -11,3 +11,5 @@ export * from './onboarding.js';
 export * from './recommendations.js';
 // Content briefs (M2 · P2.3b).
 export * from './content-briefs.js';
+// Weekly intelligence reports (M3 · P3.4).
+export * from './intelligence.js';

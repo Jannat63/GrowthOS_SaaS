@@ -36,6 +36,13 @@
       "when": 1784247528149,
       "tag": "0004_silent_cable",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784256576552,
+      "tag": "0005_purple_newton_destine",
+      "breakpoints": true
     }
   ]
 }

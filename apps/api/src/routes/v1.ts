@@ -28,6 +28,7 @@ import {
 import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
 import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
+import { getWeeklyReport } from '../intelligence.js'
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -302,6 +303,14 @@ export async function registerV1Routes(app: FastifyInstance) {
     await ensureOrganicToPaid(id)
     const data = getTopOrganicPages()
     return { data, total: data.length }
+  })
+
+  // Weekly Growth Intelligence Report (M3 P3.4) — generate + persist, return latest.
+  app.get('/api/v1/workspaces/:id/intelligence/report', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    return getWeeklyReport(id)
   })
 
   // Blended MER — trend + channel breakdown from ClickHouse ad_performance (seeded per workspace).
