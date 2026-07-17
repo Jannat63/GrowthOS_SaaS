@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import type { MeResponse } from "@growthos/types";
 import { signIn } from "@/lib/auth/client";
+import { api } from "@/lib/api/client";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@growthos/ui/components/button";
 import { Input } from "@growthos/ui/components/input";
@@ -21,12 +23,21 @@ export default function SignInPage() {
     e.preventDefault();
     setLoading(true);
     const { error } = await signIn.email({ email, password });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       toast.error(error.message ?? "Wrong email or password.");
       return;
     }
-    router.push("/welcome");
+
+    // Returning users with a workspace go straight to the dashboard; only brand-new
+    // accounts (no workspace) go through onboarding. Keep the spinner during the check.
+    try {
+      const me = await api.get<MeResponse>("/auth/me");
+      router.push(me.memberships.length > 0 ? "/growth-hub" : "/welcome");
+    } catch {
+      // If we can't determine membership, avoid the onboarding loop — head to the dashboard.
+      router.push("/growth-hub");
+    }
   }
 
   return (
