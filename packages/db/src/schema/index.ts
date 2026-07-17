@@ -7,3 +7,5 @@ export * from './tenancy.js';
 export * from './jobs.js';
 // Generated onboarding artifacts (M2 · P2.2).
 export * from './onboarding.js';
+// Backend-owned recommendations (M2 · P2.3a).
+export * from './recommendations.js';

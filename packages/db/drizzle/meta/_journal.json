@@ -22,6 +22,13 @@
       "when": 1784244205822,
       "tag": "0002_happy_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784246797044,
+      "tag": "0003_mushy_luke_cage",
+      "breakpoints": true
     }
   ]
 }
