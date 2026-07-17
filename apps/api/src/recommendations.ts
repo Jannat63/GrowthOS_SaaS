@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import type { Recommendation } from '@growthos/types'
 import {
@@ -9,6 +9,9 @@ import {
   toRecommendation,
 } from '@growthos/logic'
 import { rawKeywords, searchTerms, creatives } from '@growthos/logic/fixtures'
+import { ensurePaidToOrganic } from './search-terms.js'
+import { ensureOrganicToPaid } from './organic-to-paid.js'
+import { ensureFatigueAlerts } from './fatigue.js'
 
 type Row = typeof schema.recommendations.$inferSelect
 
@@ -43,8 +46,18 @@ async function readOrdered(workspaceId: string): Promise<Row[]> {
  * engine over seeded fixtures if none exist yet. Idempotent: a workspace with rows is never regenerated.
  */
 export async function ensureRecommendations(workspaceId: string): Promise<Recommendation[]> {
-  const existing = await readOrdered(workspaceId)
-  if (existing.length > 0) return rowsToApi(existing)
+  // Guard on the cross_channel type specifically, so this composes with the other
+  // per-type generators (paid_to_organic, organic_to_paid, fatigue_alert) without conflict.
+  const existing = await db
+    .select({ id: schema.recommendations.id })
+    .from(schema.recommendations)
+    .where(
+      and(
+        eq(schema.recommendations.workspaceId, workspaceId),
+        eq(schema.recommendations.type, 'cross_channel'),
+      ),
+    )
+  if (existing.length > 0) return rowsToApi(await readOrdered(workspaceId))
 
   const mapped = generateCrossChannelRecommendations(
     scoreKeywords(rawKeywords),
@@ -70,5 +83,14 @@ export async function ensureRecommendations(workspaceId: string): Promise<Recomm
       rawData: m.rawData,
     })),
   )
+  return rowsToApi(await readOrdered(workspaceId))
+}
+
+// Unified queue (P2.7): ensure every recommendation type exists, then return all sorted by composite.
+export async function ensureAllRecommendations(workspaceId: string): Promise<Recommendation[]> {
+  await ensureRecommendations(workspaceId)
+  await ensurePaidToOrganic(workspaceId)
+  await ensureOrganicToPaid(workspaceId)
+  await ensureFatigueAlerts(workspaceId)
   return rowsToApi(await readOrdered(workspaceId))
 }

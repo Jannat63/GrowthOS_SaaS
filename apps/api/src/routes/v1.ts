@@ -17,7 +17,7 @@ import { AppError } from '../errors.js'
 import { requireUser } from '../auth-context.js'
 import { requireWorkspaceMember } from '../guards.js'
 import { enqueue } from '../jobs/enqueue.js'
-import { ensureRecommendations } from '../recommendations.js'
+import { ensureAllRecommendations } from '../recommendations.js'
 import {
   ensurePaidToOrganic,
   getScoredSearchTerms,
@@ -247,7 +247,7 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    const data = await ensureRecommendations(id)
+    const data = await ensureAllRecommendations(id)
     return { data, total: data.length }
   })
 
