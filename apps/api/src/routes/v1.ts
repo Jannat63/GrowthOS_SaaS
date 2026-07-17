@@ -17,6 +17,7 @@ import { AppError } from '../errors.js'
 import { requireUser } from '../auth-context.js'
 import { requireWorkspaceMember } from '../guards.js'
 import { enqueue } from '../jobs/enqueue.js'
+import { ensureRecommendations } from '../recommendations.js'
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -231,6 +232,15 @@ export async function registerV1Routes(app: FastifyInstance) {
       }
     },
   )
+
+  // Backend-owned recommendations — generated once from the canonical engine, then persisted.
+  app.get('/api/v1/workspaces/:id/recommendations', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const data = await ensureRecommendations(id)
+    return { data, total: data.length }
+  })
 
   // Completion gate — the single source of truth for "onboarding done".
   app.post('/api/v1/workspaces/:id/onboarding/complete', async (request) => {
