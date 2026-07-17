@@ -158,6 +158,40 @@ export interface OnboardingStatusResponse {
   analysis: { crawlSummary: CrawlSummary; strategy: OnboardingStrategy } | null;
 }
 
+// ── Content pipeline (M2 P2.3b) ──────────────────────────────────────────────
+
+export interface ContentBrief {
+  recommendedH1: string;
+  wordCount: number;
+  headingStructure: string[];
+  entities: string[];
+  faqQuestions: string[];
+  metaTitle: string;
+  metaDescription: string;
+  internalLinkTargets: string[];
+  schemaType: string;
+}
+
+export interface ScoredSearchTerm {
+  term: string;
+  clicks: number;
+  conversions: number;
+  cost: number;
+  organicPosition: number | null;
+  conversionRate: number;
+  recommendationType: string;
+  message: string;
+}
+
+export interface ContentBriefRecord {
+  id: string;
+  workspaceId: string;
+  recommendationId: string | null;
+  keyword: string;
+  status: string;
+  brief: ContentBrief;
+}
+
 // ── WebSocket events (stub — fleshed out in M2) ──────────────────────────────
 
 export type WebSocketEvent =
