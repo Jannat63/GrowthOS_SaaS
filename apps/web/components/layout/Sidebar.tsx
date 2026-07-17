@@ -33,7 +33,7 @@ const NAV = [
   { href: "#", label: "SEO", icon: Search, ready: false },
   { href: "#", label: "Google Ads", icon: MousePointerClick, ready: false },
   { href: "#", label: "Meta Ads", icon: Megaphone, ready: false },
-  { href: "#", label: "Analytics", icon: BarChart3, ready: false },
+  { href: "/analytics", label: "Analytics", icon: BarChart3, ready: true },
 ];
 
 export function Sidebar() {
