@@ -192,6 +192,23 @@ export interface ContentBriefRecord {
   brief: ContentBrief;
 }
 
+// Organic-to-Paid (M2 P2.4) — Meta creative briefs from top organic pages.
+export interface CreativeBrief {
+  hook: string;
+  primaryText: string;
+  headline: string;
+  format: string;
+  audience: string;
+  callToAction: string;
+}
+
+export interface TopOrganicPage {
+  keyword: string;
+  volume: number;
+  currentPosition: number | null;
+  opportunityScore: number;
+}
+
 // ── WebSocket events (stub — fleshed out in M2) ──────────────────────────────
 
 export type WebSocketEvent =
