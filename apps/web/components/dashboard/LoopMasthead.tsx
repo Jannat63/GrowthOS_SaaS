@@ -1,8 +1,8 @@
 "use client";
 import { Card } from "@growthos/ui/components/card";
 import { cn } from "@/lib/utils/cn";
-import type { MERResult } from "@/lib/logic/blended-mer";
-import type { CrossChannelRecommendation } from "@/lib/logic/cross-channel-engine";
+import type { MERResult } from "@growthos/logic";
+import type { CrossChannelRecommendation } from "@growthos/logic";
 import {
   CHANNELS,
   CHANNEL_ORDER,

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@better-fetch/fetch": "1.1.21",
+    "@growthos/logic": "workspace:*",
     "@growthos/types": "workspace:*",
     "@growthos/ui": "workspace:*",
     "@tanstack/react-query": "^5.62.0",

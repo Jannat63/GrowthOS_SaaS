@@ -14,7 +14,7 @@ import { useConnections } from "@/lib/hooks/useConnections";
 import { useGrowthHub } from "@/lib/hooks/useGrowthHub";
 import { useRecommendations } from "@/lib/hooks/useRecommendations";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
-import type { CrossChannelRecommendation } from "@/lib/logic/cross-channel-engine";
+import type { CrossChannelRecommendation } from "@growthos/logic";
 
 const TABS = [
   { label: "Overview", href: "#overview" },

@@ -5,13 +5,13 @@ import { liveOrMock } from "./liveOrMock";
 import {
   generateCrossChannelRecommendations,
   type CrossChannelRecommendation,
-} from "@/lib/logic/cross-channel-engine";
-import { scoreKeywords } from "@/lib/logic/seo-scoring";
-import { analyzeSearchTerms } from "@/lib/logic/search-terms-bridge";
-import { detectFatigueAll } from "@/lib/logic/creative-fatigue";
-import { rawKeywords } from "@/lib/mock-data/seo";
-import { searchTerms } from "@/lib/mock-data/google-ads";
-import { creatives } from "@/lib/mock-data/meta-ads";
+} from "@growthos/logic";
+import { scoreKeywords } from "@growthos/logic";
+import { analyzeSearchTerms } from "@growthos/logic";
+import { detectFatigueAll } from "@growthos/logic";
+import { rawKeywords } from "@growthos/logic/fixtures";
+import { searchTerms } from "@growthos/logic/fixtures";
+import { creatives } from "@growthos/logic/fixtures";
 
 function mockRecommendations(): CrossChannelRecommendation[] {
   return generateCrossChannelRecommendations(

@@ -3,7 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { Card } from "@growthos/ui/components/card";
 import { Badge } from "@growthos/ui/components/badge";
 import { cn } from "@/lib/utils/cn";
-import type { CrossChannelRecommendation } from "@/lib/logic/cross-channel-engine";
+import type { CrossChannelRecommendation } from "@growthos/logic";
 import { CHANNELS, bridgeEndpoints } from "./channels";
 import { DataSourceBadge } from "./DataSourceBadge";
 

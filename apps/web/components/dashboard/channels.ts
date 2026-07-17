@@ -1,5 +1,5 @@
 import { Search, MousePointerClick, Megaphone, type LucideIcon } from "lucide-react";
-import type { CrossChannelRecommendation } from "@/lib/logic/cross-channel-engine";
+import type { CrossChannelRecommendation } from "@growthos/logic";
 
 export type ChannelKey = "seo" | "google" | "meta";
 

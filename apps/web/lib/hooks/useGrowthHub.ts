@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
 import { liveOrMock } from "./liveOrMock";
-import { calculateBlendedMER, type MERResult } from "@/lib/logic/blended-mer";
+import { calculateBlendedMER, type MERResult } from "@growthos/logic";
 import { merInput, kpiMock, channelMetricMock } from "@/lib/mock-data/growth-hub";
 import type { ChannelKey } from "@/components/dashboard/channels";
 
