@@ -16,6 +16,7 @@ import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { NotificationCenter } from "@/components/layout/NotificationCenter";
 
 export function TopBar() {
   const router = useRouter();
@@ -82,6 +83,7 @@ export function TopBar() {
       {/* Right side */}
       <div className="flex items-center gap-2.5">
         <DataSourceBadge source={data?.source ?? "mock"} />
+        <NotificationCenter workspaceId={active?.workspaceId ?? null} />
         <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger
