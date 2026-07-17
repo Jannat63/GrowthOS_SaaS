@@ -11,6 +11,7 @@ import type {
   OnboardingStatusResponse,
   OnboardingStrategy,
   Role,
+  WorkspaceMember,
 } from '@growthos/types'
 import { auth } from '../auth.js'
 import { AppError } from '../errors.js'
@@ -322,6 +323,30 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     const data = await getContentBriefs(id)
+    return { data, total: data.length }
+  })
+
+  // Workspace members + roles (P2.8 settings) — guarded by membership.
+  app.get('/api/v1/workspaces/:id/members', async (request): Promise<{ data: WorkspaceMember[]; total: number }> => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const rows = await db
+      .select({
+        userId: schema.workspace_members.userId,
+        role: schema.workspace_members.role,
+        name: schema.user.name,
+        email: schema.user.email,
+      })
+      .from(schema.workspace_members)
+      .innerJoin(schema.user, eq(schema.workspace_members.userId, schema.user.id))
+      .where(eq(schema.workspace_members.organizationId, id))
+    const data = rows.map((r) => ({
+      userId: r.userId,
+      name: r.name,
+      email: r.email,
+      role: r.role as Role,
+    }))
     return { data, total: data.length }
   })
 

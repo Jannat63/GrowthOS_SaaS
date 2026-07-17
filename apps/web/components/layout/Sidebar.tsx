@@ -156,16 +156,20 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-ink-border px-3 py-4">
-        <span
-          title={collapsed ? "Settings — coming soon" : "Coming soon"}
+        <Link
+          href="/settings"
+          title={collapsed ? "Settings" : undefined}
           className={cn(
-            "flex items-center rounded-lg py-2 text-sm font-medium text-ink-muted/50 cursor-default",
-            collapsed ? "justify-center px-0" : "gap-3 px-3"
+            "group flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
+            collapsed ? "justify-center px-0" : "gap-3 px-3",
+            pathname === "/settings"
+              ? "bg-ink-2 text-ink-foreground"
+              : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
           )}
         >
           <Settings className="h-4 w-4 shrink-0" />
           {!collapsed && "Settings"}
-        </span>
+        </Link>
       </div>
     </aside>
   );

@@ -55,6 +55,13 @@ export interface MeResponse {
   memberships: Membership[];
 }
 
+export interface WorkspaceMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: Role;
+}
+
 export interface PlatformConnection {
   id: string;
   workspaceId: string;
