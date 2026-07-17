@@ -25,6 +25,7 @@ import {
   updateRecommendationStatus,
 } from '../search-terms.js'
 import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
+import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -290,6 +291,16 @@ export async function registerV1Routes(app: FastifyInstance) {
     await requireWorkspaceMember(user.id, id)
     await ensureOrganicToPaid(id)
     const data = getTopOrganicPages()
+    return { data, total: data.length }
+  })
+
+  // Creative fatigue — scored Meta creatives (+ generate fatigue_alert recs).
+  app.get('/api/v1/workspaces/:id/meta-ads/fatigue', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    await ensureFatigueAlerts(id)
+    const data = getFatigueResults()
     return { data, total: data.length }
   })
 
