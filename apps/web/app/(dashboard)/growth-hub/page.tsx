@@ -14,7 +14,6 @@ import { useConnections } from "@/lib/hooks/useConnections";
 import { useGrowthHub } from "@/lib/hooks/useGrowthHub";
 import { useRecommendations } from "@/lib/hooks/useRecommendations";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
-import type { CrossChannelRecommendation } from "@growthos/logic";
 
 const TABS = [
   { label: "Overview", href: "#overview" },
@@ -31,8 +30,7 @@ export default function GrowthHubPage() {
   const { data: hub } = useGrowthHub(workspaceId);
   const { data: recs } = useRecommendations(workspaceId);
 
-  const [activeBridge, setActiveBridge] =
-    useState<CrossChannelRecommendation["bridge"] | null>(null);
+  const [activeChannels, setActiveChannels] = useState<ChannelKey[] | null>(null);
 
   const connectedKeys = (conn?.data ?? [])
     .filter((c) => c.isActive)
@@ -58,7 +56,7 @@ export default function GrowthHubPage() {
             mer={hub.data.mer}
             channelMetric={hub.data.channelMetric}
             connectedKeys={connectedKeys}
-            activeBridge={activeBridge}
+            activeChannels={activeChannels}
             source={hub.source}
           />
         ) : (
@@ -79,7 +77,7 @@ export default function GrowthHubPage() {
           <RecommendationQueue
             recommendations={recs.data}
             source={recs.source}
-            onHoverBridge={setActiveBridge}
+            onHoverChannels={setActiveChannels}
           />
         ) : (
           <Skeleton className="h-64 w-full rounded-lg" />

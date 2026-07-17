@@ -1,5 +1,4 @@
 import { Search, MousePointerClick, Megaphone, type LucideIcon } from "lucide-react";
-import type { CrossChannelRecommendation } from "@growthos/logic";
 
 export type ChannelKey = "seo" | "google" | "meta";
 
@@ -14,25 +13,18 @@ export const CHANNELS: Record<
 
 export const CHANNEL_ORDER: ChannelKey[] = ["seo", "google", "meta"];
 
-const BRIDGE_TOKEN: Record<string, ChannelKey> = {
-  SEO: "seo",
-  GoogleAds: "google",
-  Meta: "meta",
-};
-
-/** Directional [source, target] channels for a bridge, e.g. "SEO→GoogleAds". */
-export function bridgeEndpoints(
-  bridge: CrossChannelRecommendation["bridge"]
-): [ChannelKey, ChannelKey] {
-  const [from, to] = bridge.split("→");
-  return [BRIDGE_TOKEN[from]!, BRIDGE_TOKEN[to]!];
-}
-
-/** The set of channels a cross-channel recommendation touches. */
-export function bridgeChannels(
-  bridge: CrossChannelRecommendation["bridge"]
-): ChannelKey[] {
-  return Array.from(new Set(bridgeEndpoints(bridge)));
+/** Map a Recommendation source/target channel string onto a channel node. */
+export function channelToKey(channel: string): ChannelKey | null {
+  switch (channel) {
+    case "seo":
+      return "seo";
+    case "google_ads":
+      return "google";
+    case "meta_ads":
+      return "meta";
+    default:
+      return null;
+  }
 }
 
 /** Map a stored platform_connections.platform string onto a channel node. */

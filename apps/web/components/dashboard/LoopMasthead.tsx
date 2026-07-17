@@ -2,13 +2,7 @@
 import { Card } from "@growthos/ui/components/card";
 import { cn } from "@/lib/utils/cn";
 import type { MERResult } from "@growthos/logic";
-import type { CrossChannelRecommendation } from "@growthos/logic";
-import {
-  CHANNELS,
-  CHANNEL_ORDER,
-  bridgeChannels,
-  type ChannelKey,
-} from "./channels";
+import { CHANNELS, CHANNEL_ORDER, type ChannelKey } from "./channels";
 import { DataSourceBadge } from "./DataSourceBadge";
 
 /** Node coordinates on the 320×320 orbit — SEO up top, the two paid channels below. */
@@ -22,16 +16,16 @@ export function LoopMasthead({
   mer,
   channelMetric,
   connectedKeys,
-  activeBridge,
+  activeChannels,
   source,
 }: {
   mer: MERResult;
   channelMetric: Record<ChannelKey, string>;
   connectedKeys: ChannelKey[];
-  activeBridge: CrossChannelRecommendation["bridge"] | null;
+  activeChannels: ChannelKey[] | null;
   source: "live" | "mock";
 }) {
-  const active = activeBridge ? new Set(bridgeChannels(activeBridge)) : null;
+  const active = activeChannels ? new Set(activeChannels) : null;
   const isLit = (key: ChannelKey) => !active || active.has(key);
 
   return (

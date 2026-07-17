@@ -1,10 +1,10 @@
 "use client";
 import { ArrowRight } from "lucide-react";
+import type { Recommendation } from "@growthos/types";
 import { Card } from "@growthos/ui/components/card";
 import { Badge } from "@growthos/ui/components/badge";
 import { cn } from "@/lib/utils/cn";
-import type { CrossChannelRecommendation } from "@growthos/logic";
-import { CHANNELS, bridgeEndpoints } from "./channels";
+import { CHANNELS, channelToKey, type ChannelKey } from "./channels";
 import { DataSourceBadge } from "./DataSourceBadge";
 
 const IMPACT_VARIANT = {
@@ -13,8 +13,11 @@ const IMPACT_VARIANT = {
   Low: "outline",
 } as const;
 
-function BridgeTag({ bridge }: { bridge: CrossChannelRecommendation["bridge"] }) {
-  const [from, to] = bridgeEndpoints(bridge);
+function impactLabel(score: number): keyof typeof IMPACT_VARIANT {
+  return score >= 80 ? "High" : score >= 50 ? "Medium" : "Low";
+}
+
+function BridgeTag({ from, to }: { from: ChannelKey; to: ChannelKey }) {
   const From = CHANNELS[from].icon;
   const To = CHANNELS[to].icon;
   return (
@@ -31,11 +34,11 @@ function BridgeTag({ bridge }: { bridge: CrossChannelRecommendation["bridge"] })
 export function RecommendationQueue({
   recommendations,
   source,
-  onHoverBridge,
+  onHoverChannels,
 }: {
-  recommendations: CrossChannelRecommendation[];
+  recommendations: Recommendation[];
   source: "live" | "mock";
-  onHoverBridge: (bridge: CrossChannelRecommendation["bridge"] | null) => void;
+  onHoverChannels: (channels: ChannelKey[] | null) => void;
 }) {
   return (
     <Card className="flex flex-col p-6">
@@ -59,28 +62,40 @@ export function RecommendationQueue({
         </div>
       ) : (
         <ul className="mt-4 flex flex-col divide-y">
-          {recommendations.map((rec) => (
-            <li key={rec.id}>
-              <button
-                type="button"
-                onMouseEnter={() => onHoverBridge(rec.bridge)}
-                onMouseLeave={() => onHoverBridge(null)}
-                onFocus={() => onHoverBridge(rec.bridge)}
-                onBlur={() => onHoverBridge(null)}
-                className={cn(
-                  "-mx-2 flex w-full flex-col gap-1 rounded-lg px-2 py-3 text-left",
-                  "transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
-                )}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <BridgeTag bridge={rec.bridge} />
-                  <Badge variant={IMPACT_VARIANT[rec.impact]}>{rec.impact}</Badge>
-                </div>
-                <p className="text-sm font-medium">{rec.title}</p>
-                <p className="text-sm text-muted-foreground">{rec.message}</p>
-              </button>
-            </li>
-          ))}
+          {recommendations.map((rec) => {
+            const from = channelToKey(rec.sourceChannel);
+            const to = channelToKey(rec.targetChannel);
+            const touched = [from, to].filter((k): k is ChannelKey => k !== null);
+            const impact = impactLabel(rec.impactScore);
+            return (
+              <li key={rec.id}>
+                <button
+                  type="button"
+                  onMouseEnter={() => onHoverChannels(touched.length ? touched : null)}
+                  onMouseLeave={() => onHoverChannels(null)}
+                  onFocus={() => onHoverChannels(touched.length ? touched : null)}
+                  onBlur={() => onHoverChannels(null)}
+                  className={cn(
+                    "-mx-2 flex w-full flex-col gap-1 rounded-lg px-2 py-3 text-left",
+                    "transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    {from && to ? (
+                      <BridgeTag from={from} to={to} />
+                    ) : (
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Cross-channel
+                      </span>
+                    )}
+                    <Badge variant={IMPACT_VARIANT[impact]}>{impact}</Badge>
+                  </div>
+                  <p className="text-sm font-medium">{rec.title}</p>
+                  <p className="text-sm text-muted-foreground">{rec.body}</p>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>
