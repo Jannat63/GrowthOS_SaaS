@@ -72,16 +72,24 @@ export interface Paginated<T> {
   offset: number;
 }
 
-// ── Recommendations (stub — fleshed out in M2) ───────────────────────────────
+// ── Recommendations (M2 P2.3a — backend-owned, persisted) ────────────────────
+
+export type RecommendationStatus = "pending" | "acted" | "dismissed" | "snoozed";
 
 export interface Recommendation {
   id: string;
   workspaceId: string;
   type: string;
+  sourceChannel: string;
+  targetChannel: string;
   title: string;
   body: string;
+  actionLabel: string | null;
+  impactScore: number;
+  effortScore: number;
+  urgencyScore: number;
   compositeScore: number;
-  status: "new" | "acted" | "dismissed" | "snoozed";
+  status: RecommendationStatus;
 }
 
 // ── Jobs (async operations — M2 P2.1) ────────────────────────────────────────
