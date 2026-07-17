@@ -26,6 +26,7 @@ import {
 } from '../search-terms.js'
 import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
 import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
+import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -292,6 +293,17 @@ export async function registerV1Routes(app: FastifyInstance) {
     await ensureOrganicToPaid(id)
     const data = getTopOrganicPages()
     return { data, total: data.length }
+  })
+
+  // Blended MER — trend + channel breakdown from ClickHouse ad_performance (seeded per workspace).
+  app.get('/api/v1/workspaces/:id/analytics/mer', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const q = z.object({ days: z.coerce.number().int().positive().max(90).optional() }).safeParse(request.query)
+    const days = q.success ? (q.data.days ?? 30) : 30
+    await ensureAdPerformanceSeed(id)
+    return getMerTrend(id, days)
   })
 
   // Creative fatigue — scored Meta creatives (+ generate fatigue_alert recs).

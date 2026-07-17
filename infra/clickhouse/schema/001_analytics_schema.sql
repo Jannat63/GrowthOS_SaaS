@@ -3,8 +3,8 @@
 -- Ported from legacy/db/clickhouse/schema (reference-only) into the new build's infra.
 
 CREATE TABLE IF NOT EXISTS keyword_rankings (
-  workspace_id UUID,
-  keyword_id UUID,
+  workspace_id String,
+  keyword_id String,
   keyword String,
   date Date,
   position UInt16,
@@ -17,7 +17,7 @@ PARTITION BY toYYYYMM(date)
 ORDER BY (workspace_id, keyword_id, date);
 
 CREATE TABLE IF NOT EXISTS ad_performance (
-  workspace_id UUID,
+  workspace_id String,
   platform Enum8('google_ads' = 1, 'meta_ads' = 2),
   campaign_id String,
   campaign_name String,
@@ -32,7 +32,7 @@ PARTITION BY (platform, toYYYYMM(date))
 ORDER BY (workspace_id, platform, campaign_id, date);
 
 CREATE TABLE IF NOT EXISTS organic_traffic (
-  workspace_id UUID,
+  workspace_id String,
   date Date,
   page_url String,
   sessions UInt64,
@@ -44,8 +44,8 @@ PARTITION BY toYYYYMM(date)
 ORDER BY (workspace_id, page_url, date);
 
 CREATE TABLE IF NOT EXISTS creative_performance (
-  workspace_id UUID,
-  creative_id UUID,
+  workspace_id String,
+  creative_id String,
   creative_name String,
   platform Enum8('meta_ads' = 1, 'google_ads' = 2),
   date Date,
@@ -58,7 +58,7 @@ PARTITION BY toYYYYMM(date)
 ORDER BY (workspace_id, creative_id, date);
 
 CREATE TABLE IF NOT EXISTS ai_citations (
-  workspace_id UUID,
+  workspace_id String,
   ai_platform Enum8('chatgpt' = 1, 'perplexity' = 2, 'google_ai' = 3, 'gemini' = 4),
   date Date,
   keyword String,
