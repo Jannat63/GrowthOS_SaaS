@@ -18,6 +18,12 @@ import { requireUser } from '../auth-context.js'
 import { requireWorkspaceMember } from '../guards.js'
 import { enqueue } from '../jobs/enqueue.js'
 import { ensureRecommendations } from '../recommendations.js'
+import {
+  ensurePaidToOrganic,
+  getScoredSearchTerms,
+  getContentBriefs,
+  updateRecommendationStatus,
+} from '../search-terms.js'
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -239,6 +245,49 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     const data = await ensureRecommendations(id)
+    return { data, total: data.length }
+  })
+
+  // Act / dismiss / snooze a recommendation.
+  app.patch('/api/v1/workspaces/:id/recommendations/:recId', async (request) => {
+    const user = await requireUser(request)
+    const { id, recId } = request.params as { id: string; recId: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+    const body = z
+      .object({
+        status: z.enum(['pending', 'acted', 'dismissed', 'snoozed']),
+        snoozedUntil: z.string().datetime().optional(),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    const ok = await updateRecommendationStatus(
+      id,
+      recId,
+      body.data.status,
+      body.data.snoozedUntil ? new Date(body.data.snoozedUntil) : undefined,
+    )
+    if (!ok) throw new AppError('WORKSPACE_NOT_FOUND', 'Recommendation not found in this workspace.')
+    return { id: recId, status: body.data.status }
+  })
+
+  // Paid-to-organic search-terms surface — scores seeded terms + ensures recs/briefs exist.
+  app.get('/api/v1/workspaces/:id/google-ads/search-terms', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    await ensurePaidToOrganic(id)
+    const data = getScoredSearchTerms()
+    return { searchTerms: data, total: data.length }
+  })
+
+  // Content briefs for a workspace (linked to paid_to_organic recommendations).
+  app.get('/api/v1/workspaces/:id/content-briefs', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const data = await getContentBriefs(id)
     return { data, total: data.length }
   })
 
