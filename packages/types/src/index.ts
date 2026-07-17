@@ -209,6 +209,17 @@ export interface TopOrganicPage {
   opportunityScore: number;
 }
 
+// Creative Fatigue (M2 P2.5)
+export interface ScoredCreative {
+  name: string;
+  frequency: number;
+  ctrThisWeek: number;
+  ctrLastWeek: number;
+  ctrDeclinePercent: number;
+  status: "fatigued" | "at-risk" | "healthy";
+  message: string;
+}
+
 // ── WebSocket events (stub — fleshed out in M2) ──────────────────────────────
 
 export type WebSocketEvent =
