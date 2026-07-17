@@ -35,36 +35,43 @@ export async function ensurePaidToOrganic(workspaceId: string): Promise<void> {
   const flagged = analyzeSearchTerms(searchTerms).filter(
     (t) => t.recommendation.type === 'paid-proven-organic-needed',
   )
-  for (const term of flagged) {
-    const m = paidToOrganicRecommendation(term, workspaceId)
-    const [rec] = await db
-      .insert(schema.recommendations)
-      .values({
-        workspaceId,
-        type: m.type,
-        sourceChannel: m.sourceChannel,
-        targetChannel: m.targetChannel,
-        title: m.title,
-        body: m.body,
-        actionLabel: m.actionLabel,
-        impactScore: m.impactScore,
-        effortScore: m.effortScore,
-        urgencyScore: m.urgencyScore,
-        compositeScore: m.compositeScore,
-        status: m.status,
-        rawData: m.rawData,
-      })
-      .returning({ id: schema.recommendations.id })
+  if (flagged.length === 0) return
 
-    await db.insert(schema.contentBriefs).values({
+  // Batch: one insert for all recs (RETURNING ids in VALUES order), one for all briefs.
+  const recRows = await db
+    .insert(schema.recommendations)
+    .values(
+      flagged.map((term) => {
+        const m = paidToOrganicRecommendation(term, workspaceId)
+        return {
+          workspaceId,
+          type: m.type,
+          sourceChannel: m.sourceChannel,
+          targetChannel: m.targetChannel,
+          title: m.title,
+          body: m.body,
+          actionLabel: m.actionLabel,
+          impactScore: m.impactScore,
+          effortScore: m.effortScore,
+          urgencyScore: m.urgencyScore,
+          compositeScore: m.compositeScore,
+          status: m.status,
+          rawData: m.rawData,
+        }
+      }),
+    )
+    .returning({ id: schema.recommendations.id })
+
+  await db.insert(schema.contentBriefs).values(
+    flagged.map((term, i) => ({
       workspaceId,
-      recommendationId: rec!.id,
+      recommendationId: recRows[i]!.id,
       keyword: term.term,
       source: 'google_ads_search_term',
       sourceData: term,
       brief: generateContentBrief(term.term),
-    })
-  }
+    })),
+  )
 }
 
 export async function getContentBriefs(workspaceId: string): Promise<ContentBriefRecord[]> {

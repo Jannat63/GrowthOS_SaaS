@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance, type FastifyError } from 'fastify'
 import cors from '@fastify/cors'
+import rateLimit from '@fastify/rate-limit'
 import { fromNodeHeaders } from 'better-auth/node'
 import { auth } from './auth.js'
 import { AppError } from './errors.js'
@@ -15,6 +16,15 @@ export function buildApp(): FastifyInstance {
   app.register(cors, {
     origin: process.env.WEB_ORIGIN ?? 'http://localhost:3000',
     credentials: true,
+  })
+
+  // Rate limiting (P2.8 hardening): 200 req/min per IP by default, emitting the RATE_LIMITED envelope.
+  app.register(rateLimit, {
+    max: Number(process.env.RATE_LIMIT_MAX ?? 200),
+    timeWindow: '1 minute',
+    errorResponseBuilder: () => ({
+      error: { code: 'RATE_LIMITED', message: 'Too many requests — slow down.', statusCode: 429 },
+    }),
   })
 
   // Typed error envelope: { error: { code, message, statusCode } } (see CLAUDE.md).

@@ -33,34 +33,42 @@ export async function ensureOrganicToPaid(workspaceId: string): Promise<void> {
     )
   if (existing.length > 0) return
 
-  for (const k of topKeywords()) {
-    const m = organicToPaidRecommendation(k, workspaceId)
-    const [rec] = await db
-      .insert(schema.recommendations)
-      .values({
-        workspaceId,
-        type: m.type,
-        sourceChannel: m.sourceChannel,
-        targetChannel: m.targetChannel,
-        title: m.title,
-        body: m.body,
-        actionLabel: m.actionLabel,
-        impactScore: m.impactScore,
-        effortScore: m.effortScore,
-        urgencyScore: m.urgencyScore,
-        compositeScore: m.compositeScore,
-        status: m.status,
-        rawData: m.rawData,
-      })
-      .returning({ id: schema.recommendations.id })
+  const top = topKeywords()
+  if (top.length === 0) return
 
-    await db.insert(schema.contentBriefs).values({
+  // Batch: one insert for all recs (RETURNING ids in VALUES order), one for all creative briefs.
+  const recRows = await db
+    .insert(schema.recommendations)
+    .values(
+      top.map((k) => {
+        const m = organicToPaidRecommendation(k, workspaceId)
+        return {
+          workspaceId,
+          type: m.type,
+          sourceChannel: m.sourceChannel,
+          targetChannel: m.targetChannel,
+          title: m.title,
+          body: m.body,
+          actionLabel: m.actionLabel,
+          impactScore: m.impactScore,
+          effortScore: m.effortScore,
+          urgencyScore: m.urgencyScore,
+          compositeScore: m.compositeScore,
+          status: m.status,
+          rawData: m.rawData,
+        }
+      }),
+    )
+    .returning({ id: schema.recommendations.id })
+
+  await db.insert(schema.contentBriefs).values(
+    top.map((k, i) => ({
       workspaceId,
-      recommendationId: rec!.id,
+      recommendationId: recRows[i]!.id,
       keyword: k.keyword,
       source: 'organic_top_page',
       sourceData: k,
       brief: generateCreativeBrief(k.keyword),
-    })
-  }
+    })),
+  )
 }
