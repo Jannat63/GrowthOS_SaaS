@@ -16,20 +16,28 @@ const REVENUE_FACTOR = 2.2
 
 function seedRows(workspaceId: string) {
   const base = new Date('2026-06-18T00:00:00Z')
+  const round2 = (n: number) => Math.round(n * 100) / 100
   const rows: Record<string, unknown>[] = []
   for (let day = 0; day < 30; day++) {
     const d = new Date(base)
     d.setUTCDate(base.getUTCDate() + day)
     const date = d.toISOString().slice(0, 10)
+    // Deterministic day-to-day variance so the MER trend reads as alive (weekend dip in
+    // spend, sinusoidal swing in revenue, mild upward drift). Seeded stand-in until M3.
+    const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6
+    const spendFactor = (weekend ? 0.7 : 1) * (1 + Math.sin(day / 3) * 0.12)
+    const revFactor = 1 + Math.sin(day / 2.5 + 1) * 0.28 + day * 0.012 + (weekend ? 0.08 : 0)
     rows.push({
       workspace_id: workspaceId, platform: 'google_ads', campaign_id: 'g-1',
       campaign_name: 'Search - Brand', date, impressions: 1000 + day * 10,
-      clicks: 80 + day, spend: 45.5, conversions: 6, conversion_value: 320,
+      clicks: 80 + day, spend: round2(45.5 * spendFactor), conversions: 6,
+      conversion_value: round2(320 * revFactor),
     })
     rows.push({
       workspace_id: workspaceId, platform: 'meta_ads', campaign_id: 'm-1',
       campaign_name: 'Prospecting - Lookalike', date, impressions: 5000 + day * 20,
-      clicks: 120 + day, spend: 90.25, conversions: 4, conversion_value: 210,
+      clicks: 120 + day, spend: round2(90.25 * spendFactor), conversions: 4,
+      conversion_value: round2(210 * revFactor),
     })
   }
   return rows

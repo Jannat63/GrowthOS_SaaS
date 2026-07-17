@@ -28,7 +28,6 @@ import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useMer } from "@/lib/hooks/useMer";
 import { useRecommendations } from "@/lib/hooks/useRecommendations";
-import { useFatigue } from "@/lib/hooks/useFatigue";
 import { useConnections } from "@/lib/hooks/useConnections";
 import { platformToChannel, type ChannelKey } from "@/components/dashboard/channels";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
@@ -61,12 +60,12 @@ export default function GrowthHubPage() {
 
   const { data: mer } = useMer(workspaceId, 30);
   const { data: recs } = useRecommendations(workspaceId);
-  const { data: fatigue } = useFatigue(workspaceId);
   const { data: conn } = useConnections(workspaceId);
 
   const pending = (recs?.data ?? []).filter((r) => r.status === "pending");
-  const atRisk = (fatigue?.data ?? []).filter((c) => c.status !== "healthy").length;
   const countByType = (t: string) => pending.filter((r) => r.type === t).length;
+  // One fatigue_alert is generated per non-healthy creative, so this is the at-risk count.
+  const atRisk = countByType("fatigue_alert");
 
   const connectedKeys = new Set(
     (conn?.data ?? [])
@@ -106,7 +105,7 @@ export default function GrowthHubPage() {
         <StatTile
           icon={AlertTriangle}
           label="Creatives at risk"
-          value={fatigue ? String(atRisk) : undefined}
+          value={recs ? String(atRisk) : undefined}
           hint="Fatigued or approaching it"
           tone={atRisk > 0 ? "warn" : "default"}
           href="/fatigue-monitor"
@@ -276,7 +275,7 @@ function StatTile({
   tone?: "default" | "warn";
 }) {
   const body = (
-    <Card className={cn("h-full p-5", href && "transition-colors hover:border-primary/40 hover:bg-secondary/40")}>
+    <Card className={cn("flex h-full flex-col p-5", href && "transition-colors hover:border-primary/40 hover:bg-secondary/40")}>
       <div className={cn("flex items-center gap-2 text-xs font-medium uppercase tracking-wide", tone === "warn" ? "text-destructive" : "text-muted-foreground")}>
         <Icon className="h-3.5 w-3.5" /> {label}
       </div>
@@ -285,7 +284,7 @@ function StatTile({
       ) : (
         <Skeleton className="mt-2 h-9 w-20" />
       )}
-      <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+      <p className="mt-auto pt-3 text-xs text-muted-foreground">{hint}</p>
     </Card>
   );
   return href ? <Link href={href}>{body}</Link> : body;
