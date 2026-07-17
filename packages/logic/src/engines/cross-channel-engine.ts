@@ -2,9 +2,9 @@
 // reads output from SEO, Google Ads, and Meta Ads modules and generates
 // cross-channel recommendations. This is the platform's core differentiator.
 
-import { ScoredKeyword } from "./seo-scoring";
-import { AnalyzedSearchTerm } from "./search-terms-bridge";
-import { FatigueResult } from "./creative-fatigue";
+import { ScoredKeyword } from "./seo-scoring.js";
+import { AnalyzedSearchTerm } from "./search-terms-bridge.js";
+import { FatigueResult } from "./creative-fatigue.js";
 
 export interface CrossChannelRecommendation {
   id: string;

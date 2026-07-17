@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scoreKeyword, scoreKeywords, KeywordInput } from "./seo-scoring";
+import { scoreKeyword, scoreKeywords, KeywordInput } from "./seo-scoring.js";
 
 const base: KeywordInput = {
   keyword: "test keyword",

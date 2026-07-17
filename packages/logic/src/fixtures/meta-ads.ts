@@ -1,4 +1,4 @@
-import type { CreativePerformance } from "@/lib/logic/creative-fatigue";
+import type { CreativePerformance } from "../engines/creative-fatigue.js";
 
 /** Ported from legacy — Meta ad creatives the fatigue engine evaluates. */
 export const creatives: CreativePerformance[] = [

@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { generateCrossChannelRecommendations } from "./cross-channel-engine";
-import { ScoredKeyword } from "./seo-scoring";
-import { AnalyzedSearchTerm } from "./search-terms-bridge";
-import { FatigueResult } from "./creative-fatigue";
+import { generateCrossChannelRecommendations } from "./cross-channel-engine.js";
+import { ScoredKeyword } from "./seo-scoring.js";
+import { AnalyzedSearchTerm } from "./search-terms-bridge.js";
+import { FatigueResult } from "./creative-fatigue.js";
 
 function kw(overrides: Partial<ScoredKeyword>): ScoredKeyword {
   return {

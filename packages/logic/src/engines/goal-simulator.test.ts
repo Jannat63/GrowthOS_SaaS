@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { simulateGoal, SimulatorBaseline } from "./goal-simulator";
+import { simulateGoal, SimulatorBaseline } from "./goal-simulator.js";
 
 const baseline: SimulatorBaseline = { currentConversionRate: 0.025, currentAOV: 70 };
 

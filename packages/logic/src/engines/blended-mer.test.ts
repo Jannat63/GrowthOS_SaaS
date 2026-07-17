@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateBlendedMER } from "./blended-mer";
+import { calculateBlendedMER } from "./blended-mer.js";
 
 describe("calculateBlendedMER", () => {
   it("calculates revenue divided by total spend correctly", () => {

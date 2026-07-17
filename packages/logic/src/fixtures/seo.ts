@@ -1,4 +1,4 @@
-import type { KeywordInput } from "@/lib/logic/seo-scoring";
+import type { KeywordInput } from "../engines/seo-scoring.js";
 
 /** Ported from legacy — the raw keyword set the seo-scoring engine consumes. */
 export const rawKeywords: KeywordInput[] = [

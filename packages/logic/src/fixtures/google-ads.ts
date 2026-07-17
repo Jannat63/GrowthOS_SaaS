@@ -1,4 +1,4 @@
-import type { SearchTerm } from "@/lib/logic/search-terms-bridge";
+import type { SearchTerm } from "../engines/search-terms-bridge.js";
 
 /** Ported from legacy — Google Ads search terms the bridge engine analyzes. */
 export const searchTerms: SearchTerm[] = [

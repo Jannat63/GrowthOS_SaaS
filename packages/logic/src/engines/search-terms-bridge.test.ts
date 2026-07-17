@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { analyzeSearchTerm, analyzeSearchTerms, SearchTerm } from "./search-terms-bridge";
+import { analyzeSearchTerm, analyzeSearchTerms, SearchTerm } from "./search-terms-bridge.js";
 
 describe("analyzeSearchTerm", () => {
   it("flags a converting term with no organic coverage as paid-proven-organic-needed", () => {

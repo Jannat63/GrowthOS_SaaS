@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectFatigue, detectFatigueAll, CreativePerformance } from "./creative-fatigue";
+import { detectFatigue, detectFatigueAll, CreativePerformance } from "./creative-fatigue.js";
 
 describe("detectFatigue", () => {
   it("flags as fatigued when frequency > 3 AND CTR down > 20%", () => {
