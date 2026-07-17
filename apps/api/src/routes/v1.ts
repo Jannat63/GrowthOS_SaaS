@@ -121,11 +121,19 @@ export async function registerV1Routes(app: FastifyInstance) {
         platform: schema.platformConnections.platform,
         accountName: schema.platformConnections.accountName,
         isActive: schema.platformConnections.isActive,
+        lastSyncedAt: schema.platformConnections.lastSyncedAt,
+        syncError: schema.platformConnections.syncError,
       })
       .from(schema.platformConnections)
       .where(eq(schema.platformConnections.workspaceId, id))
 
-    return { data: connections, total: connections.length }
+    return {
+      data: connections.map((c) => ({
+        ...c,
+        lastSyncedAt: c.lastSyncedAt ? c.lastSyncedAt.toISOString() : null,
+      })),
+      total: connections.length,
+    }
   })
 
   // Poll async job status — guarded by workspace membership. A job outside the caller's

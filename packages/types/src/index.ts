@@ -68,6 +68,8 @@ export interface PlatformConnection {
   platform: string;
   accountName: string | null;
   isActive: boolean;
+  lastSyncedAt: string | null;
+  syncError: string | null;
 }
 
 // ── Pagination ───────────────────────────────────────────────────────────────

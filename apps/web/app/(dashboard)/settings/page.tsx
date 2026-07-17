@@ -1,4 +1,5 @@
 "use client";
+import { Suspense } from "react";
 import { Card } from "@growthos/ui/components/card";
 import { Badge } from "@growthos/ui/components/badge";
 import { Skeleton } from "@growthos/ui/components/skeleton";
@@ -14,6 +15,7 @@ import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useMembers } from "@/lib/hooks/useMembers";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { ConnectionsSection } from "@/components/settings/ConnectionsSection";
 
 const ROLE_VARIANT: Record<string, "default" | "muted" | "outline"> = {
   owner: "default",
@@ -64,6 +66,10 @@ export default function SettingsPage() {
           <Skeleton className="mt-4 h-16 w-full" />
         )}
       </Card>
+
+      <Suspense fallback={null}>
+        <ConnectionsSection workspaceId={workspaceId} />
+      </Suspense>
 
       <Card className="p-6">
         <div className="flex items-center gap-2">
