@@ -9,3 +9,5 @@ export * from './jobs.js';
 export * from './onboarding.js';
 // Backend-owned recommendations (M2 · P2.3a).
 export * from './recommendations.js';
+// Content briefs (M2 · P2.3b).
+export * from './content-briefs.js';
