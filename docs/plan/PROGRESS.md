@@ -1,9 +1,9 @@
 # GrowthOS — Master Progress Dashboard
 
-Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 IN PROGRESS** — **P2.1–P2.4 done**
-(job pipeline; onboarding→strategy; recommendations foundation; paid↔organic bridges — shared
-`@growthos/logic`, persisted recs + content/creative briefs, Content Pipeline + Creative Queue pages).
-Next: **P2.5 Creative Fatigue Monitor**. M3–M5 not started.
+Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 IN PROGRESS** — **P2.1–P2.5 done**
+(job pipeline; onboarding→strategy; recommendations foundation; paid↔organic bridges; creative fatigue —
+shared `@growthos/logic`, persisted recs + briefs, Content Pipeline / Creative Queue / Fatigue Monitor
+pages). Next: **P2.6 Blended MER Dashboard**. M3–M5 not started.
 M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
 ·  Updated: 2026-07-17
 
@@ -43,7 +43,7 @@ Build the whole basic app on **seeded data**, each feature a full **vertical sli
 | P2.2 | Onboarding Wizard | 🔁 Slice | [x] | **Done 2026-07-17.** Wizard → real pipeline (stub crawl → strategy → review → gate). Recs deferred to P2.3. |
 | P2.3 | Paid-to-Organic Bridge | 🔁 Slice | [x] | **Done 2026-07-17.** Shared `@growthos/logic`; `recommendations` + `content_briefs`; live recommendations queue; search-terms surface; Content Pipeline page with act/dismiss/snooze. |
 | P2.4 | Organic-to-Paid Bridge | 🔁 Slice | [x] | **Done 2026-07-17.** Meta creative briefs from top organic pages; Creative Queue page w/ act/dismiss/snooze. |
-| P2.5 | Creative Fatigue Monitor | 🔁 Slice | [ ] | Fatigue worker + alert-card UI. |
+| P2.5 | Creative Fatigue Monitor | 🔁 Slice | [x] | **Done 2026-07-17.** Fatigue surface + `fatigue_alert` recs; Fatigue Monitor page. Scheduled worker/email/WS → M3/M5/P2.7. |
 | P2.6 | Blended MER Dashboard | 🔁 Slice | [ ] | MER calc + Recharts UI. Shopify pull → M3. |
 | P2.7 | Unified Dashboard + notifications | 🎨 FE | [ ] | KPI cards + queue + WS notification center. |
 | P2.8 | Hardening & polish (no billing) | 🔧 Opt | [ ] | Security + perf + workspace settings + optional PDF. Billing moved to M5. |

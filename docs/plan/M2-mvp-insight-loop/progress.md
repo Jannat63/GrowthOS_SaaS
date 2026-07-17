@@ -11,7 +11,7 @@ on **seeded data**. **No billing** (→ M5). **No real OAuth** (→ M3 P3.0).
 | P2.2 Onboarding Wizard | 🔁 Slice | [x] | **Done 2026-07-17 (Option B).** Wizard wired to real pipeline (persist profile → onboarding_analyze job: stub crawl → strategy → review → complete gate). Recs deferred to P2.3. |
 | P2.3 Paid-to-Organic Bridge | 🔁 Slice | [x] | **Done 2026-07-17.** P2.3a (shared `@growthos/logic`, `recommendations`, live queue) + P2.3b (search-terms surface, content briefs, Content Pipeline page, act/dismiss/snooze). |
 | P2.4 Organic-to-Paid Bridge | 🔁 Slice | [x] | **Done 2026-07-17.** Meta creative-brief generator; `GET /seo/top-pages` → `organic_to_paid` recs + creative briefs; Creative Queue page w/ act/dismiss/snooze. |
-| P2.5 Creative Fatigue Monitor | 🔁 Slice | [ ] | Fatigue worker + alert-card UI. |
+| P2.5 Creative Fatigue Monitor | 🔁 Slice | [x] | **Done 2026-07-17.** `GET /meta-ads/fatigue` → `fatigue_alert` recs; Fatigue Monitor page w/ refresh/snooze/ignore. Scheduled worker/email/WS deferred (M3/M5/P2.7). |
 | P2.6 Blended MER Dashboard | 🔁 Slice | [ ] | MER calc + Recharts UI. Shopify pull → M3. |
 | P2.7 Unified Dashboard + notifications | 🎨 FE | [ ] | KPI cards + queue + WS notification center. |
 | P2.8 Hardening & polish | 🔧 Optional | [ ] | Security + perf + workspace settings + optional PDF. **No billing.** |
@@ -30,4 +30,6 @@ on **seeded data**. **No billing** (→ M5). **No real OAuth** (→ M3 P3.0).
 - 2026-07-17 — **P2.3 complete** (P2.3b: paid-to-organic feature — search-terms surface, content briefs,
   Content Pipeline page, act/dismiss/snooze).
 - 2026-07-17 — **P2.4 complete** (organic-to-paid: top-pages surface, Meta creative briefs, Creative
-  Queue page, act/dismiss/snooze). Next: **P2.5 Creative Fatigue Monitor**.
+  Queue page, act/dismiss/snooze).
+- 2026-07-17 — **P2.5 complete** (creative fatigue: fatigue surface, alert recs, Fatigue Monitor page).
+  Scheduled worker/email/WS deferred (M3/M5/P2.7). Next: **P2.6 Blended MER Dashboard**.
