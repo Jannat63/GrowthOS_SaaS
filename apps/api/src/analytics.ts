@@ -1,5 +1,6 @@
 import { createClient, type ClickHouseClient } from '@clickhouse/client'
-import { calculateBlendedMER, type MERResult } from '@growthos/logic'
+import { calculateBlendedMER } from '@growthos/logic'
+import type { MerDashboard, MerTrendPoint } from '@growthos/types'
 
 let client: ClickHouseClient | null = null
 
@@ -8,20 +9,6 @@ export function getClickhouse(): ClickHouseClient {
     client = createClient({ url: process.env.CLICKHOUSE_URL ?? 'http://localhost:8123' })
   }
   return client
-}
-
-export interface MerTrendPoint {
-  date: string
-  mer: number
-  spend: number
-  revenue: number
-}
-
-export interface MerDashboard {
-  trend: MerTrendPoint[]
-  summary: MERResult
-  channelBreakdown: { googleAdsSpend: number; metaAdsSpend: number }
-  anomaly: { detected: boolean; changePercent: number }
 }
 
 // Blended-revenue stand-in until real Shopify data (M3): ad-attributed value scaled up for organic.

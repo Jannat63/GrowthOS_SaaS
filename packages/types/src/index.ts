@@ -209,6 +209,21 @@ export interface TopOrganicPage {
   opportunityScore: number;
 }
 
+// Blended MER (M2 P2.6)
+export interface MerTrendPoint {
+  date: string;
+  mer: number;
+  spend: number;
+  revenue: number;
+}
+
+export interface MerDashboard {
+  trend: MerTrendPoint[];
+  summary: { blendedMER: number; totalSpend: number; interpretation: string };
+  channelBreakdown: { googleAdsSpend: number; metaAdsSpend: number };
+  anomaly: { detected: boolean; changePercent: number };
+}
+
 // Creative Fatigue (M2 P2.5)
 export interface ScoredCreative {
   name: string;
