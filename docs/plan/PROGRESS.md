@@ -1,9 +1,9 @@
 # GrowthOS — Master Progress Dashboard
 
-Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 IN PROGRESS** — **P2.1, P2.2 done;
-P2.3a done** (job pipeline; onboarding→strategy pipeline; recommendations foundation — shared
-`@growthos/logic`, persisted recs, live dashboard queue). Next: **P2.3b** (paid-to-organic feature).
-M3–M5 not started.
+Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 IN PROGRESS** — **P2.1, P2.2, P2.3
+done** (job pipeline; onboarding→strategy pipeline; recommendations foundation + paid-to-organic bridge —
+shared `@growthos/logic`, persisted recs & content briefs, live dashboard queue + Content Pipeline page).
+Next: **P2.4 Organic-to-Paid Bridge**. M3–M5 not started.
 M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
 ·  Updated: 2026-07-17
 
@@ -41,7 +41,7 @@ Build the whole basic app on **seeded data**, each feature a full **vertical sli
 |-------|------|-------|--------|-------|
 | P2.1 | Worker & data plumbing | 🔧 BE | [x] | **Done 2026-07-17.** Plain Python worker (not Celery) + Redis job-bridge (JSON envelope), `background_jobs`, **seeded** ClickHouse (60 rows) + stub `platform_connections`. Local Redis/ClickHouse via Docker. E2E verified. |
 | P2.2 | Onboarding Wizard | 🔁 Slice | [x] | **Done 2026-07-17.** Wizard → real pipeline (stub crawl → strategy → review → gate). Recs deferred to P2.3. |
-| P2.3 | Paid-to-Organic Bridge | 🔁 Slice | [~] | **P2.3a done 2026-07-17:** shared `@growthos/logic`, `recommendations` table, live `GET /recommendations`, frontend `Recommendation` unification. **P2.3b next:** search-terms surface, content briefs, Content Pipeline UI, act/dismiss/snooze. |
+| P2.3 | Paid-to-Organic Bridge | 🔁 Slice | [x] | **Done 2026-07-17.** Shared `@growthos/logic`; `recommendations` + `content_briefs`; live recommendations queue; search-terms surface; Content Pipeline page with act/dismiss/snooze. |
 | P2.4 | Organic-to-Paid Bridge | 🔁 Slice | [ ] | GSC top-pages + Creative Queue UI. |
 | P2.5 | Creative Fatigue Monitor | 🔁 Slice | [ ] | Fatigue worker + alert-card UI. |
 | P2.6 | Blended MER Dashboard | 🔁 Slice | [ ] | MER calc + Recharts UI. Shopify pull → M3. |

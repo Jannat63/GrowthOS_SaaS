@@ -27,15 +27,16 @@ package (extracted from `apps/web`), imported by both web + api; scoring runs sy
 - [x] `GET /workspaces/:id/recommendations` (generate-if-empty, persisted) + unify the frontend
   `Recommendation` shape (deferred from P2.2). Dashboard queue is now live-backed.
 
-### P2.3b — Paid-to-organic feature (next)
+### P2.3b — Paid-to-organic feature ✅ (2026-07-17)
 
-- [ ] `content_briefs` table.
-- [ ] Search-terms scoring surface — **run the canonical `search-terms-bridge` (TS) in the API**, not a
-  Python worker (`legacy/services/google-ads-service/search_terms.py` = reference only).
-- [ ] `GET /workspaces/:id/google-ads/search-terms`.
-- [ ] Rule-based content-brief generator (`legacy/services/seo-service/content_brief.py` spec).
-- [ ] Content Pipeline UI (the google-ads/search-terms page).
-- [ ] Recommendation dismiss / snooze / act (`PATCH /recommendations/:id`).
+- [x] `content_briefs` table (+ `snoozed_until`/`acted_at` on recommendations).
+- [x] Search-terms scoring surface — canonical `search-terms-bridge` (TS) run **in the API** (no Python worker).
+- [x] `GET /workspaces/:id/google-ads/search-terms` (+ generate-if-empty paid_to_organic recs & briefs).
+- [x] Rule-based content-brief generator (`@growthos/logic/content-brief`).
+- [x] Content Pipeline UI (`/content-pipeline`) + `GET /content-briefs`.
+- [x] Recommendation dismiss / snooze / act (`PATCH /workspaces/:id/recommendations/:recId`).
+
+**P2.3 COMPLETE** (P2.3a + P2.3b). See `VERIFY-P2.3a.md` + `VERIFY-P2.3b.md`.
 
 ## Frontend (vertical slice)
 
