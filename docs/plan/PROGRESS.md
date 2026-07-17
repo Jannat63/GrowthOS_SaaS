@@ -1,8 +1,9 @@
 # GrowthOS — Master Progress Dashboard
 
-Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 IN PROGRESS** — **P2.1–P2.7 done**
-(job pipeline; onboarding→strategy; recommendations; paid↔organic bridges; creative fatigue; blended MER;
-unified queue + action center). Only **P2.8 Hardening & polish** remains in M2. M3–M5 not started.
+Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **🎉 M2 COMPLETE** — the seeded Insight
+Loop MVP is done end-to-end (P2.1–P2.8: job pipeline; onboarding→strategy; recommendations; paid↔organic
+bridges; creative fatigue; blended MER; unified queue + action center; hardening). Next: **M3 — real
+OAuth + live data**. M3–M5 not started.
 M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
 ·  Updated: 2026-07-17
 
@@ -30,7 +31,7 @@ Rows in **execution order** (UI-front-loaded now that auth is done: shadcn → l
 | 6 | P1.3 | Fastify domain skeleton | 🔧 BE | [x] | `/api/v1` + member guard + `@growthos/types`; verified (member/403/401). |
 | 7 | P1.4b | Web data re-point | 🎨 FE | [x] | Via Slice 2 — dashboard shell + Growth Hub; `lib/api`→`/api/v1`, hooks live/mock via `liveOrMock`, `DataSourceBadge`. |
 
-## M2 — MVP: The Insight Loop  🟨 In progress
+## M2 — MVP: The Insight Loop  ✅ Complete
 
 Build the whole basic app on **seeded data**, each feature a full **vertical slice** (BE + FE).
 **No billing** (→ M5). **No real OAuth** (→ M3 P3.0). Critical path:
@@ -45,7 +46,7 @@ Build the whole basic app on **seeded data**, each feature a full **vertical sli
 | P2.5 | Creative Fatigue Monitor | 🔁 Slice | [x] | **Done 2026-07-17.** Fatigue surface + `fatigue_alert` recs; Fatigue Monitor page. Scheduled worker/email/WS → M3/M5/P2.7. |
 | P2.6 | Blended MER Dashboard | 🔁 Slice | [x] | **Done 2026-07-17.** MER over seeded ClickHouse; Recharts trend + channel breakdown + anomaly. Shopify/revenue-entry → M3. |
 | P2.7 | Unified Dashboard + notifications | 🎨 FE | [x] | **Done 2026-07-17.** Unified recommendations queue + TopBar action center. Real-time WS → M3. |
-| P2.8 | Hardening & polish (no billing) | 🔧 Opt | [ ] | Security + perf + workspace settings + optional PDF. Billing moved to M5. |
+| P2.8 | Hardening & polish (no billing) | 🔧 Opt | [x] | **Done 2026-07-17.** Rate limiting + perf batching + workspace settings. PDF/invites deferred. Billing → M5. |
 
 ## M3 — V1: Full Channel Coverage  ⬜ Not started (outline only)
 
