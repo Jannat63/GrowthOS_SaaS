@@ -1,9 +1,8 @@
 # GrowthOS — Master Progress Dashboard
 
-Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **🎉 M2 COMPLETE** — the seeded Insight
-Loop MVP is done end-to-end (P2.1–P2.8: job pipeline; onboarding→strategy; recommendations; paid↔organic
-bridges; creative fatigue; blended MER; unified queue + action center; hardening). Next: **M3 — real
-OAuth + live data**. M3–M5 not started.
+Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 COMPLETE** (seeded Insight Loop MVP,
+P2.1–P2.8); **M3 IN PROGRESS** — real OAuth + live data. P3.0 (Google Search Console integration)
+building now. M4–M5 not started.
 M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
 ·  Updated: 2026-07-17
 
@@ -48,11 +47,15 @@ Build the whole basic app on **seeded data**, each feature a full **vertical sli
 | P2.7 | Unified Dashboard + notifications | 🎨 FE | [x] | **Done 2026-07-17.** Unified recommendations queue + TopBar action center. Real-time WS → M3. |
 | P2.8 | Hardening & polish (no billing) | 🔧 Opt | [x] | **Done 2026-07-17.** Rate limiting + perf batching + workspace settings. PDF/invites deferred. Billing → M5. |
 
-## M3 — V1: Full Channel Coverage  ⬜ Not started (outline only)
+## M3 — V1: Full Channel Coverage  🟨 In progress
+
+Phase folders created (P3.0–P3.5). **First real provider = Google Search Console.** Build order:
+P3.0 → non-blocked phases (P3.4 intelligence, GSC-slice of P3.1, P3.5 agency) while Meta/Ads/DataForSEO
+approvals mature → then P3.2/P3.3.
 
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
-| P3.0 | Real platform integrations (OAuth) | [ ] | Real OAuth + live sync for Google/Meta/GSC/Shopify; replaces M2 seeds. Deferred out of M2. Start app-review paperwork early. |
+| P3.0 | Real platform integrations (OAuth) | [~] | **Building.** Custom OAuth → `platform_connections`; GSC first; encrypted tokens; live sync → ClickHouse. Meta/Ads/Shopify adapters + approvals later. |
 | P3.1 | SEO module | [ ] | Outline — expand to folder when reached. |
 | P3.2 | Google Ads module | [ ] | Outline — expand to folder when reached. |
 | P3.3 | Meta Ads module | [ ] | Outline — expand to folder when reached. |
