@@ -24,6 +24,7 @@ import {
   getContentBriefs,
   updateRecommendationStatus,
 } from '../search-terms.js'
+import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -282,7 +283,17 @@ export async function registerV1Routes(app: FastifyInstance) {
     return { searchTerms: data, total: data.length }
   })
 
-  // Content briefs for a workspace (linked to paid_to_organic recommendations).
+  // Organic-to-paid — top organic pages worth amplifying with Meta (+ generate recs/creative briefs).
+  app.get('/api/v1/workspaces/:id/seo/top-pages', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    await ensureOrganicToPaid(id)
+    const data = getTopOrganicPages()
+    return { data, total: data.length }
+  })
+
+  // Content briefs for a workspace (linked to paid_to_organic + organic_to_paid recommendations).
   app.get('/api/v1/workspaces/:id/content-briefs', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
