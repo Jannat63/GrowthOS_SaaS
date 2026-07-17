@@ -15,16 +15,27 @@ recommendations with generated content briefs, and let the user act on them.
 > `CrossChannelRecommendation` (and `RecommendationQueue` + `useRecommendations`) onto the blueprint
 > `Recommendation` shape, retiring the mock-compute fallback in favor of live persisted recs.
 
-## Subphases
+Split into **P2.3a (foundation, DONE)** and **P2.3b (feature, next)** — see the specs under
+`docs/superpowers/`. Key architecture: the canonical scoring lives in the shared **`@growthos/logic`**
+package (extracted from `apps/web`), imported by both web + api; scoring runs synchronously in the API
+(no Python port).
 
-- [ ] Add the `recommendations` and `content_briefs` tables.
-- [ ] Add `GET /workspaces/:id/recommendations` + unify the frontend `Recommendation` shape (deferred from P2.2).
-- [ ] Build the search-terms scoring worker (canonical `apps/web/lib/logic/search-terms-bridge.ts`;
-  `legacy/services/google-ads-service/search_terms.py` as the port reference).
-- [ ] Add `GET /workspaces/:id/google-ads/search-terms`.
-- [ ] Add the rule-based content-brief generator (`legacy/services/seo-service/content_brief.py` spec).
-- [ ] Build the Content Pipeline UI (the google-ads/search-terms page).
-- [ ] Add recommendation dismiss / snooze / act (`PATCH /recommendations/:id`).
+### P2.3a — Recommendations foundation ✅ (2026-07-17)
+
+- [x] `@growthos/logic` package — engines + fixtures extracted from `apps/web`, consumed by web + api.
+- [x] `recommendations` table.
+- [x] `GET /workspaces/:id/recommendations` (generate-if-empty, persisted) + unify the frontend
+  `Recommendation` shape (deferred from P2.2). Dashboard queue is now live-backed.
+
+### P2.3b — Paid-to-organic feature (next)
+
+- [ ] `content_briefs` table.
+- [ ] Search-terms scoring surface — **run the canonical `search-terms-bridge` (TS) in the API**, not a
+  Python worker (`legacy/services/google-ads-service/search_terms.py` = reference only).
+- [ ] `GET /workspaces/:id/google-ads/search-terms`.
+- [ ] Rule-based content-brief generator (`legacy/services/seo-service/content_brief.py` spec).
+- [ ] Content Pipeline UI (the google-ads/search-terms page).
+- [ ] Recommendation dismiss / snooze / act (`PATCH /recommendations/:id`).
 
 ## Frontend (vertical slice)
 
