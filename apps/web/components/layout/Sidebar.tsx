@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Sparkles,
+  FileText,
   Search,
   MousePointerClick,
   Megaphone,
@@ -25,6 +26,7 @@ const INK_ICON_BTN =
 const NAV = [
   { href: "/growth-hub", label: "Growth Hub", icon: LayoutDashboard, ready: true },
   { href: "#", label: "Recommendations", icon: Sparkles, ready: false },
+  { href: "/content-pipeline", label: "Content Pipeline", icon: FileText, ready: true },
   { href: "#", label: "SEO", icon: Search, ready: false },
   { href: "#", label: "Google Ads", icon: MousePointerClick, ready: false },
   { href: "#", label: "Meta Ads", icon: Megaphone, ready: false },
