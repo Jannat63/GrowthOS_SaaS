@@ -115,7 +115,7 @@ export default function GrowthHubPage() {
 
       {/* Trend + priority actions */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="p-6 text-primary lg:col-span-2">
+        <Card className="flex flex-col p-6 text-primary lg:col-span-2">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-lg font-semibold tracking-tight text-foreground">
               Blended MER trend
@@ -124,7 +124,7 @@ export default function GrowthHubPage() {
               Analytics <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </div>
-          <div className="mt-4 h-56 w-full">
+          <div className="mt-4 w-full flex-1 min-h-[14rem]">
             {mer ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={mer.data.trend} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
