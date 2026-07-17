@@ -37,12 +37,14 @@ function googleConfig() {
   return { clientId, clientSecret }
 }
 
-function tokensFrom(j: {
+interface TokenResponse {
   access_token: string
   refresh_token?: string
   expires_in?: number
   scope?: string
-}, fallbackRefresh: string | null): ProviderTokens {
+}
+
+function tokensFrom(j: TokenResponse, fallbackRefresh: string | null): ProviderTokens {
   return {
     accessToken: j.access_token,
     refreshToken: j.refresh_token ?? fallbackRefresh,
@@ -83,7 +85,7 @@ export const googleProvider: OAuthProvider = {
       }),
     })
     if (!res.ok) throw new Error(`Google token exchange failed: ${res.status}`)
-    return tokensFrom(await res.json(), null)
+    return tokensFrom((await res.json()) as TokenResponse, null)
   },
 
   async refreshAccessToken(refreshToken) {
@@ -100,7 +102,7 @@ export const googleProvider: OAuthProvider = {
     })
     if (!res.ok) throw new Error(`Google token refresh failed: ${res.status}`)
     // Google usually does not return a new refresh_token on refresh — keep the existing one.
-    return tokensFrom(await res.json(), refreshToken)
+    return tokensFrom((await res.json()) as TokenResponse, refreshToken)
   },
 
   async listAccounts(accessToken) {

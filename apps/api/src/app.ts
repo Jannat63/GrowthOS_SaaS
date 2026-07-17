@@ -5,6 +5,7 @@ import { fromNodeHeaders } from 'better-auth/node'
 import { auth } from './auth.js'
 import { AppError } from './errors.js'
 import { registerV1Routes } from './routes/v1.js'
+import { registerConnectionRoutes } from './routes/connections.js'
 
 /**
  * Build the Fastify app. Kept separate from `listen` so it can be exercised
@@ -51,6 +52,8 @@ export function buildApp(): FastifyInstance {
 
   // Versioned domain routes.
   app.register(registerV1Routes)
+  // Real platform OAuth connect/callback/disconnect/sync (M3 P3.0).
+  app.register(registerConnectionRoutes)
 
   // Better Auth (D1) owns /api/auth/* — sign-up/in, sessions, and the organization
   // (workspace) endpoints. Convert Fastify's req/reply to the Web Request/Response

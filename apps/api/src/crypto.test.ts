@@ -20,7 +20,7 @@ describe('token crypto (AES-256-GCM)', () => {
     const enc = encryptToken('secret')
     const [iv, tag, ct] = enc.split('.')
     const buf = Buffer.from(ct!, 'base64')
-    buf[0] ^= 0xff
+    buf[0] = (buf[0] ?? 0) ^ 0xff
     const tampered = [iv, tag, buf.toString('base64')].join('.')
     expect(() => decryptToken(tampered)).toThrow()
   })
