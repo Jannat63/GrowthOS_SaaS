@@ -1,6 +1,6 @@
 # M3 — Progress
 
-Status: [~]  ·  Updated: 2026-07-18  ·  **In progress** — P3.0 built (live pending Google creds); P3.4 V1 done; P3.5 A+B+C1 done; P3.1 SEO (2 slices) done; P3.2 advisor slice done.
+Status: [~]  ·  Updated: 2026-07-18  ·  **In progress** — P3.0 built (live pending Google creds); P3.4 V1 done; P3.5 A+B+C1 done; P3.1 SEO (2 slices) done; P3.2 + P3.3 advisor slices done. Every module now has a live surface.
 
 Phases expanded to folders (`P3.0-real-integrations/` … `P3.5-agency/`). First real provider = **Google
 Search Console**. Build order: P3.0 → then the non-blocked phases (P3.4, GSC-slice of P3.1, P3.5) while
@@ -11,7 +11,7 @@ Meta/Ads/DataForSEO approvals mature → then P3.2/P3.3.
 | P3.0 Real platform integrations (OAuth) | [~] | **Built.** Custom OAuth → `platform_connections`; GSC first; live sync → ClickHouse. Live E2E pending Google creds. |
 | P3.1 SEO module | [~] | **Rank-tracker + organic-traffic slices done** — GSC-fed keyword positions + per-page traffic from ClickHouse, `/seo` tabs. DataForSEO features (research/audit/clustering) still gated (paid). |
 | P3.2 Google Ads module | [~] | **Advisor + RSA + budget/target planner done** — deterministic campaign advisor, wasted-spend, RSA generator, unit-economics planner (`/google-ads`). Live fetch/push + Quality Score gated on the dev token. |
-| P3.3 Meta Ads module | [ ] | Outline. Gated on Meta App Review. |
+| P3.3 Meta Ads module | [~] | **Advisor + funnel/copy slice done** — campaign advisor + full-funnel planner + ad-copy/UGC studio (`/meta-ads`); fatigue done in M2. Live sync/publish + CAPI/EMQ gated on App Review. |
 | P3.4 Intelligence Engine V1 | [x] | **V1 done** — weekly report + budget engine + `/intelligence` page. Scheduled loop + WS + 47-rule set deferred. |
 | P3.5 Agency features | [~] | **Slices A+B+C1 done** — collaboration + audit log + white-label branding. Only white-labeled PDF export (C2, needs Puppeteer+R2) remains. |
 
@@ -36,5 +36,8 @@ Meta/Ads/DataForSEO approvals mature → then P3.2/P3.3.
 - 2026-07-18 — **P3.1 organic-traffic slice** — per-page clicks/impressions/CTR/position + daily trend
   from ClickHouse `organic_traffic`; `/seo` split into Rank tracker / Organic traffic tabs.
 - 2026-07-18 — **P3.2 advisor slice** — `@growthos/logic` google-ads-advisor engine (wasted-spend,
-  campaign classification, RSA generator; 6 tests) + `/google-ads` page. Live campaign fetch/push gated
-  on the Google Ads developer token.
+  campaign classification, RSA generator, target-CPA/ROAS + budget allocator; 8 tests) + `/google-ads`
+  page. Live campaign fetch/push gated on the Google Ads developer token.
+- 2026-07-18 — **P3.3 advisor slice** — `@growthos/logic` meta-ads-advisor engine (full-funnel split,
+  ad-copy + UGC generators; 4 tests) + `/meta-ads` page (shared CampaignInsightsPanel + funnel/copy
+  tools). Live sync/publish + CAPI/EMQ gated on Meta App Review. Every channel module now has a live UI.
