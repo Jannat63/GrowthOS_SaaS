@@ -1,6 +1,6 @@
 # M3 — Progress
 
-Status: [~]  ·  Updated: 2026-07-18  ·  **In progress** — P3.0 built (live E2E pending Google creds); P3.4 V1 done; P3.5 Slices A+B done.
+Status: [~]  ·  Updated: 2026-07-18  ·  **In progress** — P3.0 built (live E2E pending Google creds); P3.4 V1 done; P3.5 Slices A+B+C1 done (only PDF export left).
 
 Phases expanded to folders (`P3.0-real-integrations/` … `P3.5-agency/`). First real provider = **Google
 Search Console**. Build order: P3.0 → then the non-blocked phases (P3.4, GSC-slice of P3.1, P3.5) while
@@ -13,7 +13,7 @@ Meta/Ads/DataForSEO approvals mature → then P3.2/P3.3.
 | P3.2 Google Ads module | [ ] | Outline. Gated on Google Ads dev token. |
 | P3.3 Meta Ads module | [ ] | Outline. Gated on Meta App Review. |
 | P3.4 Intelligence Engine V1 | [x] | **V1 done** — weekly report + budget engine + `/intelligence` page. Scheduled loop + WS + 47-rule set deferred. |
-| P3.5 Agency features | [~] | **Slices A + B done** — collaboration (comments + assignment, `/recommendations` queue) + audit log (Settings activity). White-label PDF (Slice C) remains. |
+| P3.5 Agency features | [~] | **Slices A+B+C1 done** — collaboration + audit log + white-label branding. Only white-labeled PDF export (C2, needs Puppeteer+R2) remains. |
 
 ## Log
 
@@ -26,5 +26,7 @@ Meta/Ads/DataForSEO approvals mature → then P3.2/P3.3.
 - 2026-07-18 — **P3.0 build complete** (framework + Google adapter + GSC sync + connections UI; 27 API
   tests; live E2E blocked on user's Google Cloud creds). **P3.4 Intelligence Engine V1 done** — weekly
   report + budget-reallocation engine, `intelligence_reports` table, API route, `/intelligence` page.
-  Scheduled loop / WebSocket / full 47-rule set deferred (documented in P3.4). **P3.5 Slice A done** —
-  recommendation collaboration (comments + assignment) + `/recommendations` unified queue.
+  Scheduled loop / WebSocket / full 47-rule set deferred (documented in P3.4). **P3.5 Slices A+B+C1 done** —
+  recommendation collaboration (comments + assignment, `/recommendations` queue), audit log (Settings
+  activity), and white-label branding (agency name/logo/accent on the shell). Self-audit hardened the
+  audit-log authz + assignee validation. Only P3.5 C2 (white-labeled PDF export, needs Puppeteer+R2) left.
