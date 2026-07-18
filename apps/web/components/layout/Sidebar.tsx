@@ -12,6 +12,7 @@ import {
   MousePointerClick,
   Megaphone,
   BarChart3,
+  GitBranch,
   Settings,
   PanelLeftClose,
   PanelLeftOpen,
@@ -39,6 +40,7 @@ const NAV = [
   { href: "/google-ads", label: "Google Ads", icon: MousePointerClick, ready: true },
   { href: "/meta-ads", label: "Meta Ads", icon: Megaphone, ready: true },
   { href: "/analytics", label: "Analytics", icon: BarChart3, ready: true },
+  { href: "/attribution", label: "Attribution", icon: GitBranch, ready: true },
 ];
 
 export function Sidebar() {

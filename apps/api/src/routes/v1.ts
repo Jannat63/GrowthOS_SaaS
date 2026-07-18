@@ -32,6 +32,7 @@ import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
 import { getKeywordRankings, getOrganicTraffic } from '../seo.js'
 import { getCampaignInsights } from '../google-ads.js'
 import { getMetaCampaignInsights } from '../meta-ads.js'
+import { getAttribution } from '../attribution.js'
 import { getWeeklyReport } from '../intelligence.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
@@ -471,6 +472,14 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     return getWeeklyReport(id)
+  })
+
+  // Cross-channel attribution (M4 P4.1) — every model's per-channel credit over conversion paths.
+  app.get('/api/v1/workspaces/:id/analytics/attribution', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    return getAttribution(id)
   })
 
   // Blended MER — trend + channel breakdown from ClickHouse ad_performance (seeded per workspace).
