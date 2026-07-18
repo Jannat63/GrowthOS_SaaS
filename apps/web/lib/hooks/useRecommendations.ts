@@ -36,6 +36,8 @@ function mockRecommendations(workspaceId: string): Recommendation[] {
         urgencyScore: m.urgencyScore,
         compositeScore: m.compositeScore,
         status: m.status,
+        assignedTo: null,
+        dueDate: null,
       } satisfies Recommendation;
     })
     .sort((a, b) => b.compositeScore - a.compositeScore);

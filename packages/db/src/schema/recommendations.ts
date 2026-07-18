@@ -19,6 +19,8 @@ export const recommendations = pgTable(
     urgencyScore: integer('urgency_score').notNull(),
     compositeScore: integer('composite_score').notNull(),
     status: text('status').notNull().default('pending'), // pending | acted | dismissed | snoozed
+    assignedTo: text('assigned_to'), // → user.id (app-layer enforced); null = unassigned (M3 P3.5)
+    dueDate: timestamp('due_date', { withTimezone: true }), // optional target date (M3 P3.5)
     snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
     actedAt: timestamp('acted_at', { withTimezone: true }),
     rawData: jsonb('raw_data'),

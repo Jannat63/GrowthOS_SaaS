@@ -13,3 +13,5 @@ export * from './recommendations.js';
 export * from './content-briefs.js';
 // Weekly intelligence reports (M3 · P3.4).
 export * from './intelligence.js';
+// Recommendation collaboration — comments (M3 · P3.5).
+export * from './collaboration.js';

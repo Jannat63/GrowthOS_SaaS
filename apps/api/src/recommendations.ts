@@ -30,6 +30,8 @@ function rowsToApi(rows: Row[]): Recommendation[] {
     urgencyScore: r.urgencyScore,
     compositeScore: r.compositeScore,
     status: r.status as Recommendation['status'],
+    assignedTo: r.assignedTo,
+    dueDate: r.dueDate ? r.dueDate.toISOString() : null,
   }))
 }
 

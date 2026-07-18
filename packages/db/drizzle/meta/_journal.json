@@ -43,6 +43,13 @@
       "when": 1784256576552,
       "tag": "0005_purple_newton_destine",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784390070013,
+      "tag": "0006_awesome_unus",
+      "breakpoints": true
     }
   ]
 }

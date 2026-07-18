@@ -99,6 +99,18 @@ export interface Recommendation {
   urgencyScore: number;
   compositeScore: number;
   status: RecommendationStatus;
+  assignedTo: string | null; // → user.id; null = unassigned (M3 P3.5)
+  dueDate: string | null; // ISO date; null = no due date (M3 P3.5)
+}
+
+// A comment on a recommendation's collaboration thread (M3 P3.5).
+export interface RecommendationComment {
+  id: string;
+  recommendationId: string;
+  authorId: string;
+  authorName: string | null; // joined from user; null if the author row is gone
+  body: string;
+  createdAt: string; // ISO
 }
 
 // ── Jobs (async operations — M2 P2.1) ────────────────────────────────────────

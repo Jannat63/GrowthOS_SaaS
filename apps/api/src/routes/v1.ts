@@ -29,6 +29,7 @@ import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
 import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
 import { getWeeklyReport } from '../intelligence.js'
+import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -283,6 +284,60 @@ export async function registerV1Routes(app: FastifyInstance) {
     )
     if (!ok) throw new AppError('WORKSPACE_NOT_FOUND', 'Recommendation not found in this workspace.')
     return { id: recId, status: body.data.status }
+  })
+
+  // Recommendation collaboration — comment thread (M3 P3.5). Any member may read/comment.
+  app.get('/api/v1/workspaces/:id/recommendations/:recId/comments', async (request) => {
+    const user = await requireUser(request)
+    const { id, recId } = request.params as { id: string; recId: string }
+    await requireWorkspaceMember(user.id, id)
+    const data = await listComments(id, recId)
+    if (data === null) {
+      throw new AppError('WORKSPACE_NOT_FOUND', 'Recommendation not found in this workspace.')
+    }
+    return { data, total: data.length }
+  })
+
+  app.post('/api/v1/workspaces/:id/recommendations/:recId/comments', async (request, reply) => {
+    const user = await requireUser(request)
+    const { id, recId } = request.params as { id: string; recId: string }
+    await requireWorkspaceMember(user.id, id)
+    const body = z
+      .object({ body: z.string().min(1, 'Comment cannot be empty.').max(2000) })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    const comment = await addComment(id, recId, user.id, body.data.body)
+    if (comment === null) {
+      throw new AppError('WORKSPACE_NOT_FOUND', 'Recommendation not found in this workspace.')
+    }
+    reply.status(201)
+    return comment
+  })
+
+  // Assign / unassign a recommendation (+ optional due date). Manager+ only.
+  app.patch('/api/v1/workspaces/:id/recommendations/:recId/assignment', async (request) => {
+    const user = await requireUser(request)
+    const { id, recId } = request.params as { id: string; recId: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+    const body = z
+      .object({
+        assignedTo: z.string().min(1).nullable(),
+        dueDate: z.string().datetime().nullable().optional(),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    const ok = await assignRecommendation(
+      id,
+      recId,
+      body.data.assignedTo,
+      body.data.dueDate ? new Date(body.data.dueDate) : null,
+    )
+    if (!ok) throw new AppError('WORKSPACE_NOT_FOUND', 'Recommendation not found in this workspace.')
+    return { id: recId, assignedTo: body.data.assignedTo, dueDate: body.data.dueDate ?? null }
   })
 
   // Paid-to-organic search-terms surface — scores seeded terms + ensures recs/briefs exist.

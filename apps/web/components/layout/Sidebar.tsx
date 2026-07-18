@@ -28,7 +28,7 @@ const INK_ICON_BTN =
 const NAV = [
   { href: "/growth-hub", label: "Growth Hub", icon: LayoutDashboard, ready: true },
   { href: "/intelligence", label: "Intelligence", icon: BrainCircuit, ready: true },
-  { href: "#", label: "Recommendations", icon: Sparkles, ready: false },
+  { href: "/recommendations", label: "Recommendations", icon: Sparkles, ready: true },
   { href: "/content-pipeline", label: "Content Pipeline", icon: FileText, ready: true },
   { href: "/creative-queue", label: "Creative Queue", icon: Megaphone, ready: true },
   { href: "/fatigue-monitor", label: "Creative Fatigue", icon: Flame, ready: true },
