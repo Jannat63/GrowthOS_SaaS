@@ -1,11 +1,10 @@
 # GrowthOS — Master Progress Dashboard
 
 Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 COMPLETE** (seeded Insight Loop MVP,
-P2.1–P2.8); **M3 IN PROGRESS** — real OAuth + live data. P3.0 (Google Search Console integration) **built**
-(live E2E pending user's Google creds); **P3.4 Intelligence Engine V1 done**; **P3.5 Slices A+B+C1** (collaboration
-+ audit log + white-label branding) done; **P3.1 rank-tracker + organic-traffic slices** (GSC-fed SEO) done;
-**P3.2 + P3.3 advisor slices** (Google Ads + Meta Ads) done — every channel module now has a live UI.
-M4–M5 not started.
+P2.1–P2.8); **M3 IN PROGRESS** — every channel module now has a live UI (P3.0 OAuth built, live pending
+Google creds; P3.1 SEO, P3.2 Google Ads, P3.3 Meta advisors, P3.4 Intelligence V1, P3.5 A+B+C1 agency all
+done — remaining M3 work is external-gated). **M4 started early** — P4.1 cross-channel attribution done.
+M5 not started.
 M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
 ·  Updated: 2026-07-18
 
@@ -67,11 +66,11 @@ approvals mature → then P3.2/P3.3.
 
 Gate: 500 users / MRR >$50K / agency tier.
 
-## M4 — V2: Automation & Scale  ⬜ Not started (outline only)
+## M4 — V2: Automation & Scale  🟨 Started early (non-blocked slices)
 
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
-| P4.1 | Cross-channel attribution | [ ] | Outline — expand to folder when reached. |
+| P4.1 | Cross-channel attribution | [~] | **Engine + comparison UI done 2026-07-18** — `@growthos/logic` attribution (last/first-click, linear, time-decay, position-based; 9 tests) over a `conversion_paths` ClickHouse table; `/attribution` model-comparison page. Real paths pending live conversions. |
 | P4.2 | AI creative automation | [ ] | Outline — expand to folder when reached. |
 | P4.3 | Automated campaign management | [ ] | Outline — expand to folder when reached. |
 | P4.4 | GEO tracking + public API | [ ] | Outline — expand to folder when reached. |
