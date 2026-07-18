@@ -30,6 +30,7 @@ import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
 import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
 import { getKeywordRankings, getOrganicTraffic } from '../seo.js'
+import { getCampaignInsights } from '../google-ads.js'
 import { getWeeklyReport } from '../intelligence.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
@@ -405,6 +406,15 @@ export async function registerV1Routes(app: FastifyInstance) {
     const limit = q.success ? (q.data.limit ?? 20) : 20
     const offset = q.success ? (q.data.offset ?? 0) : 0
     return getAuditLogs(id, limit, offset)
+  })
+
+  // Google Ads campaign insights (M3 P3.2 slice) — advisor over ClickHouse ad_performance
+  // (seeded until a real Google Ads connection syncs; live API push is gated on the dev token).
+  app.get('/api/v1/workspaces/:id/google-ads/campaigns', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    return getCampaignInsights(id)
   })
 
   // Paid-to-organic search-terms surface — scores seeded terms + ensures recs/briefs exist.
