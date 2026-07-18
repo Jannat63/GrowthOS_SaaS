@@ -166,3 +166,46 @@ export function generateRsaDescriptions(keyword: string, count = 4): string[] {
     .map((t) => t.replace("{keyword}", keyword))
     .filter((d) => d.length <= 90);
 }
+
+// ── Target CPA / ROAS + budget allocator (unit economics — no LLM) ────────────────────────────
+
+/**
+ * Breakeven CPA is the full product margin; the target CPA leaves room for the desired profit
+ * margin. Ported from the legacy Target CPA/ROAS Calculator.
+ */
+export function calculateTargetCpa(productMargin: number, targetProfitMarginPct = 20): number {
+  return round2(productMargin * (1 - targetProfitMarginPct / 100));
+}
+
+/** Minimum ROAS needed to break even, given price and cost of goods. */
+export function calculateMinimumRoas(productPrice: number, costOfGoods: number): number {
+  if (costOfGoods <= 0) return 0;
+  return round2(productPrice / costOfGoods);
+}
+
+export type BusinessStage = "new" | "growth" | "scale";
+
+export interface BudgetAllocationRow {
+  channel: string;
+  pct: number; // 0–1
+  amount: number;
+}
+
+const BUDGET_SPLITS: Record<BusinessStage, Record<string, number>> = {
+  new: { search: 0.6, pmax: 0.2, display: 0.1, demand_gen: 0.1 },
+  growth: { search: 0.45, pmax: 0.35, display: 0.1, demand_gen: 0.1 },
+  scale: { search: 0.35, pmax: 0.4, display: 0.15, demand_gen: 0.1 },
+};
+
+/** Recommends a budget split across campaign types based on funnel stage. */
+export function allocateBudget(
+  totalBudget: number,
+  businessStage: BusinessStage = "growth",
+): BudgetAllocationRow[] {
+  const split = BUDGET_SPLITS[businessStage] ?? BUDGET_SPLITS.growth;
+  return Object.entries(split).map(([channel, pct]) => ({
+    channel,
+    pct,
+    amount: round2(totalBudget * pct),
+  }));
+}

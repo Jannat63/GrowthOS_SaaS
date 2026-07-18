@@ -17,6 +17,7 @@ import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useCampaignInsights } from "@/lib/hooks/useCampaignInsights";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { RsaGenerator } from "@/components/google-ads/RsaGenerator";
+import { BudgetPlanner } from "@/components/google-ads/BudgetPlanner";
 import { cn } from "@/lib/utils/cn";
 
 const usd = (n: number) =>
@@ -138,6 +139,7 @@ export default function GoogleAdsPage() {
             </Card>
           </section>
 
+          <BudgetPlanner />
           <RsaGenerator />
         </>
       )}

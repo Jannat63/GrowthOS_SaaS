@@ -5,6 +5,9 @@ import {
   summarizeCampaigns,
   generateRsaHeadlines,
   generateRsaDescriptions,
+  calculateTargetCpa,
+  calculateMinimumRoas,
+  allocateBudget,
   type CampaignInput,
 } from "./google-ads-advisor.js";
 
@@ -68,5 +71,24 @@ describe("google ads advisor", () => {
     const descriptions = generateRsaDescriptions("office chairs");
     expect(descriptions.length).toBeGreaterThan(0);
     expect(descriptions.every((d) => d.length <= 90)).toBe(true);
+  });
+
+  it("computes target CPA and minimum ROAS from unit economics", () => {
+    expect(calculateTargetCpa(50)).toBe(40); // 50 * (1 - 0.2)
+    expect(calculateTargetCpa(50, 0)).toBe(50); // breakeven when no target profit
+    expect(calculateMinimumRoas(100, 40)).toBe(2.5);
+    expect(calculateMinimumRoas(100, 0)).toBe(0); // guard against divide-by-zero
+  });
+
+  it("allocates budget across channels summing to the total", () => {
+    const rows = allocateBudget(1000, "growth");
+    expect(rows.map((r) => r.channel)).toEqual(["search", "pmax", "display", "demand_gen"]);
+    expect(rows.reduce((s, r) => s + r.amount, 0)).toBeCloseTo(1000, 2);
+    expect(rows.reduce((s, r) => s + r.pct, 0)).toBeCloseTo(1, 5);
+    // Scale stage shifts weight to Performance Max.
+    const scale = allocateBudget(1000, "scale");
+    expect(scale.find((r) => r.channel === "pmax")!.amount).toBeGreaterThan(
+      rows.find((r) => r.channel === "pmax")!.amount
+    );
   });
 });
