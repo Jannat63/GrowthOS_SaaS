@@ -10,7 +10,7 @@ Meta/Ads/DataForSEO approvals mature → then P3.2/P3.3.
 |------|--------|-------|
 | P3.0 Real platform integrations (OAuth) | [~] | **Built.** Custom OAuth → `platform_connections`; GSC first; live sync → ClickHouse. Live E2E pending Google creds. |
 | P3.1 SEO module | [~] | **Rank-tracker + organic-traffic slices done** — GSC-fed keyword positions + per-page traffic from ClickHouse, `/seo` tabs. DataForSEO features (research/audit/clustering) still gated (paid). |
-| P3.2 Google Ads module | [~] | **Advisor slice done** — deterministic campaign advisor + wasted-spend + RSA generator (`/google-ads`). Live campaign fetch/push gated on the dev token. |
+| P3.2 Google Ads module | [~] | **Advisor + RSA + budget/target planner done** — deterministic campaign advisor, wasted-spend, RSA generator, unit-economics planner (`/google-ads`). Live fetch/push + Quality Score gated on the dev token. |
 | P3.3 Meta Ads module | [ ] | Outline. Gated on Meta App Review. |
 | P3.4 Intelligence Engine V1 | [x] | **V1 done** — weekly report + budget engine + `/intelligence` page. Scheduled loop + WS + 47-rule set deferred. |
 | P3.5 Agency features | [~] | **Slices A+B+C1 done** — collaboration + audit log + white-label branding. Only white-labeled PDF export (C2, needs Puppeteer+R2) remains. |

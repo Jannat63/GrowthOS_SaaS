@@ -1,14 +1,15 @@
 # P3.2 — Google Ads Module — Progress
 
-Status: [~]  ·  Updated: 2026-07-18  ·  **In progress** — advisor + RSA slice done (non-blocked,
-deterministic). Live campaign fetch/push gated on the Google Ads **developer token**.
+Status: [~]  ·  Updated: 2026-07-18  ·  **In progress** — advisor + RSA + budget/target-planner slices
+done (all non-blocked, deterministic). Only live campaign fetch/push + Quality Score history remain,
+gated on the Google Ads **developer token**.
 
 ## Slices
 
 | Slice | Status | Notes |
 |-------|--------|-------|
 | Advisor + wasted-spend + RSA generator | [x] | Pure `@growthos/logic` engine over ClickHouse ad_performance; `/google-ads` page. |
-| tCPA / tROAS + budget allocator | [ ] | Also pure logic (in legacy features.py) — buildable now; next. |
+| tCPA / tROAS + budget allocator | [x] | `calculateTargetCpa`/`calculateMinimumRoas`/`allocateBudget`; client-side Budget & targets planner. |
 | Quality Score history | [ ] | Needs the Google Ads API (dev token). |
 | Campaign builder + live push | [ ] | **Gated** on the Google Ads developer token. |
 
@@ -31,5 +32,11 @@ web mock runs the SAME engine over the SAME `adCampaigns` fixture, so live and o
 `pnpm --filter @growthos/logic test` — 68 pass (incl. 6 new). API + web typecheck clean (9/9); web build
 passes, `/google-ads` route emitted (~6.7 kB). The RSA generator + advisor render with no backend (mock).
 
+## Budget & targets slice — what shipped (commit `c3b90ea`)
+`calculateTargetCpa`, `calculateMinimumRoas`, `allocateBudget` on the engine (+3 tests → 8 total) +
+client-side `BudgetPlanner` on `/google-ads` (break-even target CPA + min ROAS from unit economics; a
+new/growth/scale budget split across Search/PMax/Display/Demand Gen). No backend, no AI.
+
 ## Log
 - 2026-07-18 — Advisor + RSA slice built + committed. P3.2 opened.
+- 2026-07-18 — Budget & targets planner slice built + committed. Only live API-gated features remain.
