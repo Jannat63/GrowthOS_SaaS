@@ -19,6 +19,9 @@ import {
 import { Button } from "@growthos/ui/components/button";
 import { cn } from "@/lib/utils/cn";
 import { useSidebarStore } from "@/lib/stores/sidebar";
+import { useWorkspace } from "@/lib/hooks/useWorkspace";
+import { useWorkspaceStore } from "@/lib/stores/workspace";
+import { useBranding } from "@/lib/hooks/useBranding";
 
 // Ghost icon button restyled for the dark ink rail (tailwind-merge overrides the
 // default light accent hover). Reused for both collapse/expand affordances.
@@ -42,6 +45,14 @@ export function Sidebar() {
   const pathname = usePathname();
   const storedCollapsed = useSidebarStore((s) => s.collapsed);
   const toggle = useSidebarStore((s) => s.toggle);
+
+  // White-label brand (M3 P3.5): agency name + logo override the GrowthOS defaults.
+  const { data: me } = useWorkspace();
+  const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const workspaceId = activeId ?? me?.data.memberships[0]?.workspaceId ?? null;
+  const { data: branding } = useBranding(workspaceId);
+  const brandName = branding?.data.agencyName || "GrowthOS";
+  const logoUrl = branding?.data.logoUrl || null;
 
   // Guard against hydration mismatch: default to expanded until the persisted
   // value has rehydrated on the client.
@@ -71,8 +82,13 @@ export function Sidebar() {
             aria-label="Expand sidebar"
             className={cn("group relative h-9 w-9 rounded-lg", INK_ICON_BTN)}
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary transition-opacity duration-200 group-hover:opacity-0">
-              <span className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
+            <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg bg-primary transition-opacity duration-200 group-hover:opacity-0">
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt={brandName} className="h-full w-full object-cover" />
+              ) : (
+                <span className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
+              )}
             </span>
             <PanelLeftOpen className="absolute h-4 w-4 text-ink-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
           </Button>
@@ -82,11 +98,16 @@ export function Sidebar() {
               href="/growth-hub"
               className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary">
-                <span className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary">
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoUrl} alt={brandName} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
+                )}
               </span>
-              <span className="font-display text-lg font-semibold tracking-tight">
-                GrowthOS
+              <span className="truncate font-display text-lg font-semibold tracking-tight">
+                {brandName}
               </span>
             </Link>
             <Button

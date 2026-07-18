@@ -5,6 +5,7 @@ import {
   timestamp,
   boolean,
   integer,
+  jsonb,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -97,6 +98,8 @@ export const workspaces = pgTable(
     monthlyAdBudget: integer("monthly_ad_budget"),
     onboardingStep: text("onboarding_step").default("business_intake"),
     onboardingComplete: boolean("onboarding_complete").default(false),
+    // Agency white-label branding (M3 P3.5 Slice C): { agencyName?, logoUrl?, primaryColor? }.
+    whiteLabelConfig: jsonb("white_label_config"),
   },
   (table) => [uniqueIndex("workspaces_slug_uidx").on(table.slug)],
 );

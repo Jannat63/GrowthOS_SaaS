@@ -11,6 +11,7 @@ import type {
   OnboardingStatusResponse,
   OnboardingStrategy,
   Role,
+  WhiteLabelConfig,
   WorkspaceMember,
 } from '@growthos/types'
 import { auth } from '../auth.js'
@@ -485,6 +486,52 @@ export async function registerV1Routes(app: FastifyInstance) {
       role: r.role as Role,
     }))
     return { data, total: data.length }
+  })
+
+  // White-label branding (M3 P3.5 Slice C). GET is any member (branding applies for everyone);
+  // PATCH is admin+.
+  app.get('/api/v1/workspaces/:id/branding', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const [ws] = await db
+      .select({ config: schema.workspaces.whiteLabelConfig })
+      .from(schema.workspaces)
+      .where(eq(schema.workspaces.id, id))
+    if (!ws) throw new AppError('WORKSPACE_NOT_FOUND', 'Workspace not found.')
+    return { config: (ws.config as Record<string, unknown> | null) ?? {} }
+  })
+
+  app.patch('/api/v1/workspaces/:id/branding', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const body = z
+      .object({
+        agencyName: z.string().max(60).nullable().optional(),
+        logoUrl: z.string().url().max(2000).nullable().optional().or(z.literal('')),
+        primaryColor: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex color, e.g. #4f46e5.')
+          .nullable()
+          .optional(),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    // Normalize empty strings to null so the UI falls back to defaults cleanly.
+    const config: WhiteLabelConfig = {
+      agencyName: body.data.agencyName || null,
+      logoUrl: body.data.logoUrl || null,
+      primaryColor: body.data.primaryColor || null,
+    }
+    await db.update(schema.workspaces).set({ whiteLabelConfig: config }).where(eq(schema.workspaces.id, id))
+    void recordAudit(
+      { workspaceId: id, actorId: user.id, action: 'branding.updated', entityType: 'workspace', entityId: id },
+      request,
+    )
+    return { config }
   })
 
   // Completion gate — the single source of truth for "onboarding done".

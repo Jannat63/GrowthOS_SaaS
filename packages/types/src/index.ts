@@ -36,6 +36,14 @@ export interface AuthUser {
   image?: string | null;
 }
 
+// Agency white-label branding for a workspace (M3 P3.5 Slice C). All fields optional —
+// unset falls back to the default GrowthOS brand.
+export interface WhiteLabelConfig {
+  agencyName?: string | null;
+  logoUrl?: string | null;
+  primaryColor?: string | null; // hex, e.g. "#4f46e5" — overrides the --primary token
+}
+
 export interface Workspace {
   id: string;
   name: string;

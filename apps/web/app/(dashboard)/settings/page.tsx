@@ -17,6 +17,7 @@ import { useMembers } from "@/lib/hooks/useMembers";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { ConnectionsSection } from "@/components/settings/ConnectionsSection";
 import { ActivitySection } from "@/components/settings/ActivitySection";
+import { BrandingSection } from "@/components/settings/BrandingSection";
 
 const ROLE_VARIANT: Record<string, "default" | "muted" | "outline"> = {
   owner: "default",
@@ -33,8 +34,8 @@ export default function SettingsPage() {
   const workspaceId = activeId ?? memberships[0]?.workspaceId ?? null;
   const membership = memberships.find((m) => m.workspaceId === workspaceId);
   const workspace = membership?.workspace;
-  // Audit log is admin-scoped on the API — only surface the section to owners/admins.
-  const canViewActivity = membership?.role === "owner" || membership?.role === "admin";
+  // Branding editing + audit log are admin-scoped on the API — surface those sections to owners/admins.
+  const isAdmin = membership?.role === "owner" || membership?.role === "admin";
 
   const { data: members } = useMembers(workspaceId);
 
@@ -70,6 +71,8 @@ export default function SettingsPage() {
           <Skeleton className="mt-4 h-16 w-full" />
         )}
       </Card>
+
+      {isAdmin && <BrandingSection workspaceId={workspaceId} />}
 
       <Suspense fallback={null}>
         <ConnectionsSection workspaceId={workspaceId} />
@@ -111,7 +114,7 @@ export default function SettingsPage() {
         {/* Invites (Resend email) arrive with M5 lifecycle emails. */}
       </Card>
 
-      {canViewActivity && <ActivitySection workspaceId={workspaceId} />}
+      {isAdmin && <ActivitySection workspaceId={workspaceId} />}
     </div>
   );
 }
