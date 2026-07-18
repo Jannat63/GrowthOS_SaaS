@@ -352,6 +352,21 @@ export async function registerV1Routes(app: FastifyInstance) {
     if (!body.success) {
       throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
     }
+    // The assignee must actually belong to this workspace — don't allow a dangling/foreign userId.
+    if (body.data.assignedTo) {
+      const [member] = await db
+        .select({ userId: schema.workspace_members.userId })
+        .from(schema.workspace_members)
+        .where(
+          and(
+            eq(schema.workspace_members.organizationId, id),
+            eq(schema.workspace_members.userId, body.data.assignedTo),
+          ),
+        )
+      if (!member) {
+        throw new AppError('VALIDATION_ERROR', 'Assignee must be a member of this workspace.')
+      }
+    }
     const ok = await assignRecommendation(
       id,
       recId,
@@ -373,11 +388,12 @@ export async function registerV1Routes(app: FastifyInstance) {
     return { id: recId, assignedTo: body.data.assignedTo, dueDate: body.data.dueDate ?? null }
   })
 
-  // Workspace audit log — most-recent-first, paginated. Any member may read.
+  // Workspace audit log — most-recent-first, paginated. Admin+ only: it exposes operational
+  // history (integration connect/disconnect/sync) that viewers/clients shouldn't see.
   app.get('/api/v1/workspaces/:id/audit-logs', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
-    await requireWorkspaceMember(user.id, id)
+    await requireWorkspaceMember(user.id, id, 'admin')
     const q = z
       .object({
         limit: z.coerce.number().int().positive().max(100).optional(),

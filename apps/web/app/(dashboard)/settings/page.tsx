@@ -31,7 +31,10 @@ export default function SettingsPage() {
   const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const memberships = me?.data.memberships ?? [];
   const workspaceId = activeId ?? memberships[0]?.workspaceId ?? null;
-  const workspace = memberships.find((m) => m.workspaceId === workspaceId)?.workspace;
+  const membership = memberships.find((m) => m.workspaceId === workspaceId);
+  const workspace = membership?.workspace;
+  // Audit log is admin-scoped on the API — only surface the section to owners/admins.
+  const canViewActivity = membership?.role === "owner" || membership?.role === "admin";
 
   const { data: members } = useMembers(workspaceId);
 
@@ -108,7 +111,7 @@ export default function SettingsPage() {
         {/* Invites (Resend email) arrive with M5 lifecycle emails. */}
       </Card>
 
-      <ActivitySection workspaceId={workspaceId} />
+      {canViewActivity && <ActivitySection workspaceId={workspaceId} />}
     </div>
   );
 }
