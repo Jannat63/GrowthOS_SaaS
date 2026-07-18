@@ -40,13 +40,24 @@ app.use((req, res, next) => {
 //     path needs that prefix added back, not a fixed string stripped.
 // Fix: pathRewrite as a function that prepends each service's real prefix
 // to whatever Express left after stripping the gateway's mount prefix.
+//
+// ALSO FIXED: target hosts were hardcoded to "http://localhost:PORT". That
+// works when every service runs as a separate process on one host (how this
+// was developed and tested) but silently breaks inside Docker Compose —
+// each service is a separate container, and "localhost" inside the
+// api-gateway container refers only to itself, not sibling containers.
+// Docker Compose containers reach each other by service name (its own
+// internal DNS resolves e.g. "http://seo-service:8001"). Each target is now
+// an env var, defaulting to localhost for non-Docker local dev, overridden
+// in docker-compose.yml to the real service names.
 const routes = {
-  "/api/auth": { target: "http://localhost:8006", addPrefix: "/auth" },
-  "/api/keywords": { target: "http://localhost:8001", addPrefix: "/keywords" },
-  "/api/google-ads": { target: "http://localhost:8002", addPrefix: "/google-ads" },
-  "/api/meta-ads": { target: "http://localhost:8003", addPrefix: "/meta-ads" },
-  "/api/intelligence": { target: "http://localhost:8004", addPrefix: "/intelligence" },
-  "/api/notify": { target: "http://localhost:8005", addPrefix: "" },
+  "/api/auth": { target: process.env.AUTH_SERVICE_URL || "http://localhost:8006", addPrefix: "/auth" },
+  "/api/keywords": { target: process.env.SEO_SERVICE_URL || "http://localhost:8001", addPrefix: "/keywords" },
+  "/api/seo": { target: process.env.SEO_SERVICE_URL || "http://localhost:8001", addPrefix: "/seo" },
+  "/api/google-ads": { target: process.env.GOOGLE_ADS_SERVICE_URL || "http://localhost:8002", addPrefix: "/google-ads" },
+  "/api/meta-ads": { target: process.env.META_ADS_SERVICE_URL || "http://localhost:8003", addPrefix: "/meta-ads" },
+  "/api/intelligence": { target: process.env.INTELLIGENCE_SERVICE_URL || "http://localhost:8004", addPrefix: "/intelligence" },
+  "/api/notify": { target: process.env.NOTIFICATION_SERVICE_URL || "http://localhost:8005", addPrefix: "" },
 };
 
 for (const [prefix, { target, addPrefix }] of Object.entries(routes)) {

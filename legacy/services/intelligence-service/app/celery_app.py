@@ -1,11 +1,19 @@
 """
 Scheduled task skeleton — Section 7.5: the engine runs every 4 hours.
 Requires a running Redis broker (see docker-compose.yml) to actually execute.
+Not currently invoked by the Dockerfile (which only runs uvicorn) — this is
+prepared for when the scheduler is wired up for real, at which point it
+needs `celery -A app.celery_app worker --beat` run as an additional process.
 """
+import os
 from celery import Celery
 from celery.schedules import crontab
 
-celery_app = Celery("intelligence", broker="redis://localhost:6379/0")
+# Same fix as the API gateway: "localhost" only works when Redis and this
+# service are on the same host. Inside Docker Compose, Redis is a separate
+# container reached via its service name.
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+celery_app = Celery("intelligence", broker=REDIS_URL)
 
 celery_app.conf.beat_schedule = {
     "run-cross-channel-analysis-every-4-hours": {

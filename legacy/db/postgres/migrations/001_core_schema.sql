@@ -178,3 +178,14 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
   used_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Site audit history — added during full-completion pass
+CREATE TABLE IF NOT EXISTS site_audits (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  start_url TEXT NOT NULL,
+  pages_audited INT NOT NULL,
+  total_issues INT NOT NULL,
+  results JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);

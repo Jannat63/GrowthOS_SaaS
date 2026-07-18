@@ -1,7 +1,9 @@
 ./
   .env.example
   .gitignore
+  CHANGELOG.md
   DEPLOYMENT.md
+  LICENSE
   PROJECT_STRUCTURE.txt
   README.md
   docker-compose.yml
@@ -13,6 +15,7 @@
       middleware.ts
       next-env.d.ts
       package.json
+      postcss.config.js
       tailwind.config.ts
       tsconfig.json
       tsconfig.tsbuildinfo
@@ -372,8 +375,10 @@
       requirements.txt
       app/
         __init__.py
+        auth_dependency.py
         content_brief.py
         crawler.py
+        db.py
         keyword_clustering.py
         long_tail.py
         main.py
@@ -388,4 +393,5 @@
       tests/
         __init__.py
         test_free_features.py
+        test_persistence.py
         test_scoring.py

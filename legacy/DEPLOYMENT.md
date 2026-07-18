@@ -3,6 +3,56 @@
 This gets the app on a real URL. Two pieces: backend (Railway) and frontend (Vercel).
 Both have generous free tiers, which is enough for a demo/early-stage deployment.
 
+## Running locally first (recommended before deploying)
+
+### Prerequisites
+- Docker Desktop (or Docker Engine + Compose plugin on Linux) — see Linux setup below if you're on Ubuntu/Zorin/Debian
+- Node.js 22+ and Python 3.12+ only if you plan to run services outside Docker
+
+### Linux setup (Ubuntu, Zorin OS, Debian, etc.)
+After installing Docker, add your user to the `docker` group so you don't need `sudo` for every command:
+```bash
+sudo usermod -aG docker $USER
+```
+**This does not take effect in your current terminal session.** Either run `newgrp docker` in that terminal, or fully log out and back in (a reboot is the most reliable option). Verify it worked:
+```bash
+docker run hello-world
+```
+If that prints "Hello from Docker!", you're set.
+
+### Start everything
+```bash
+docker compose up --build
+```
+First run takes a few minutes. Watch the logs — `postgres` should report healthy before the services that depend on it (`auth-service`, `intelligence-service`) start.
+
+### Seed demo data
+```bash
+docker exec -i $(docker compose ps -q postgres) psql -U growthos -d growthos < db/postgres/seed.sql
+```
+Then sign in with `demo@growthos.app` / `DemoPass123`.
+
+### Port 3000 conflict
+The Docker `web` container and a locally-run `npm run dev` both default to port 3000 — **don't run both at once**. Pick one workflow:
+- **All-in-Docker** (simplest): just `docker compose up`, use the `web` container as-is.
+- **Frontend outside Docker** (faster iteration on frontend code): `docker compose stop web`, then `cd apps/web && npm install && npm run dev`, pointing `NEXT_PUBLIC_API_URL` at the gateway (still running in Docker on :8000).
+
+### Troubleshooting
+
+**Postgres container exits immediately / other services keep restarting.**
+Check `docker compose logs postgres`. If you see an error about the `vector` extension, you're on an old copy of this repo from before this was fixed — pull the latest `docker-compose.yml`, which uses `pgvector/pgvector:pg16` instead of the stock `postgres:16` image (the stock image doesn't include the `pgvector` extension that `001_core_schema.sql` requires).
+
+**Frontend loads but looks completely unstyled.**
+This was a real bug: `apps/web` was missing `postcss.config.js`, so Tailwind never actually processed the CSS despite `globals.css` being imported correctly. Fixed — if you still see this, run `rm -rf apps/web/.next` and rebuild; stale build cache can mask the fix.
+
+**`web` container stuck in "Created" state, never starts.**
+It depends on `api-gateway`, which depends on every backend service, which (for `auth-service` and `intelligence-service`) depend on `postgres` being healthy. If `postgres` never becomes healthy (see above), everything upstream waits forever. Fix `postgres` first and the rest should cascade into starting.
+
+**`docker: permission denied while trying to connect to the Docker daemon socket`**
+You're not in the `docker` group yet, or the group change hasn't taken effect in this shell — see the Linux setup section above.
+
+## Deploying for real
+
 ## 1. Database — Railway Postgres
 
 1. Create a Railway account at railway.app, new project.

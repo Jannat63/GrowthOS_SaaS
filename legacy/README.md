@@ -1,97 +1,89 @@
-# GrowthOS — Monorepo
+# GrowthOS
 
-Unified SEO · Google Ads · Meta Ads growth platform.
-Structure mirrors Section 6 (Design Architecture) of the GrowthOS SaaS Blueprint.
+[![CI](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+A unified SEO · Google Ads · Meta Ads growth platform — a working full-stack
+application (Next.js frontend, 7 backend microservices, Postgres), not a
+mockup. 102 automated tests, CI on every push. Implements a free-tier
+version of the product blueprint in [`docs/`](docs) — no paid AI API is used
+anywhere; real logic (a real web crawler, the free Google PageSpeed API,
+rule-based generators) stands in for the blueprint's LLM-powered features.
+
+> **Before pushing**: replace `YOUR_USERNAME/YOUR_REPO` in the badge URL above with your actual GitHub path so the CI badge resolves.
+
+## Quick start
+
+```bash
+git clone <this-repo-url>
+cd growthos
+docker compose up --build
+```
+
+In a second terminal, seed a demo account:
+```bash
+docker exec -i $(docker compose ps -q postgres) psql -U growthos -d growthos < db/postgres/seed.sql
+```
+
+Open **http://localhost:3000** and sign in with `demo@growthos.app` / `DemoPass123`.
+
+Something not working? Check **Troubleshooting** in [`DEPLOYMENT.md`](DEPLOYMENT.md) first — it covers the issues people have actually hit running this locally.
+
+## Run the tests
+
+```bash
+./scripts/run-all-tests.sh
+```
+Or individually:
+- Frontend: `cd apps/web && npm test` (vitest, 50 tests)
+- Backend: `cd services/<name> && python3 -m pytest tests/ -v` (pytest, 52 tests across `auth-service`, `seo-service`, `google-ads-service`, `intelligence-service`)
+
+CI (`.github/workflows/ci.yml`) runs all of this automatically on every push/PR to `main`.
+
+## What's actually real here
+
+Try these — they call live backend logic, not mock data:
+- **SEO → Site Audit**: paste any real URL, it genuinely crawls it live and reports real issues
+- **SEO → Technical SEO**: real Google PageSpeed Insights API call for Core Web Vitals
+- **Google Ads → Ads & Creatives**: real RSA headline generator (enforces the actual 30-char limit)
+- **Meta Ads → Creative Library**: real ad copy / UGC script generation
+- **Intelligence Center → AI Reports**: real weekly report computed from actual channel numbers
+
+Full breakdown of what's real vs. mock vs. not-yet-built is in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Structure
 
-- `apps/web` — Next.js 15 + React 19 frontend (THIS is what we are building first, step by step)
-- `services/*` — backend microservices (SEO, Google Ads, Meta Ads, Intelligence, Notification) — placeholder scaffolds for later phases, not built yet
-- `packages/*` — shared code (design tokens, TS types, shared config)
-- `infra/*` — Docker, Kubernetes, Terraform, CI/CD — placeholders for future deployment
-- `db/*` — Postgres migrations + ClickHouse analytics schema — placeholders for future phases
-- `docs/` — reference blueprint doc
-
-## Build order (see project plan)
-
-1. Foundation & shell (design system + app shell) — apps/web/components/ui + layout
-2. Growth Hub dashboard (mock data)
-3. First full module (SEO or Google Ads) with real logic
-4. Intelligence Center (cross-channel engine)
-5. Remaining modules, one at a time
-
-## Status
-- [x] **Skeleton — complete.** 79 pages, zero broken imports, zero broken nav links.
-- [x] **Body — complete.** All 55 sub-pages have real mock-data-driven content (tables, cards, stats) matching the design system — zero placeholder pages remain. Search Terms (Google Ads) and Goal Simulator (Future Forecasting) use the actual logic modules live, not static data.
-- [x] apps/web — real logic modules (scoring, bridge rules, fatigue detection, blended MER, cross-channel engine, goal simulator) — live-backend-first with mock fallback
-- [x] services/* — 7 services scaffolded and runnable, camelCase serialization verified against frontend types
-- [x] db/* — Postgres + ClickHouse schema, auto-load via docker-compose
-- [x] Persistence — intelligence-service writes/reads real recommendations to/from Postgres, tested end-to-end
-- [x] Real Auth — bcrypt + JWT + sessions table, tested: correct/wrong password, forged token rejection, middleware.ts protects all dashboard routes server-side
-- [x] Workspace-scoped data — workspace_id derived from verified JWT, tested with two separate real companies/workspaces, confirmed isolation
-- [ ] **Dress up — in progress.**
-  - [x] Security hardening: rate limiting on auth (10 sign-ins/min, 5 signups/hour per IP — tested, actually blocks at the threshold), CORS restricted to frontend origin on every service including the gateway, security headers on all services
-  - [x] Google OAuth sign-in: real authorization code flow, tested end-to-end (redirect URL construction verified, graceful 501 when unconfigured). **Needs your Google Cloud Console credentials** — see `services/auth-service/app/google_oauth.py`
-  - [x] Email verification: real token generation/hashing/expiry/single-use flow via SendGrid, tested end-to-end against real Postgres (request → confirm → DB flips → reuse rejected). **Needs your SendGrid API key** — see `services/auth-service/app/email.py`. Works without it too (logs instead of sending, doesn't block signup)
-  - [x] Stripe billing: checkout session creation + webhook handler + subscription tracking, tested (checkout without keys → graceful 501, current plan defaults correctly, auth required). **Needs your Stripe keys** — see `services/auth-service/app/billing.py`
-  - [x] **Found and fixed 4 real bugs during this pass**, each verified with actual running code, not just re-reading it:
-    1. API gateway path rewriting was completely broken — every route would have 404'd. Took 3 attempts to fix correctly, verified with a real gateway + service + real HTTP requests each time.
-    2. Timezone-naive vs. timezone-aware datetime comparison crashed email verification — caught by actually running the confirm flow, not by inspection.
-    3. `package.json` had exact version pins that created a real `npm install` failure (React 19 vs `next@15.0.0`'s peer range, then `lucide-react` not supporting React 19 at all) — caught by actually running `npm install`, not by reading the file.
-    4. Two pages using `useSearchParams()` broke the production build (`next build` requires a Suspense boundary) — caught by actually running a real production build, not `tsc --noEmit` alone.
-  - [x] **Full production build verified**: `npm run build` succeeds, 84 pages, zero errors. `npx tsc --noEmit` passes with zero errors across the whole frontend. All 4 Python services and 2 Node services pass their own syntax/compile checks.
-  - [x] Deployment configs: `vercel.json`, `railway.json` per service, `DEPLOYMENT.md` with exact steps and a root `package-lock.json` locking the verified-working dependency versions
-  - [ ] Live Google Ads / Meta Ads / DataForSEO APIs — blocked on external approval process (see earlier discussion)
-  - [ ] ClickHouse — schema exists, nothing writes to it yet
-  - [ ] DB-level RLS session-variable enforcement — deferred earlier in favor of reliable application-level filtering (see Workspace-scoped data above)
-
-## Automated testing (NEW)
-Previously all verification was manual, one-off testing during development — not repeatable. Now there's a real test suite:
-
-- **Frontend**: 50 unit tests (vitest) covering all 6 real logic modules — SEO scoring, search terms bridge, creative fatigue, cross-channel engine, blended MER, goal simulator. Run: `cd apps/web && npm test`
-- **Backend**: 30 tests (pytest) across `seo-service`, `google-ads-service`, `intelligence-service`, `auth-service` — including a test that verifies the Python and TypeScript cross-channel engines produce *identical* recommendations on the same input, and tests that specifically guard against the camelCase/timezone bugs found during development so they can't silently reappear. Run: `cd services/<name> && python3 -m pytest tests/ -v`
-- **Everything at once**: `./scripts/run-all-tests.sh` — runs all of the above plus type-checking and a full production build
-- **CI**: `.github/workflows/ci.yml` runs the entire suite automatically on every push/PR to `main`, across the frontend, all 4 Python services, the TypeScript Meta Ads service, and syntax-checks the two Node services
-
-## Demo data
-`db/postgres/seed.sql` creates a working demo account (`demo@growthos.app` / `DemoPass123`) so a fresh deploy isn't an empty database. Tested: this account can actually sign in.
-
-## Run everything locally
 ```
-docker compose up --build
+apps/web/       Next.js 15 + React 19 frontend — 81 pages, real content, live-backend-first with mock fallback
+services/       7 backend microservices, each with real logic and its own test suite:
+  auth-service          bcrypt + JWT auth, email verification, Google OAuth, Stripe billing
+  seo-service            real crawler, PageSpeed API, keyword clustering, content briefs, schema gen
+  google-ads-service     search terms bridge, RSA generator, budget allocator, wasted spend detector
+  meta-ads-service       creative fatigue detection, funnel builder, ad copy generator (NestJS)
+  intelligence-service   cross-channel recommendation engine, budget reallocation, weekly reports
+  notification-service   Socket.io real-time alerts (built, not yet wired into the frontend)
+  api-gateway            routes /api/* to the services above
+db/              Postgres schema (17+ tables) + ClickHouse schema (not yet wired to anything)
+docs/            The original product blueprint this implements a free-tier version of
+scripts/         run-all-tests.sh — the whole test suite in one command
 ```
-This starts Postgres (auto-seeded with a demo workspace), Redis, ClickHouse, all 6 backend services, the API gateway (:8000), and the web app (:3000).
 
-## Blueprint feature coverage (NEW — free-tier implementations)
-No paid AI API (Claude/OpenAI) is used anywhere — the following are genuinely
-real, working features built with free tools instead: a real web crawler,
-the free Google PageSpeed API, and deterministic rule-based/template logic
-where the blueprint originally called for LLM generation.
+`packages/*` and `infra/k8s`, `infra/terraform` are placeholders for a future, larger-scale deployment — not used by the current Docker Compose setup.
 
-**SEO Module (Section 4.1):**
-- Full Site Audit — real crawler (`app/crawler.py`), fetches live pages, detects broken links, missing meta tags, thin content, missing canonicals, images without alt text. Tested against a real live site.
-- Core Web Vitals Monitor — real Google PageSpeed Insights API (free), returns actual LCP/CLS/INP scores
-- Keyword Clustering — real word-overlap algorithm (Jaccard similarity), no paid API
-- Long-Tail Keyword Finder — real pattern-based generator
-- Content Brief Generator — rule-based (search intent classification, word count targets, heading structure) — not LLM prose, but real structural guidance
-- Schema Markup Generator — real JSON-LD generation (Article, FAQ, Product, Breadcrumb, LocalBusiness), validated as parseable JSON
-- Sitemap & Robots.txt Manager — real XML/text generation
-- Internal Link Optimizer — real orphan-page detection and link-equity distribution, computed directly from the crawler's own link graph
+## Current status
 
-**Google Ads Module (Section 4.2):**
-- RSA Headline Generator — combinatorial templating, enforces the real 30-character Google Ads limit
-- Target CPA / ROAS Calculator — real unit-economics math
-- Budget Allocator — real rule-based split by business stage
-- Wasted Spend Detector — real rule-based analysis (zero-conversion spend, low Quality Score)
+- **Skeleton & body**: complete — all 81 pages have real content, zero broken imports/links
+- **Core logic**: real (see "What's actually real" above) — SEO scoring, search terms bridge, creative fatigue detection, the cross-channel intelligence engine, blended MER, and more, all implemented without a paid AI API
+- **Auth, persistence, workspace isolation**: real and tested — bcrypt/JWT, Postgres-backed, verified with two separate real workspaces to confirm data isolation
+- **Security**: rate limiting, CORS, security headers — tested, not assumed
+- **Not yet done**: live Google Ads/Meta Ads/DataForSEO APIs (blocked on external app-review processes), ClickHouse wiring, multi-workspace switching UI, granular RBAC, white-label mode, CRM/e-commerce integrations
 
-**Meta Ads Module (Section 4.3):**
-- Full-Funnel Campaign Builder + Budget Split Calculator — real math matching the blueprint's TOFU/MOFU/BOFU ratios
-- Ad Copy Writer + UGC Script Writer — template-based generation
+Full history of what was built, tested, and fixed (including real bugs found via actual local testing on a real machine) is in [`CHANGELOG.md`](CHANGELOG.md).
 
-**Unified Intelligence Engine (Section 4.4):**
-- Budget Reallocation Engine — real ROAS-gap analysis across channels
-- Weekly Growth Intelligence Report — real templated report from actual computed metrics (not LLM prose, but genuinely data-driven)
+## Deploying
 
-**Honestly still not built** (need a paid data source with no free equivalent, or the external ad-platform approval discussed earlier): AI Overview/GEO citation tracking (would require scraping AI systems), Competitor Gap Analysis (needs a paid rank-tracking index), Backlink Profile Analyzer (needs Moz/Majestic/Ahrefs — no free equivalent at any real scale), live Google Ads/Meta Ads/DataForSEO data, multi-workspace switching UI, granular RBAC beyond a single owner role, white-label mode, CRM/e-commerce integrations (HubSpot, Shopify, etc.), webhooks, audit log.
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for Railway (backend) + Vercel (frontend) instructions, plus local Docker troubleshooting.
 
-All of the above new backend logic has its own test coverage (44 new pytest tests, all passing) even though the instruction for this pass was to prioritize breadth over testing — writing them alongside the code caught 2 more real bugs (see test names referencing "regression" in `seo-service/tests/test_free_features.py`).
+## License
+
+MIT — see [`LICENSE`](LICENSE).
