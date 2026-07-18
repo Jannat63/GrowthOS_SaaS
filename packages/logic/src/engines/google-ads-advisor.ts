@@ -45,17 +45,22 @@ export function analyzeCampaigns(campaigns: CampaignInput[]): CampaignInsight[] 
   return campaigns.map((c) => {
     const conversionRate = c.clicks > 0 ? c.conversions / c.clicks : 0;
     const cpa = c.conversions > 0 ? round2(c.cost / c.conversions) : 0;
-    const roas = c.cost > 0 ? round2(c.conversionValue / c.cost) : 0;
+    const rawRoas = c.cost > 0 ? c.conversionValue / c.cost : 0; // classify on the raw ratio, not rounded
+    const roas = round2(rawRoas);
 
+    // "Wasted" = spent money and returned less than it cost (covers zero-conversion-with-spend and any
+    // sub-1 ROAS, regardless of rounding), or burned meaningful clicks with nothing to show. Classifying
+    // on rounded ROAS previously let a $500→$2 campaign round to 0 and slip into "healthy".
+    const spentAndLosing = c.cost > 0 && c.conversionValue < c.cost;
     let status: CampaignStatus;
     let recommendation: string;
-    if ((c.clicks > 50 && c.conversions === 0) || (roas > 0 && roas < 1)) {
+    if (spentAndLosing || (c.clicks > 50 && c.conversions === 0)) {
       status = "wasted";
       recommendation =
         c.conversions === 0
-          ? "No conversions despite meaningful clicks — pause or rework targeting/landing page."
+          ? "No conversions despite the spend — pause or rework targeting/landing page."
           : "Spending more than it returns (ROAS < 1) — cut bids or pause.";
-    } else if (roas >= 3) {
+    } else if (rawRoas >= 3) {
       status = "scale";
       recommendation = "Strong ROAS — increase budget to capture more of this demand.";
     } else {
@@ -177,10 +182,15 @@ export function calculateTargetCpa(productMargin: number, targetProfitMarginPct 
   return round2(productMargin * (1 - targetProfitMarginPct / 100));
 }
 
-/** Minimum ROAS needed to break even, given price and cost of goods. */
+/**
+ * Minimum ROAS to break even: at break-even you can spend your whole per-sale margin on ads, so
+ * ROAS = price / margin = price / (price − cogs). (The legacy formula used price/cogs, which is the
+ * markup ratio, not break-even ROAS.)
+ */
 export function calculateMinimumRoas(productPrice: number, costOfGoods: number): number {
-  if (costOfGoods <= 0) return 0;
-  return round2(productPrice / costOfGoods);
+  const margin = productPrice - costOfGoods;
+  if (margin <= 0) return 0;
+  return round2(productPrice / margin);
 }
 
 export type BusinessStage = "new" | "growth" | "scale";

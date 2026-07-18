@@ -532,7 +532,9 @@ export async function registerV1Routes(app: FastifyInstance) {
   app.get('/api/v1/workspaces/:id/branding', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
-    await requireWorkspaceMember(user.id, id)
+    // Branding is the white-label brand every member sees — including `client` (rank below viewer),
+    // who is the exact audience for white-labeling. Read is open to any member down to `client`.
+    await requireWorkspaceMember(user.id, id, 'client')
     const [ws] = await db
       .select({ config: schema.workspaces.whiteLabelConfig })
       .from(schema.workspaces)

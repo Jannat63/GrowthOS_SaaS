@@ -11,6 +11,11 @@ import type {
 // `keyword_rankings` — the table P3.0's Google Search Console sync populates. Until a real GSC
 // connection syncs, a deterministic 30-day series is seeded so the tracker reads alive (same
 // generate-if-empty pattern as ensureAdPerformanceSeed).
+//
+// KNOWN LIMITATION (shared by every seed here): the check-count-then-insert is not atomic and the
+// ClickHouse tables are MergeTree (no dedup), so two concurrent first-loads of a brand-new workspace
+// could both seed and double the rows. Narrow window on demo data only — real GSC sync deletes-by-date
+// before insert. Revisit with a Postgres advisory lock keyed on workspace if this ever bites.
 
 const SEED_KEYWORDS = [
   'best office chair for back pain',

@@ -43,6 +43,14 @@ describe("google ads advisor", () => {
     expect(c!.status).toBe("wasted");
   });
 
+  it("flags a low-clicks, near-zero-return campaign as wasted (not healthy)", () => {
+    // $500 spent to return $2, only 40 clicks: ROAS rounds to 0 — must NOT slip into "healthy".
+    const [c] = analyzeCampaigns([
+      { id: "y", name: "Money pit", clicks: 40, conversions: 1, cost: 500, conversionValue: 2 },
+    ]);
+    expect(c!.status).toBe("wasted");
+  });
+
   it("detects wasted spend: zero-conversion (High) and low quality score (Medium)", () => {
     const findings = detectWastedSpend(campaigns);
     const zeroConv = findings.find((f) => f.campaign === "Broad - Everything");
@@ -76,8 +84,9 @@ describe("google ads advisor", () => {
   it("computes target CPA and minimum ROAS from unit economics", () => {
     expect(calculateTargetCpa(50)).toBe(40); // 50 * (1 - 0.2)
     expect(calculateTargetCpa(50, 0)).toBe(50); // breakeven when no target profit
-    expect(calculateMinimumRoas(100, 40)).toBe(2.5);
-    expect(calculateMinimumRoas(100, 0)).toBe(0); // guard against divide-by-zero
+    // Break-even ROAS = price / margin = 100 / (100 - 40) = 1.67 (not the markup ratio 2.5).
+    expect(calculateMinimumRoas(100, 40)).toBe(1.67);
+    expect(calculateMinimumRoas(100, 100)).toBe(0); // zero margin → guard
   });
 
   it("allocates budget across channels summing to the total", () => {
