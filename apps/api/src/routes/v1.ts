@@ -31,6 +31,7 @@ import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
 import { getKeywordRankings, getOrganicTraffic } from '../seo.js'
 import { getCampaignInsights } from '../google-ads.js'
+import { getMetaCampaignInsights } from '../meta-ads.js'
 import { getWeeklyReport } from '../intelligence.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
@@ -415,6 +416,15 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     return getCampaignInsights(id)
+  })
+
+  // Meta Ads campaign insights (M3 P3.3 slice) — advisor over ClickHouse ad_performance (meta_ads;
+  // seeded until a real Meta connection syncs; live push gated on Meta App Review).
+  app.get('/api/v1/workspaces/:id/meta-ads/campaigns', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    return getMetaCampaignInsights(id)
   })
 
   // Paid-to-organic search-terms surface — scores seeded terms + ensures recs/briefs exist.

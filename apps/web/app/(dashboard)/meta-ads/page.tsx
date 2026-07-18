@@ -1,28 +1,29 @@
 "use client";
+import { Megaphone } from "lucide-react";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
-import { useCampaignInsights } from "@/lib/hooks/useCampaignInsights";
+import { useMetaCampaignInsights } from "@/lib/hooks/useMetaCampaignInsights";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { CampaignInsightsPanel } from "@/components/ads/CampaignInsightsPanel";
-import { RsaGenerator } from "@/components/google-ads/RsaGenerator";
-import { BudgetPlanner } from "@/components/google-ads/BudgetPlanner";
+import { FunnelPlanner } from "@/components/meta-ads/FunnelPlanner";
+import { AdCopyStudio } from "@/components/meta-ads/AdCopyStudio";
 
-export default function GoogleAdsPage() {
+export default function MetaAdsPage() {
   const { data: me } = useWorkspace();
   const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaceId = activeId ?? me?.data.memberships[0]?.workspaceId ?? null;
 
-  const { data: insights } = useCampaignInsights(workspaceId);
+  const { data: insights } = useMetaCampaignInsights(workspaceId);
   const d = insights?.data;
 
   return (
     <div className="animate-rise space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Google Ads</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Meta Ads</h1>
           <p className="text-sm text-muted-foreground">
-            Campaign efficiency, wasted-spend detection, and ad copy — all deterministic, no AI.
+            Campaign efficiency, full-funnel planning, and ad copy — all deterministic, no AI.
           </p>
         </div>
         {insights && <DataSourceBadge source={insights.source} />}
@@ -37,8 +38,12 @@ export default function GoogleAdsPage() {
             wastedSpend={d.wastedSpend}
             summary={d.summary}
           />
-          <BudgetPlanner />
-          <RsaGenerator />
+          <FunnelPlanner />
+          <AdCopyStudio />
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Megaphone className="h-3.5 w-3.5" />
+            Live campaign sync &amp; publishing arrive once your Meta app clears App Review.
+          </p>
         </>
       )}
     </div>

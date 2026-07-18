@@ -37,7 +37,7 @@ const NAV = [
   { href: "/fatigue-monitor", label: "Creative Fatigue", icon: Flame, ready: true },
   { href: "/seo", label: "SEO", icon: Search, ready: true },
   { href: "/google-ads", label: "Google Ads", icon: MousePointerClick, ready: true },
-  { href: "#", label: "Meta Ads", icon: Megaphone, ready: false },
+  { href: "/meta-ads", label: "Meta Ads", icon: Megaphone, ready: true },
   { href: "/analytics", label: "Analytics", icon: BarChart3, ready: true },
 ];
 
