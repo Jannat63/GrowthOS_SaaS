@@ -8,7 +8,11 @@ export function DataSourceBadge({ source }: { source: "live" | "mock" | undefine
       <Wifi className="h-3 w-3" /> Live backend
     </Badge>
   ) : (
-    <Badge tone="neutral" className="inline-flex items-center gap-1">
+    <Badge
+      tone="neutral"
+      className="inline-flex items-center gap-1 cursor-help"
+      title="The backend service for this page isn't reachable. If you're running locally, check that `docker compose up` is running and healthy, or that the relevant service is started if running services individually. Showing local sample data instead."
+    >
       <WifiOff className="h-3 w-3" /> Local fallback — backend not running
     </Badge>
   );

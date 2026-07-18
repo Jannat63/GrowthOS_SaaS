@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header, Depends
+from sqlalchemy.orm import Session
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from typing import List, Optional, Dict
+import uuid
 
 from app.crawler import crawl_site, audit_page
 from app.pagespeed import get_core_web_vitals, PageSpeedError
@@ -15,8 +17,26 @@ from app.long_tail import generate_long_tail_variations
 from app.sitemap_and_links import (
     generate_sitemap_xml, generate_robots_txt, find_orphaned_pages, compute_link_equity_distribution,
 )
+from app.db import SessionLocal, SiteAuditRow
+from app.auth_dependency import JWT_SECRET, JWT_ALGORITHM
+import jwt as pyjwt
 
 router = APIRouter(prefix="/seo", tags=["seo"])
+
+
+def _try_get_workspace_id(authorization: Optional[str]) -> Optional[str]:
+    """
+    Best-effort workspace lookup — returns None instead of raising if there's
+    no token or it's invalid, so persistence is additive (crawling still
+    works for unauthenticated calls) rather than a breaking requirement.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    try:
+        payload = pyjwt.decode(authorization.removeprefix("Bearer "), JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload.get("workspace_id")
+    except Exception:
+        return None
 
 
 # ---- Site Audit (real crawler) ----
@@ -27,23 +47,68 @@ class CrawlRequest(BaseModel):
 
 
 @router.post("/audit/crawl")
-def run_crawl(req: CrawlRequest):
+def run_crawl(req: CrawlRequest, authorization: Optional[str] = Header(None)):
     results = crawl_site(req.start_url, max_pages=req.max_pages)
-    return {
-        "pagesAudited": len(results),
-        "pages": [
+    total_issues = sum(len(r.issues) for r in results)
+    pages_payload = [
+        {
+            "url": r.url,
+            "statusCode": r.status_code,
+            "title": r.title,
+            "wordCount": r.word_count,
+            "h1Count": r.h1_count,
+            "hasCanonical": r.has_canonical,
+            "issues": r.issues,
+        }
+        for r in results
+    ]
+
+    workspace_id = _try_get_workspace_id(authorization)
+    if workspace_id:
+        db = SessionLocal()
+        try:
+            db.add(SiteAuditRow(
+                id=uuid.uuid4(),
+                workspace_id=uuid.UUID(workspace_id),
+                start_url=req.start_url,
+                pages_audited=len(results),
+                total_issues=total_issues,
+                results=pages_payload,
+            ))
+            db.commit()
+        finally:
+            db.close()
+
+    return {"pagesAudited": len(results), "totalIssues": total_issues, "pages": pages_payload}
+
+
+@router.get("/audit/history")
+def audit_history(authorization: Optional[str] = Header(None)):
+    workspace_id = _try_get_workspace_id(authorization)
+    if not workspace_id:
+        raise HTTPException(status_code=401, detail="Sign in to view audit history.")
+
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(SiteAuditRow)
+            .filter(SiteAuditRow.workspace_id == uuid.UUID(workspace_id))
+            .order_by(SiteAuditRow.created_at.desc())
+            .limit(20)
+            .all()
+        )
+        return [
             {
-                "url": r.url,
-                "statusCode": r.status_code,
-                "title": r.title,
-                "wordCount": r.word_count,
-                "h1Count": r.h1_count,
-                "hasCanonical": r.has_canonical,
-                "issues": r.issues,
+                "id": str(row.id),
+                "startUrl": row.start_url,
+                "pagesAudited": row.pages_audited,
+                "totalIssues": row.total_issues,
+                "createdAt": row.created_at.isoformat(),
             }
-            for r in results
-        ],
-    }
+            for row in rows
+        ]
+    finally:
+        db.close()
 
 
 # ---- Technical SEO (real PageSpeed API) ----
