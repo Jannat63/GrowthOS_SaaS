@@ -26,3 +26,20 @@ None. Cloudflare DNS (in stack) for white-label domains; R2 for PDF assets.
 ## Recommendation
 Buildable without approvals — good to interleave after P3.4. Flag the new comments/tasks/audit table +
 endpoint designs (blueprint gaps) up front.
+
+---
+
+## Build slices (2026-07-18)
+
+Split into vertical slices so each ships value independently. See `progress.md`.
+
+- **Slice A — Recommendation collaboration** ✅ (2026-07-18). Comments + assignment on recommendations.
+  **Senior decision:** *no separate `recommendation_tasks` table.* A recommendation already carries a
+  status lifecycle (pending/acted/dismissed/snoozed), so "task assignment" is an `assigned_to` + `due_date`
+  on the recommendation itself; only the discussion thread (`recommendation_comments`) is a new table.
+  Avoids a redundant parallel status machine. Delivered the `/recommendations` unified queue page (also
+  fulfils the P2.7-deferred unified queue and lights up the "Soon" sidebar item).
+- **Slice B — Audit log** (next). `audit_logs` (action, entity_type, before/after JSONB, actor, ip) +
+  write hooks on mutating routes + `GET /audit-logs` + UI.
+- **Slice C — White-label + PDF export.** `workspaces.white_label_config` applied to shell; white-labeled
+  PDF report via Puppeteer → R2. Heavier (new infra) — last.

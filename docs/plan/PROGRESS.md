@@ -2,7 +2,8 @@
 
 Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 COMPLETE** (seeded Insight Loop MVP,
 P2.1–P2.8); **M3 IN PROGRESS** — real OAuth + live data. P3.0 (Google Search Console integration) **built**
-(live E2E pending user's Google creds); **P3.4 Intelligence Engine V1 done**. M4–M5 not started.
+(live E2E pending user's Google creds); **P3.4 Intelligence Engine V1 done**; **P3.5 Slice A** (recommendation
+collaboration) done. M4–M5 not started.
 M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
 ·  Updated: 2026-07-18
 
@@ -60,7 +61,7 @@ approvals mature → then P3.2/P3.3.
 | P3.2 | Google Ads module | [ ] | Outline — expand to folder when reached. |
 | P3.3 | Meta Ads module | [ ] | Outline — expand to folder when reached. |
 | P3.4 | Intelligence Engine V1 | [x] | **V1 done 2026-07-18.** Weekly report + budget-reallocation engine; `intelligence_reports` table; `GET /intelligence/report`; `/intelligence` page. Scheduled loop + WS + 47-rule set deferred. |
-| P3.5 | Agency features | [ ] | Outline — expand to folder when reached. |
+| P3.5 | Agency features | [~] | **Slice A done 2026-07-18** — recommendation collaboration (`recommendation_comments` + `assigned_to`/`due_date`); `/recommendations` unified queue page; 3 API tests. Audit log + white-label PDF remain. |
 
 Gate: 500 users / MRR >$50K / agency tier.
 
