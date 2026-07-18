@@ -30,6 +30,7 @@ import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
 import { getWeeklyReport } from '../intelligence.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
+import { recordAudit, getAuditLogs } from '../audit.js'
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -283,6 +284,17 @@ export async function registerV1Routes(app: FastifyInstance) {
       body.data.snoozedUntil ? new Date(body.data.snoozedUntil) : undefined,
     )
     if (!ok) throw new AppError('WORKSPACE_NOT_FOUND', 'Recommendation not found in this workspace.')
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'recommendation.status_changed',
+        entityType: 'recommendation',
+        entityId: recId,
+        metadata: { status: body.data.status },
+      },
+      request,
+    )
     return { id: recId, status: body.data.status }
   })
 
@@ -312,6 +324,16 @@ export async function registerV1Routes(app: FastifyInstance) {
     if (comment === null) {
       throw new AppError('WORKSPACE_NOT_FOUND', 'Recommendation not found in this workspace.')
     }
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'recommendation.commented',
+        entityType: 'recommendation',
+        entityId: recId,
+      },
+      request,
+    )
     reply.status(201)
     return comment
   })
@@ -337,7 +359,34 @@ export async function registerV1Routes(app: FastifyInstance) {
       body.data.dueDate ? new Date(body.data.dueDate) : null,
     )
     if (!ok) throw new AppError('WORKSPACE_NOT_FOUND', 'Recommendation not found in this workspace.')
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: body.data.assignedTo ? 'recommendation.assigned' : 'recommendation.unassigned',
+        entityType: 'recommendation',
+        entityId: recId,
+        metadata: { assignedTo: body.data.assignedTo },
+      },
+      request,
+    )
     return { id: recId, assignedTo: body.data.assignedTo, dueDate: body.data.dueDate ?? null }
+  })
+
+  // Workspace audit log — most-recent-first, paginated. Any member may read.
+  app.get('/api/v1/workspaces/:id/audit-logs', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const q = z
+      .object({
+        limit: z.coerce.number().int().positive().max(100).optional(),
+        offset: z.coerce.number().int().nonnegative().optional(),
+      })
+      .safeParse(request.query)
+    const limit = q.success ? (q.data.limit ?? 20) : 20
+    const offset = q.success ? (q.data.offset ?? 0) : 0
+    return getAuditLogs(id, limit, offset)
   })
 
   // Paid-to-organic search-terms surface — scores seeded terms + ensures recs/briefs exist.

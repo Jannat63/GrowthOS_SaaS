@@ -103,6 +103,19 @@ export interface Recommendation {
   dueDate: string | null; // ISO date; null = no due date (M3 P3.5)
 }
 
+// An entry in a workspace's audit log (M3 P3.5).
+export interface AuditLogEntry {
+  id: string;
+  workspaceId: string;
+  actorId: string | null;
+  actorName: string | null; // joined from user; null for system/oauth actions
+  action: string; // e.g. "recommendation.status_changed"
+  entityType: string; // e.g. "recommendation" | "connection"
+  entityId: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string; // ISO
+}
+
 // A comment on a recommendation's collaboration thread (M3 P3.5).
 export interface RecommendationComment {
   id: string;

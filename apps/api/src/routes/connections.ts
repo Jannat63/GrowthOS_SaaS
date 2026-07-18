@@ -8,6 +8,7 @@ import { getProvider } from '../oauth/providers.js'
 import { signState, verifyState } from '../oauth/state.js'
 import { upsertConnection, getConnection } from '../oauth/connections.js'
 import { syncGscConnection } from '../gsc-sync.js'
+import { recordAudit } from '../audit.js'
 
 function redirectUri(): string {
   return process.env.GOOGLE_OAUTH_REDIRECT_URI ?? 'http://localhost:3001/api/v1/oauth/callback'
@@ -53,6 +54,14 @@ export async function registerConnectionRoutes(app: FastifyInstance) {
         account: accounts[0]!,
         tokens,
       })
+      void recordAudit({
+        workspaceId: parsed.workspaceId,
+        actorId: null, // OAuth callback has no authenticated session
+        action: 'connection.connected',
+        entityType: 'connection',
+        entityId: connectionId,
+        metadata: { platform: parsed.platform, account: accounts[0]!.accountName ?? accounts[0]!.accountId },
+      })
       // Best-effort first sync (don't block the redirect).
       const conn = await getConnection(parsed.workspaceId, connectionId)
       if (conn) void syncGscConnection(conn).catch(() => {})
@@ -77,6 +86,16 @@ export async function registerConnectionRoutes(app: FastifyInstance) {
       )
       .returning({ id: schema.platformConnections.id })
     if (!row) throw new AppError('WORKSPACE_NOT_FOUND', 'Connection not found in this workspace.')
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'connection.disconnected',
+        entityType: 'connection',
+        entityId: connectionId,
+      },
+      request,
+    )
     return { id: connectionId, disconnected: true }
   })
 
@@ -87,6 +106,18 @@ export async function registerConnectionRoutes(app: FastifyInstance) {
     await requireWorkspaceMember(user.id, id, 'manager')
     const conn = await getConnection(id, connectionId)
     if (!conn) throw new AppError('WORKSPACE_NOT_FOUND', 'Connection not found in this workspace.')
-    return syncGscConnection(conn)
+    const result = await syncGscConnection(conn)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'connection.synced',
+        entityType: 'connection',
+        entityId: connectionId,
+        metadata: { platform: conn.platform },
+      },
+      request,
+    )
+    return result
   })
 }

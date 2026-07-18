@@ -50,6 +50,13 @@
       "when": 1784390070013,
       "tag": "0006_awesome_unus",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784391320359,
+      "tag": "0007_soft_miss_america",
+      "breakpoints": true
     }
   ]
 }

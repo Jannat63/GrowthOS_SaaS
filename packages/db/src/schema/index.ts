@@ -15,3 +15,5 @@ export * from './content-briefs.js';
 export * from './intelligence.js';
 // Recommendation collaboration — comments (M3 · P3.5).
 export * from './collaboration.js';
+// Per-workspace audit log (M3 · P3.5).
+export * from './audit.js';

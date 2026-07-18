@@ -16,6 +16,7 @@ import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useMembers } from "@/lib/hooks/useMembers";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { ConnectionsSection } from "@/components/settings/ConnectionsSection";
+import { ActivitySection } from "@/components/settings/ActivitySection";
 
 const ROLE_VARIANT: Record<string, "default" | "muted" | "outline"> = {
   owner: "default",
@@ -106,6 +107,8 @@ export default function SettingsPage() {
         </div>
         {/* Invites (Resend email) arrive with M5 lifecycle emails. */}
       </Card>
+
+      <ActivitySection workspaceId={workspaceId} />
     </div>
   );
 }
