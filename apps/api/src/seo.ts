@@ -1,5 +1,11 @@
 import { getClickhouse } from './analytics.js'
-import type { KeywordRanking, SeoRankingsResponse } from '@growthos/types'
+import type {
+  KeywordRanking,
+  OrganicPage,
+  OrganicTrafficPoint,
+  OrganicTrafficResponse,
+  SeoRankingsResponse,
+} from '@growthos/types'
 
 // SEO rank tracking (M3 P3.1, GSC-fed slice). Reads keyword positions from ClickHouse
 // `keyword_rankings` — the table P3.0's Google Search Console sync populates. Until a real GSC
@@ -105,4 +111,121 @@ export async function getKeywordRankings(workspaceId: string): Promise<SeoRankin
   const improved = keywords.filter((k) => k.change > 0).length
 
   return { keywords, summary: { tracked, avgPosition, topThree, improved } }
+}
+
+// ── Organic traffic (GSC page dimension → organic_traffic) ───────────────────────────────────
+
+const SEED_PAGES = [
+  '/blog/best-office-chair-for-back-pain',
+  '/products/ergonomic-desk',
+  '/blog/home-office-setup-guide',
+  '/products/standing-desk-converter',
+  '/blog/lumbar-support-explained',
+  '/products/monitor-arm',
+  '/blog/cable-management-tips',
+  '/collections/keyboards',
+]
+
+function seedOrganicRows(workspaceId: string): Record<string, unknown>[] {
+  const base = new Date('2026-06-18T00:00:00Z')
+  const rows: Record<string, unknown>[] = []
+  SEED_PAGES.forEach((page, i) => {
+    for (let day = 0; day < 30; day++) {
+      const d = new Date(base)
+      d.setUTCDate(base.getUTCDate() + day)
+      const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6
+      const demand = (1 + Math.sin(day / 3 + i) * 0.2 + day * 0.01) * (weekend ? 0.8 : 1)
+      const impressions = Math.round((900 - i * 80) * demand)
+      // CTR improves as position improves; deterministic per page.
+      const ctr = 0.03 + (SEED_PAGES.length - i) * 0.004
+      rows.push({
+        workspace_id: workspaceId,
+        date: d.toISOString().slice(0, 10),
+        page_url: page,
+        sessions: 0, // GSC has no sessions (a GA metric) — 0 until GA4 lands
+        clicks: Math.max(0, Math.round(impressions * ctr)),
+        impressions,
+        avg_position: Math.max(1, 5 + i * 1.5 - day * 0.08),
+      })
+    }
+  })
+  return rows
+}
+
+export async function ensureOrganicTrafficSeed(workspaceId: string): Promise<void> {
+  const rs = await getClickhouse().query({
+    query: 'SELECT count() AS c FROM organic_traffic WHERE workspace_id = {ws:String}',
+    query_params: { ws: workspaceId },
+    format: 'JSONEachRow',
+  })
+  const [row] = (await rs.json()) as { c: string }[]
+  if (row && Number(row.c) > 0) return
+  await getClickhouse().insert({
+    table: 'organic_traffic',
+    values: seedOrganicRows(workspaceId),
+    format: 'JSONEachRow',
+  })
+}
+
+/** Per-page organic traffic (clicks/impressions/CTR/avg position) + a daily clicks trend. */
+export async function getOrganicTraffic(workspaceId: string): Promise<OrganicTrafficResponse> {
+  await ensureOrganicTrafficSeed(workspaceId)
+
+  const pagesRs = await getClickhouse().query({
+    query: `
+      SELECT page_url AS pageUrl,
+        toUInt64(sum(clicks)) AS clicks,
+        toUInt64(sum(impressions)) AS impressions,
+        toFloat64(avg(avg_position)) AS avgPosition
+      FROM organic_traffic
+      WHERE workspace_id = {ws:String}
+      GROUP BY page_url ORDER BY clicks DESC`,
+    query_params: { ws: workspaceId },
+    format: 'JSONEachRow',
+  })
+  const pageRows = (await pagesRs.json()) as {
+    pageUrl: string
+    clicks: number
+    impressions: number
+    avgPosition: number
+  }[]
+  const pages: OrganicPage[] = pageRows.map((p) => ({
+    pageUrl: p.pageUrl,
+    clicks: Number(p.clicks),
+    impressions: Number(p.impressions),
+    ctr: p.impressions > 0 ? Math.round((Number(p.clicks) / Number(p.impressions)) * 1000) / 10 : 0,
+    avgPosition: Math.round(p.avgPosition * 10) / 10,
+  }))
+
+  const trendRs = await getClickhouse().query({
+    query: `
+      SELECT toString(date) AS date,
+        toUInt64(sum(clicks)) AS clicks,
+        toUInt64(sum(impressions)) AS impressions
+      FROM organic_traffic
+      WHERE workspace_id = {ws:String}
+      GROUP BY date ORDER BY date`,
+    query_params: { ws: workspaceId },
+    format: 'JSONEachRow',
+  })
+  const trend = ((await trendRs.json()) as { date: string; clicks: number; impressions: number }[]).map(
+    (t): OrganicTrafficPoint => ({
+      date: t.date,
+      clicks: Number(t.clicks),
+      impressions: Number(t.impressions),
+    }),
+  )
+
+  const totalClicks = pages.reduce((s, p) => s + p.clicks, 0)
+  const totalImpressions = pages.reduce((s, p) => s + p.impressions, 0)
+  const avgCtr = totalImpressions > 0 ? Math.round((totalClicks / totalImpressions) * 1000) / 10 : 0
+  const avgPosition = pages.length
+    ? Math.round((pages.reduce((s, p) => s + p.avgPosition, 0) / pages.length) * 10) / 10
+    : 0
+
+  return {
+    pages,
+    trend,
+    summary: { pages: pages.length, totalClicks, totalImpressions, avgCtr, avgPosition },
+  }
 }

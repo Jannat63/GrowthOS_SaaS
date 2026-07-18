@@ -129,6 +129,31 @@ export interface SeoRankingsResponse {
   summary: { tracked: number; avgPosition: number; topThree: number; improved: number };
 }
 
+// Organic traffic (GSC page dimension). CTR is a percentage (e.g. 4.2 = 4.2%).
+export interface OrganicPage {
+  pageUrl: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  avgPosition: number;
+}
+export interface OrganicTrafficPoint {
+  date: string;
+  clicks: number;
+  impressions: number;
+}
+export interface OrganicTrafficResponse {
+  pages: OrganicPage[];
+  trend: OrganicTrafficPoint[];
+  summary: {
+    pages: number;
+    totalClicks: number;
+    totalImpressions: number;
+    avgCtr: number;
+    avgPosition: number;
+  };
+}
+
 // An entry in a workspace's audit log (M3 P3.5).
 export interface AuditLogEntry {
   id: string;
