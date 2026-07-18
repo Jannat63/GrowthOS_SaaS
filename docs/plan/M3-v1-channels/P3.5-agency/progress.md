@@ -1,14 +1,13 @@
 # P3.5 — Agency Features — Progress
 
-Status: [~]  ·  Updated: 2026-07-18  ·  **In progress** — Slice A (collaboration) done; audit log +
-white-label PDF remain.
+Status: [~]  ·  Updated: 2026-07-18  ·  **In progress** — Slices A + B done; white-label PDF remains.
 
 ## Slices
 
 | Slice | Status | Notes |
 |-------|--------|-------|
 | A — Recommendation collaboration | [x] | Comments + assignment; `/recommendations` unified queue page. |
-| B — Audit log | [ ] | `audit_logs` + write hooks + read endpoint + UI. |
+| B — Audit log | [x] | `audit_logs` + best-effort write hooks + read endpoint + Settings activity section. |
 | C — White-label + PDF export | [ ] | `white_label_config` on shell; Puppeteer PDF → R2. Heavier — last. |
 
 ## Slice A — what shipped (commit `4ab46f1`)
@@ -31,5 +30,19 @@ Backend green — `apps/api` `vitest run src/collaboration.test.ts` (3 pass, Neo
 clean (9/9). `pnpm --filter @growthos/web build` passes; `/recommendations` route emitted (~5.2 kB).
 Manual: sidebar → Recommendations → assign an owner, open a card's thread, post a comment.
 
+## Slice B — what shipped (commit `0c05c81`)
+
+| Layer | Artifact | Tests |
+|-------|----------|-------|
+| DB | `audit_logs` (actor, action, entity, metadata, ip, user_agent) + migration `0007` | — |
+| API | `apps/api/src/audit.ts` — best-effort `recordAudit()` + paginated `getAuditLogs()`; write-hooks on recommendation status/assign/comment + connection connect/disconnect/sync; `GET .../audit-logs` | 2 ✓ |
+| Types | `AuditLogEntry` | — |
+| Web | `useAuditLogs` hook + `ActivitySection` on Settings (human-readable labels, empty-state on mock) | build ✓ |
+
+**Design:** auditing is fire-and-forget (`void recordAudit(...)`) and swallows its own errors, so a
+logging failure can never break the mutation it records. Any member may read the log; OAuth-callback
+"connected" events have `actorId: null` (no session).
+
 ## Log
 - 2026-07-18 — Slice A (recommendation collaboration) built + committed. P3.5 opened.
+- 2026-07-18 — Slice B (audit log) built + committed.
