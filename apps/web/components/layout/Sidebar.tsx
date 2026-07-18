@@ -35,7 +35,7 @@ const NAV = [
   { href: "/content-pipeline", label: "Content Pipeline", icon: FileText, ready: true },
   { href: "/creative-queue", label: "Creative Queue", icon: Megaphone, ready: true },
   { href: "/fatigue-monitor", label: "Creative Fatigue", icon: Flame, ready: true },
-  { href: "#", label: "SEO", icon: Search, ready: false },
+  { href: "/seo", label: "SEO", icon: Search, ready: true },
   { href: "#", label: "Google Ads", icon: MousePointerClick, ready: false },
   { href: "#", label: "Meta Ads", icon: Megaphone, ready: false },
   { href: "/analytics", label: "Analytics", icon: BarChart3, ready: true },

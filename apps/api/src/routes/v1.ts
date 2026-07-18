@@ -29,6 +29,7 @@ import {
 import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
 import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
+import { getKeywordRankings } from '../seo.js'
 import { getWeeklyReport } from '../intelligence.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
@@ -414,6 +415,15 @@ export async function registerV1Routes(app: FastifyInstance) {
     await ensurePaidToOrganic(id)
     const data = getScoredSearchTerms()
     return { searchTerms: data, total: data.length }
+  })
+
+  // SEO rank tracking (M3 P3.1) — keyword positions from ClickHouse keyword_rankings (GSC-fed;
+  // seeded until a real Search Console connection syncs).
+  app.get('/api/v1/workspaces/:id/seo/rankings', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    return getKeywordRankings(id)
   })
 
   // Organic-to-paid — top organic pages worth amplifying with Meta (+ generate recs/creative briefs).

@@ -111,6 +111,24 @@ export interface Recommendation {
   dueDate: string | null; // ISO date; null = no due date (M3 P3.5)
 }
 
+// SEO rank tracking (M3 P3.1, GSC-fed). Per-keyword position over time.
+export interface KeywordRankingPoint {
+  date: string;
+  position: number;
+}
+export interface KeywordRanking {
+  keyword: string;
+  position: number; // latest
+  previousPosition: number; // ~7 days earlier
+  change: number; // previousPosition - position (positive = moved up / improved)
+  best: number; // best (lowest) position in the window
+  series: KeywordRankingPoint[];
+}
+export interface SeoRankingsResponse {
+  keywords: KeywordRanking[];
+  summary: { tracked: number; avgPosition: number; topThree: number; improved: number };
+}
+
 // An entry in a workspace's audit log (M3 P3.5).
 export interface AuditLogEntry {
   id: string;
