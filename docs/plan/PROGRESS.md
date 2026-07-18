@@ -3,8 +3,8 @@
 Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 COMPLETE** (seeded Insight Loop MVP,
 P2.1–P2.8); **M3 IN PROGRESS** — real OAuth + live data. P3.0 (Google Search Console integration) **built**
 (live E2E pending user's Google creds); **P3.4 Intelligence Engine V1 done**; **P3.5 Slices A+B+C1** (collaboration
-+ audit log + white-label branding) done; **P3.1 rank-tracker + organic-traffic slices** (GSC-fed SEO) done.
-M4–M5 not started.
++ audit log + white-label branding) done; **P3.1 rank-tracker + organic-traffic slices** (GSC-fed SEO) done;
+**P3.2 advisor slice** (Google Ads wasted-spend + RSA) done. M4–M5 not started.
 M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
 ·  Updated: 2026-07-18
 
@@ -59,7 +59,7 @@ approvals mature → then P3.2/P3.3.
 |-------|------|--------|-------|
 | P3.0 | Real platform integrations (OAuth) | [~] | **Built.** Custom OAuth → `platform_connections`; GSC first; encrypted tokens; live sync → ClickHouse; connections UI. 27 API tests. **Live E2E pending user's Google Cloud creds.** Meta/Ads/Shopify adapters + approvals later. |
 | P3.1 | SEO module | [~] | **Rank-tracker + organic-traffic slices done 2026-07-18** — GSC-fed keyword positions + per-page traffic from ClickHouse (`apps/api/src/seo.ts`), `/seo` tabs (rankings sparkline + clicks chart). DataForSEO features (research/audit/clustering) gated on paid key. |
-| P3.2 | Google Ads module | [ ] | Outline — expand to folder when reached. |
+| P3.2 | Google Ads module | [~] | **Advisor slice done 2026-07-18** — `@growthos/logic` google-ads-advisor (wasted-spend, campaign classification, RSA generator; 6 tests) + `/google-ads` page. Live campaign fetch/push gated on the dev token. |
 | P3.3 | Meta Ads module | [ ] | Outline — expand to folder when reached. |
 | P3.4 | Intelligence Engine V1 | [x] | **V1 done 2026-07-18.** Weekly report + budget-reallocation engine; `intelligence_reports` table; `GET /intelligence/report`; `/intelligence` page. Scheduled loop + WS + 47-rule set deferred. |
 | P3.5 | Agency features | [~] | **Slices A+B+C1 done 2026-07-18** — A: collaboration (`recommendation_comments` + `assigned_to`/`due_date`, `/recommendations` queue); B: `audit_logs` + write-hooks + Settings activity; C1: white-label branding (`white_label_config`, agency name/logo/accent on shell). 5 API tests + self-audit authz hardening. Only C2 (white-labeled PDF, Puppeteer+R2) remains. |
