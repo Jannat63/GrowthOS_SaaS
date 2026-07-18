@@ -40,15 +40,16 @@ scheduled-loop + WebSocket work also unblocks the notification center deferred f
 vision, not code. So V1 ships the concrete pieces with **real logic** and grows the rule set
 incrementally (no fabricated fillers):
 
-- [ ] `packages/logic/src/intelligence.ts` — port the two **real** deterministic engines from legacy
+- [x] `packages/logic/src/intelligence.ts` — port the two **real** deterministic engines from legacy
   `budget_and_reports.py`: `recommendBudgetReallocation(channels)` + `generateWeeklyReport({weekStart,
-  channels, topRecommendations})`. TDD.
-- [ ] `@growthos/types` — `ChannelPerformance`, `BudgetReallocation`, `WeeklyReport`.
-- [ ] DB `intelligence_reports` table (workspace, period_start, report jsonb) + migration.
-- [ ] API `GET /workspaces/:id/intelligence/report` — channel performance from ClickHouse
-  `ad_performance` (reuse `analytics.ts`), top recs from `ensureAllRecommendations`, generate + persist
-  latest week, return. Includes the budget-reallocation suggestion.
-- [ ] Frontend — Intelligence Report page (`/intelligence`) + sidebar nav.
+  channels, topOpportunities})`. TDD (5 tests). Types live here (`ChannelPerformance`,
+  `BudgetReallocation`, `WeeklyReport`), exported from `@growthos/logic`.
+- [x] DB `intelligence_reports` table (workspace, period_start, report jsonb) + migration `0005`
+  (unique on workspace+period_start → idempotent per week).
+- [x] API `GET /workspaces/:id/intelligence/report` — channel performance from ClickHouse
+  `ad_performance` (reuse `analytics.ts`), top opportunities from `ensureAllRecommendations`, generate +
+  persist latest week, return. Includes the budget-reallocation suggestion. Integration test (1).
+- [x] Frontend — Intelligence Report page (`/intelligence`) + sidebar nav, via `useReport` (liveOrMock).
 
 **Deferred (documented):** the 4-hourly **scheduled loop** (needs a scheduler process — low value until
 real data flows; report is generate-on-read for now) and **WebSocket real-time** (needs WS infra) →
