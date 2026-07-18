@@ -9,7 +9,7 @@ Meta/Ads/DataForSEO approvals mature → then P3.2/P3.3.
 | Item | Status | Notes |
 |------|--------|-------|
 | P3.0 Real platform integrations (OAuth) | [~] | **Built.** Custom OAuth → `platform_connections`; GSC first; live sync → ClickHouse. Live E2E pending Google creds. |
-| P3.1 SEO module | [~] | **Rank-tracker slice done** — GSC-fed keyword positions from ClickHouse, `/seo` page. DataForSEO features (research/audit/clustering) still gated (paid). |
+| P3.1 SEO module | [~] | **Rank-tracker + organic-traffic slices done** — GSC-fed keyword positions + per-page traffic from ClickHouse, `/seo` tabs. DataForSEO features (research/audit/clustering) still gated (paid). |
 | P3.2 Google Ads module | [ ] | Outline. Gated on Google Ads dev token. |
 | P3.3 Meta Ads module | [ ] | Outline. Gated on Meta App Review. |
 | P3.4 Intelligence Engine V1 | [x] | **V1 done** — weekly report + budget engine + `/intelligence` page. Scheduled loop + WS + 47-rule set deferred. |
@@ -33,3 +33,5 @@ Meta/Ads/DataForSEO approvals mature → then P3.2/P3.3.
 - 2026-07-18 — **P3.1 rank-tracker slice** — GSC-fed keyword rank tracking (`apps/api/src/seo.ts` over
   ClickHouse `keyword_rankings`, seeded until live GSC), `/seo` page, SEO nav live. DataForSEO features
   (keyword research, site audit, clustering) still gated on the paid key.
+- 2026-07-18 — **P3.1 organic-traffic slice** — per-page clicks/impressions/CTR/position + daily trend
+  from ClickHouse `organic_traffic`; `/seo` split into Rank tracker / Organic traffic tabs.
