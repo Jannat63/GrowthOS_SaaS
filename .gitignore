@@ -3,10 +3,13 @@ node_modules/
 .pnp
 .pnp.js
 
-# Next.js
-apps/web/.next/
-apps/web/out/
-apps/web/build/
+# Build output
+dist/
+build/
+out/
+.next/
+.turbo/
+*.tsbuildinfo
 
 # Python
 __pycache__/
@@ -33,11 +36,6 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
-
-# Build artifacts
-dist/
-build/
-*.tsbuildinfo
 
 # Docker
 docker-compose.override.yml

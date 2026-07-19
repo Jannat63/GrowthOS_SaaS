@@ -1,70 +1,42 @@
-import { TopBar } from "@/components/layout/TopBar";
-import { ModuleTabs } from "@/components/layout/ModuleTabs";
-import { Card, StatCard } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import Link from "next/link";
-import { seoStats } from "@/lib/mock-data/seo";
-import { scoreKeywords } from "@/lib/logic/seo-scoring";
-import { rawKeywords } from "@/lib/mock-data/seo";
+"use client";
+import { Search } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@growthos/ui/components/tabs";
+import { useWorkspace } from "@/lib/hooks/useWorkspace";
+import { useWorkspaceStore } from "@/lib/stores/workspace";
+import { RankTracker } from "@/components/seo/RankTracker";
+import { OrganicTraffic } from "@/components/seo/OrganicTraffic";
 
-const tabs = [
-  { label: "Overview", href: "/seo" },
-  { label: "Keyword Explorer", href: "/seo/keyword-explorer" },
-  { label: "Rank Tracker", href: "/seo/rank-tracker" },
-  { label: "Site Audit", href: "/seo/site-audit" },
-  { label: "Content Studio", href: "/seo/content-studio" },
-  { label: "Technical SEO", href: "/seo/technical-seo" },
-  { label: "Backlinks", href: "/seo/backlinks" },
-  { label: "AI Citations", href: "/seo/ai-citations" },
-];
-
-export default function SEOOverviewPage() {
-  const topOpportunities = scoreKeywords(rawKeywords).slice(0, 5);
+export default function SeoPage() {
+  const { data: me } = useWorkspace();
+  const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const workspaceId = activeId ?? me?.data.memberships[0]?.workspaceId ?? null;
 
   return (
-    <div>
-      <TopBar subtitle="Everything you need to improve rankings and grow organic performance." />
-      <ModuleTabs items={tabs} />
-      <div className="p-6 space-y-6">
-        <div className="grid grid-cols-5 gap-4">
-          <StatCard label="Organic Traffic" value={seoStats.organicTraffic.value} change={seoStats.organicTraffic.change} />
-          <StatCard label="Organic Keywords" value={seoStats.organicKeywords.value} change={seoStats.organicKeywords.change} />
-          <StatCard label="Keywords in Top 3" value={seoStats.keywordsInTop3.value} change={seoStats.keywordsInTop3.change} />
-          <StatCard label="Backlinks" value={seoStats.backlinks.value} change={seoStats.backlinks.change} />
-          <StatCard label="Domain Rating" value={seoStats.domainRating.value} change={seoStats.domainRating.change} />
-        </div>
-
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-heading-2">Top SEO Opportunities</div>
-            <Link href="/seo/keyword-explorer" className="text-small text-primary">View Keyword Explorer →</Link>
-          </div>
-          <table className="w-full text-body">
-            <thead>
-              <tr className="text-caption text-neutral text-left border-b border-slate-100">
-                <th className="pb-2 font-medium">Keyword</th>
-                <th className="pb-2 font-medium">Position</th>
-                <th className="pb-2 font-medium">Opportunity Score</th>
-                <th className="pb-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topOpportunities.map((k) => (
-                <tr key={k.keyword} className="border-b border-slate-50 last:border-0">
-                  <td className="py-2.5">{k.keyword}</td>
-                  <td className="py-2.5 text-neutral">{k.currentPosition ?? "Not ranking"}</td>
-                  <td className="py-2.5 font-medium">{k.opportunityScore}/100</td>
-                  <td className="py-2.5">
-                    <Badge tone={k.label === "Paid-Proven, Organic Needed" ? "primary" : k.label === "High Priority" ? "success" : "neutral"}>
-                      {k.label}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+    <div className="animate-rise space-y-6">
+      <div>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">SEO</h1>
+        <p className="text-sm text-muted-foreground">
+          Keyword rankings and organic traffic from Google Search Console, over the last 30 days.
+        </p>
       </div>
+
+      <Tabs defaultValue="rankings" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="rankings">Rank tracker</TabsTrigger>
+          <TabsTrigger value="traffic">Organic traffic</TabsTrigger>
+        </TabsList>
+        <TabsContent value="rankings">
+          <RankTracker workspaceId={workspaceId} />
+        </TabsContent>
+        <TabsContent value="traffic">
+          <OrganicTraffic workspaceId={workspaceId} />
+        </TabsContent>
+      </Tabs>
+
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Search className="h-3.5 w-3.5" />
+        Connect Google Search Console in Settings to replace the sample data with your live data.
+      </p>
     </div>
   );
 }
