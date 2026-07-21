@@ -1,69 +1,51 @@
-import { TopBar } from "@/components/layout/TopBar";
-import { ModuleTabs } from "@/components/layout/ModuleTabs";
-import { Card, StatCard } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { metaAdsStats, creatives } from "@/lib/mock-data/meta-ads";
-import { detectFatigueAll } from "@/lib/logic/creative-fatigue";
+"use client";
+import { Megaphone } from "lucide-react";
+import { Skeleton } from "@growthos/ui/components/skeleton";
+import { useWorkspace } from "@/lib/hooks/useWorkspace";
+import { useWorkspaceStore } from "@/lib/stores/workspace";
+import { useMetaCampaignInsights } from "@/lib/hooks/useMetaCampaignInsights";
+import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { CampaignInsightsPanel } from "@/components/ads/CampaignInsightsPanel";
+import { FunnelPlanner } from "@/components/meta-ads/FunnelPlanner";
+import { AdCopyStudio } from "@/components/meta-ads/AdCopyStudio";
 
-const tabs = [
-  { label: "Overview", href: "/meta-ads" },
-  { label: "Campaigns", href: "/meta-ads/campaigns" },
-  { label: "Ad Sets", href: "/meta-ads/ad-sets" },
-  { label: "Ads", href: "/meta-ads/ads" },
-  { label: "Audiences", href: "/meta-ads/audiences" },
-  { label: "Placements", href: "/meta-ads/placements" },
-  { label: "Creative Library", href: "/meta-ads/creative-library" },
-  { label: "A/B Tests", href: "/meta-ads/ab-tests" },
-  { label: "Budget & Bidding", href: "/meta-ads/budget-bidding" },
-  { label: "Conversion Tracking", href: "/meta-ads/conversion-tracking" },
-];
+export default function MetaAdsPage() {
+  const { data: me } = useWorkspace();
+  const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const workspaceId = activeId ?? me?.data.memberships[0]?.workspaceId ?? null;
 
-export default function MetaAdsOverviewPage() {
-  const fatigueResults = detectFatigueAll(creatives);
+  const { data: insights } = useMetaCampaignInsights(workspaceId);
+  const d = insights?.data;
 
   return (
-    <div>
-      <TopBar subtitle="Manage and optimize your Facebook & Instagram ad campaigns." />
-      <ModuleTabs items={tabs} />
-      <div className="p-6 space-y-6">
-        <div className="grid grid-cols-4 gap-4">
-          <StatCard label="Results (Conversions)" value={metaAdsStats.results.value} change={metaAdsStats.results.change} />
-          <StatCard label="Reach" value={metaAdsStats.reach.value} change={metaAdsStats.reach.change} />
-          <StatCard label="Amount Spent" value={metaAdsStats.amountSpent.value} change={metaAdsStats.amountSpent.change} changeDirection="down" />
-          <StatCard label="Purchase ROAS" value={metaAdsStats.purchaseROAS.value} change={metaAdsStats.purchaseROAS.change} />
+    <div className="animate-rise space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Meta Ads</h1>
+          <p className="text-sm text-muted-foreground">
+            Campaign efficiency, full-funnel planning, and ad copy — all deterministic, no AI.
+          </p>
         </div>
-
-        <Card>
-          <div className="text-heading-2 mb-1">Creative Fatigue Detector</div>
-          <p className="text-caption text-neutral mb-4">Live rule: frequency &gt; 3 AND CTR down &gt; 20% week-over-week = fatigued.</p>
-          <table className="w-full text-body">
-            <thead>
-              <tr className="text-caption text-neutral text-left border-b border-slate-100">
-                <th className="pb-2 font-medium">Creative</th>
-                <th className="pb-2 font-medium">Frequency</th>
-                <th className="pb-2 font-medium">CTR This Week</th>
-                <th className="pb-2 font-medium">CTR Change</th>
-                <th className="pb-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fatigueResults.map((c) => (
-                <tr key={c.name} className="border-b border-slate-50 last:border-0">
-                  <td className="py-2.5 font-medium">{c.name}</td>
-                  <td className="py-2.5 text-neutral">{c.frequency.toFixed(1)}</td>
-                  <td className="py-2.5 text-neutral">{c.ctrThisWeek.toFixed(1)}%</td>
-                  <td className="py-2.5 text-danger">-{c.ctrDeclinePercent.toFixed(0)}%</td>
-                  <td className="py-2.5">
-                    <Badge tone={c.status === "fatigued" ? "danger" : c.status === "at-risk" ? "warning" : "success"}>
-                      {c.status === "fatigued" ? "Fatigued — Refresh" : c.status === "at-risk" ? "At Risk" : "Healthy"}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+        {insights && <DataSourceBadge source={insights.source} />}
       </div>
+
+      {!d ? (
+        <Skeleton className="h-64 w-full rounded-lg" />
+      ) : (
+        <>
+          <CampaignInsightsPanel
+            campaigns={d.campaigns}
+            wastedSpend={d.wastedSpend}
+            summary={d.summary}
+          />
+          <FunnelPlanner />
+          <AdCopyStudio />
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Megaphone className="h-3.5 w-3.5" />
+            Live campaign sync &amp; publishing arrive once your Meta app clears App Review.
+          </p>
+        </>
+      )}
     </div>
   );
 }

@@ -1,114 +1,192 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
+@source "../../../packages/ui/src";
 
-/* ============================================
-   GrowthOS Design Tokens — Phase 01 Foundation
-   ============================================ */
+@custom-variant dark (&:is(.dark *));
+
 :root {
-  /* Color System */
-  --color-primary: #4f46e5;
-  --color-primary-light: #818cf8;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-  --color-neutral: #64748b;
+  --radius: 0.75rem;
 
-  --color-ink: #0f172a; /* used in shadow rgba base + sidebar bg */
-  --color-sidebar: #0b1220;
-  --color-border: #e5e7eb;
-  --color-bg: #f8fafc;
-  --color-surface: #ffffff;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+  --success: #10b981;
+  --success-foreground: #ffffff;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #4f46e5;
 
-  /* Gradient */
-  --gradient-primary: linear-gradient(90deg, #4f46e5 0%, #10b981 100%);
-
-  /* Spacing (8px base unit) */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-12: 48px;
-  --space-16: 64px;
-
-  /* Border radius */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 24px;
-  --radius-full: 9999px;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 4px 6px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 10px 15px rgba(15, 23, 42, 0.1);
-  --shadow-xl: 0 20px 25px rgba(15, 23, 42, 0.12);
+  /* Brand ink — deep indigo for dark bands (the loop's "night" surface) */
+  --ink: #0e0c2b;
+  --ink-2: #171445;
+  --ink-foreground: #eceafe;
+  --ink-muted: #a5a1d4;
+  --ink-border: #2a2560;
 }
 
-html,
-body {
-  background: var(--color-bg);
-  color: var(--color-ink);
-  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
+.dark {
+  --background: #0b1220;
+  --foreground: #f8fafc;
+  --card: #0f172a;
+  --card-foreground: #f8fafc;
+  --popover: #0f172a;
+  --popover-foreground: #f8fafc;
+  --primary: #818cf8;
+  --primary-foreground: #0b1220;
+  --secondary: #1e293b;
+  --secondary-foreground: #f8fafc;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e293b;
+  --accent-foreground: #f8fafc;
+  --success: #10b981;
+  --success-foreground: #0b1220;
+  --destructive: #ef4444;
+  --destructive-foreground: #f8fafc;
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #818cf8;
+
+  --ink: #08061c;
+  --ink-2: #120f38;
+  --ink-foreground: #eceafe;
+  --ink-muted: #a5a1d4;
+  --ink-border: #2a2560;
 }
 
-/* Type scale — Phase 01 Typography */
-.text-display-1 {
-  font-size: 36px;
-  line-height: 44px;
-  font-weight: 700;
-}
-.text-display-2 {
-  font-size: 28px;
-  line-height: 36px;
-  font-weight: 700;
-}
-.text-heading-1 {
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 600;
-}
-.text-heading-2 {
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 600;
-}
-.text-body-lg {
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 400;
-}
-.text-body {
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 400;
-}
-.text-small {
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 400;
-}
-.text-caption {
-  font-size: 11px;
-  line-height: 14px;
-  font-weight: 400;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-border: var(--ink-border);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 12px);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), var(--font-inter), sans-serif;
 }
 
-/* Visible keyboard focus (accessibility floor) */
-:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    color-scheme: light;
+    scroll-behavior: smooth;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 28%, transparent);
+  }
+  /* Themed, unobtrusive scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Ambient loop backdrop — faint concentric rings, used behind onboarding/auth */
+.loop-backdrop {
+  background-image:
+    radial-gradient(circle at 50% 42%, color-mix(in oklab, var(--primary) 9%, transparent) 0, transparent 42%),
+    repeating-radial-gradient(circle at 50% 42%, transparent 0, transparent 78px, color-mix(in oklab, var(--primary) 6%, transparent) 79px, transparent 80px);
+}
+
+/* Reusable entrance for cards/sections */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-rise {
+  animation: rise-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise {
+    animation: none;
+  }
+}
+
+/* Signature motion: data flowing around the insight loop */
+@keyframes loop-flow {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+.loop-flow {
+  animation: loop-flow 14s linear infinite;
+}
+
+@keyframes loop-flow-rev {
+  to {
+    stroke-dashoffset: 1000;
+  }
+}
+.loop-flow-rev {
+  animation: loop-flow-rev 22s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loop-flow,
+  .loop-flow-rev {
+    animation: none;
   }
 }

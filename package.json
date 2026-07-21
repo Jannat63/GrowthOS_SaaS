@@ -1,9 +1,16 @@
 {
   "name": "growthos",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "packageManager": "pnpm@11.0.9",
   "scripts": {
-    "dev": "npm run dev --workspace=apps/web",
-    "build": "npm run build --workspace=apps/web"
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.6.0",
+    "prettier": "^3.3.0"
   }
 }

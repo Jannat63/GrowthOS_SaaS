@@ -1,116 +1,201 @@
 "use client";
-
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Hexagon,
-  Home,
+  LayoutDashboard,
   Sparkles,
-  Search,
-  BadgeDollarSign,
-  Instagram,
   BrainCircuit,
-  BarChart3,
   FileText,
-  Target,
-  Telescope,
-  Rocket,
-  Plug,
-  Building2,
+  Flame,
+  Search,
+  MousePointerClick,
+  Megaphone,
+  BarChart3,
+  GitBranch,
   Settings,
-  ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
+import { Button } from "@growthos/ui/components/button";
 import { cn } from "@/lib/utils/cn";
+import { useSidebarStore } from "@/lib/stores/sidebar";
+import { useWorkspace } from "@/lib/hooks/useWorkspace";
+import { useWorkspaceStore } from "@/lib/stores/workspace";
+import { useBranding } from "@/lib/hooks/useBranding";
 
-interface NavItem {
-  label: string;
-  href: string;
-  icon: typeof Home;
-}
+// Ghost icon button restyled for the dark ink rail (tailwind-merge overrides the
+// default light accent hover). Reused for both collapse/expand affordances.
+const INK_ICON_BTN =
+  "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground focus-visible:ring-primary/60 focus-visible:ring-offset-0";
 
-const mainNav: NavItem[] = [
-  { label: "Growth Hub", href: "/growth-hub", icon: Home },
-  { label: "Opportunities", href: "/opportunities", icon: Sparkles },
+const NAV = [
+  { href: "/growth-hub", label: "Growth Hub", icon: LayoutDashboard, ready: true },
+  { href: "/intelligence", label: "Intelligence", icon: BrainCircuit, ready: true },
+  { href: "/recommendations", label: "Recommendations", icon: Sparkles, ready: true },
+  { href: "/content-pipeline", label: "Content Pipeline", icon: FileText, ready: true },
+  { href: "/creative-queue", label: "Creative Queue", icon: Megaphone, ready: true },
+  { href: "/fatigue-monitor", label: "Creative Fatigue", icon: Flame, ready: true },
+  { href: "/seo", label: "SEO", icon: Search, ready: true },
+  { href: "/google-ads", label: "Google Ads", icon: MousePointerClick, ready: true },
+  { href: "/meta-ads", label: "Meta Ads", icon: Megaphone, ready: true },
+  { href: "/analytics", label: "Analytics", icon: BarChart3, ready: true },
+  { href: "/attribution", label: "Attribution", icon: GitBranch, ready: true },
 ];
 
-const moduleNav: NavItem[] = [
-  { label: "SEO", href: "/seo", icon: Search },
-  { label: "Google Ads", href: "/google-ads", icon: BadgeDollarSign },
-  { label: "Meta Ads", href: "/meta-ads", icon: Instagram },
-  { label: "Intelligence Center", href: "/intelligence-center", icon: BrainCircuit },
-  { label: "Analytics", href: "/analytics", icon: BarChart3 },
-  { label: "Reports", href: "/reports", icon: FileText },
-  { label: "Growth Command Center", href: "/growth-command-center", icon: Target },
-  { label: "Future Forecasting", href: "/future-forecasting", icon: Telescope },
-  { label: "Optimization Engine", href: "/optimization-engine", icon: Rocket },
-];
+export function Sidebar() {
+  const pathname = usePathname();
+  const storedCollapsed = useSidebarStore((s) => s.collapsed);
+  const toggle = useSidebarStore((s) => s.toggle);
 
-const bottomNav: NavItem[] = [
-  { label: "Integrations", href: "/integrations", icon: Plug },
-  { label: "Workspace & Billing", href: "/workspace-billing", icon: Building2 },
-  { label: "Settings & Help", href: "/settings-help", icon: Settings },
-];
+  // White-label brand (M3 P3.5): agency name + logo override the GrowthOS defaults.
+  const { data: me } = useWorkspace();
+  const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const workspaceId = activeId ?? me?.data.memberships[0]?.workspaceId ?? null;
+  const { data: branding } = useBranding(workspaceId);
+  const brandName = branding?.data.agencyName || "GrowthOS";
+  const logoUrl = branding?.data.logoUrl || null;
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
-  const Icon = item.icon;
+  // Guard against hydration mismatch: default to expanded until the persisted
+  // value has rehydrated on the client.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const collapsed = mounted && storedCollapsed;
+
   return (
-    <Link
-      href={item.href}
+    <aside
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-        active
-          ? "bg-primary text-white"
-          : "text-slate-400 hover:bg-white/5 hover:text-white"
+        "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-ink-border bg-ink text-ink-foreground transition-[width] duration-200 ease-out md:flex",
+        collapsed ? "w-16" : "w-60"
       )}
     >
-      <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
-      <span>{item.label}</span>
-    </Link>
-  );
-}
-
-export function Sidebar({ workspaceName = "Acme Inc." }: { workspaceName?: string }) {
-  const pathname = usePathname();
-
-  return (
-    <aside className="flex h-screen w-[240px] flex-col bg-[#0b1220] px-3 py-4">
-      {/* Logo */}
-      <div className="flex items-center gap-2 px-2 py-2 mb-6">
-        <Hexagon className="h-6 w-6 text-primary" fill="currentColor" strokeWidth={0} />
-        <span className="text-white font-semibold text-[15px]">GrowthOS</span>
+      <div
+        className={cn(
+          "flex h-16 items-center",
+          collapsed ? "justify-center px-0" : "justify-between px-5"
+        )}
+      >
+        {collapsed ? (
+          // Collapsed: brand mark by default, swaps to the expand icon on hover.
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggle}
+            aria-label="Expand sidebar"
+            className={cn("group relative h-9 w-9 rounded-lg", INK_ICON_BTN)}
+          >
+            <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg bg-primary transition-opacity duration-200 group-hover:opacity-0">
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt={brandName} className="h-full w-full object-cover" />
+              ) : (
+                <span className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
+              )}
+            </span>
+            <PanelLeftOpen className="absolute h-4 w-4 text-ink-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+          </Button>
+        ) : (
+          <>
+            <Link
+              href="/growth-hub"
+              className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary">
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoUrl} alt={brandName} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
+                )}
+              </span>
+              <span className="truncate font-display text-lg font-semibold tracking-tight">
+                {brandName}
+              </span>
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggle}
+              aria-label="Collapse sidebar"
+              className={cn("h-8 w-8 rounded-lg", INK_ICON_BTN)}
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </Button>
+          </>
+        )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto space-y-6">
-        <div className="space-y-1">
-          <div className="px-3 pb-1 text-caption font-medium text-slate-500 uppercase tracking-wide">
-            Main Navigation
-          </div>
-          {mainNav.map((item) => (
-            <NavLink key={item.href} item={item} active={pathname?.startsWith(item.href) ?? false} />
-          ))}
-        </div>
-
-        <div className="space-y-1">
-          <div className="px-3 pb-1 text-caption font-medium text-slate-500 uppercase tracking-wide">
-            Modules
-          </div>
-          {moduleNav.map((item) => (
-            <NavLink key={item.href} item={item} active={pathname?.startsWith(item.href) ?? false} />
-          ))}
-        </div>
-
-        <div className="space-y-1">
-          {bottomNav.map((item) => (
-            <NavLink key={item.href} item={item} active={pathname?.startsWith(item.href) ?? false} />
-          ))}
-        </div>
+      <nav className="flex-1 space-y-1 px-3 py-4">
+        {NAV.map(({ href, label, icon: Icon, ready }) => {
+          const active = ready && pathname === href;
+          const base =
+            "group relative flex items-center rounded-lg py-2 text-sm font-medium transition-colors";
+          const spacing = collapsed ? "justify-center px-0" : "gap-3 px-3";
+          if (!ready) {
+            return (
+              <span
+                key={label}
+                title={label + " — coming soon"}
+                className={cn(base, spacing, "cursor-default text-ink-muted/50")}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {!collapsed && (
+                  <>
+                    {label}
+                    <span className="ml-auto rounded-full bg-ink-2 px-1.5 py-0.5 text-[0.6rem] font-medium uppercase tracking-wide text-ink-muted/70">
+                      Soon
+                    </span>
+                  </>
+                )}
+              </span>
+            );
+          }
+          return (
+            <Link
+              key={label}
+              href={href}
+              title={collapsed ? label : undefined}
+              className={cn(
+                base,
+                spacing,
+                active
+                  ? "bg-ink-2 text-ink-foreground"
+                  : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
+              )}
+            >
+              {active && (
+                <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary" />
+              )}
+              <Icon
+                className={cn(
+                  "h-4 w-4 shrink-0 transition-colors",
+                  active
+                    ? "text-primary"
+                    : "text-ink-muted group-hover:text-ink-foreground"
+                )}
+              />
+              {!collapsed && label}
+            </Link>
+          );
+        })}
       </nav>
 
-      {/* Workspace switcher */}
-      <button className="flex items-center justify-between px-3 py-2 mt-2 rounded-lg bg-white/5 text-slate-300 text-sm hover:bg-white/10">
-        <span>{workspaceName}</span>
-        <ChevronDown className="h-4 w-4" />
-      </button>
+      <div className="border-t border-ink-border px-3 py-4">
+        <Link
+          href="/settings"
+          title={collapsed ? "Settings" : undefined}
+          className={cn(
+            "group flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
+            collapsed ? "justify-center px-0" : "gap-3 px-3",
+            pathname === "/settings"
+              ? "bg-ink-2 text-ink-foreground"
+              : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
+          )}
+        >
+          <Settings className="h-4 w-4 shrink-0" />
+          {!collapsed && "Settings"}
+        </Link>
+      </div>
     </aside>
   );
 }

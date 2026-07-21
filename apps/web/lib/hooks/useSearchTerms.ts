@@ -1,19 +1,37 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
+import type { ScoredSearchTerm } from "@growthos/types";
+import { analyzeSearchTerms } from "@growthos/logic";
+import { searchTerms } from "@growthos/logic/fixtures";
 import { api } from "@/lib/api/client";
-import { analyzeSearchTerms, SearchTerm, AnalyzedSearchTerm } from "@/lib/logic/search-terms-bridge";
-import { searchTerms as mockTerms } from "@/lib/mock-data/google-ads";
+import { liveOrMock } from "./liveOrMock";
 
-export function useSearchTerms(terms: SearchTerm[] = mockTerms) {
-  return useQuery<{ data: AnalyzedSearchTerm[]; source: "live" | "mock" }>({
-    queryKey: ["search-terms", terms],
-    queryFn: async () => {
-      try {
-        const data = await api.post<AnalyzedSearchTerm[]>("/api/google-ads/search-terms", terms);
-        return { data, source: "live" as const };
-      } catch {
-        return { data: analyzeSearchTerms(terms), source: "mock" as const };
-      }
-    },
+function mockScored(): ScoredSearchTerm[] {
+  return analyzeSearchTerms(searchTerms).map((t) => ({
+    term: t.term,
+    clicks: t.clicks,
+    conversions: t.conversions,
+    cost: t.cost,
+    organicPosition: t.organicPosition,
+    conversionRate: t.conversionRate,
+    recommendationType: t.recommendation.type,
+    message: t.recommendation.message,
+  }));
+}
+
+export function useSearchTerms(workspaceId: string | null | undefined) {
+  return useQuery<{ data: ScoredSearchTerm[]; source: "live" | "mock" }>({
+    queryKey: ["search-terms", workspaceId],
+    enabled: Boolean(workspaceId),
+    queryFn: () =>
+      liveOrMock(
+        async () =>
+          (
+            await api.get<{ searchTerms: ScoredSearchTerm[]; total: number }>(
+              `/workspaces/${workspaceId}/google-ads/search-terms`
+            )
+          ).searchTerms,
+        mockScored
+      ),
   });
 }
