@@ -48,34 +48,54 @@ export async function registerWebSocket(app: FastifyInstance): Promise<void> {
   })
 
   app.register(async (scoped) => {
-    scoped.get('/api/v1/ws', { websocket: true }, async (socket, request) => {
-      const user = await getSessionUser(request)
-      if (!user) {
-        socket.close(CLOSE_UNAUTHENTICATED, 'unauthenticated')
-        return
+    scoped.get('/api/v1/ws', { websocket: true }, (socket, request) => {
+      // Listeners are attached synchronously, BEFORE the async session lookup — otherwise a
+      // client that sends `subscribe` the instant the socket opens would race the await and
+      // have its frame dropped. `userId` stays null until auth resolves; an early subscribe is
+      // buffered in `pending` and applied once we know who the user is.
+      let userId: string | null = null
+      let pending: string | null = null
+
+      async function handleSubscribe(workspaceId: string): Promise<void> {
+        if (!userId) {
+          pending = workspaceId // not authenticated yet — apply after auth resolves
+          return
+        }
+        try {
+          await requireWorkspaceMember(userId, workspaceId)
+        } catch {
+          socket.close(CLOSE_FORBIDDEN, 'not a workspace member')
+          return
+        }
+        rooms.join(workspaceId, socket)
+        socket.send(JSON.stringify({ type: 'subscribed', workspaceId }))
       }
 
-      socket.on('message', async (data: Buffer) => {
+      socket.on('message', (data: Buffer) => {
         let msg: { subscribe?: string }
         try {
           msg = JSON.parse(data.toString())
         } catch {
           return // ignore malformed client frames
         }
-        if (typeof msg.subscribe === 'string') {
-          try {
-            await requireWorkspaceMember(user.id, msg.subscribe)
-          } catch {
-            socket.close(CLOSE_FORBIDDEN, 'not a workspace member')
-            return
-          }
-          rooms.join(msg.subscribe, socket)
-          socket.send(JSON.stringify({ type: 'subscribed', workspaceId: msg.subscribe }))
-        }
+        if (typeof msg.subscribe === 'string') void handleSubscribe(msg.subscribe)
       })
-
       socket.on('close', () => rooms.leave(socket))
       socket.on('error', () => rooms.leave(socket))
+
+      // Authenticate the Better Auth session cookie sent on the upgrade request.
+      void getSessionUser(request).then((user) => {
+        if (!user) {
+          socket.close(CLOSE_UNAUTHENTICATED, 'unauthenticated')
+          return
+        }
+        userId = user.id
+        if (pending) {
+          const ws = pending
+          pending = null
+          void handleSubscribe(ws)
+        }
+      })
     })
   })
 }
