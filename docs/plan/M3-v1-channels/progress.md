@@ -17,6 +17,14 @@ Meta/Ads/DataForSEO approvals mature → then P3.2/P3.3.
 
 ## Log
 
+- 2026-07-23 — **Autonomous scheduled intelligence & automation loop** (M4 P4.3 backbone; closes the
+  P3.4 scheduled-loop deferral). API-side scheduler started from `index.ts` (never `buildApp`),
+  Redis-lock single-runner, per-workspace cadence + enable (`automation_config`). Each tick refreshes
+  stale reports via the TS `getWeeklyReport` engine and pushes `report:ready`; a persistent
+  `automation_alerts` signature makes `analytics:mer_alert`/`meta:fatigue_alert` re-fire only on
+  change (replaced the per-process dedupe). Observability via `scheduler_runs` + a Settings activity
+  table + `GET .../scheduler/runs`. Verified live: a 0-cadence tick refreshed 9 workspaces / 18 new
+  alerts, the second tick 9 / 0 alerts. Migrations 0009+0010. 17 API scheduler tests.
 - 2026-07-23 — **Real-time WebSocket layer** (cross-cutting; closes the WS deferrals in M2 P2.7
   and M3 P3.4). Redis pub/sub bus (`ws:events`) bridges the Python worker + Fastify API; a
   raw `@fastify/websocket` endpoint (`GET /api/v1/ws`, Better-Auth-cookie auth + per-workspace
