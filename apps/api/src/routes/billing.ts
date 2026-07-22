@@ -5,6 +5,7 @@ import { requireUser } from '../auth-context.js'
 import { requireWorkspaceMember } from '../guards.js'
 import { recordAudit } from '../audit.js'
 import { createCheckoutSession, getCurrentSubscription, handleWebhookEvent } from '../billing.js'
+import { getUsageSummary } from '../plan-limits.js'
 
 const checkoutSchema = z.object({
   plan: z.enum(['starter', 'growth', 'scale']),
@@ -18,6 +19,14 @@ export async function registerBillingRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     return getCurrentSubscription(id)
+  })
+
+  // Usage vs. plan limits (M5 P5.2) — powers the usage bars + upgrade prompts on Settings → Billing.
+  app.get('/api/v1/workspaces/:id/billing/usage', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    return getUsageSummary(id)
   })
 
   // Start a Stripe Checkout session for a plan purchase/upgrade. Admin+ only — this is a billing action.

@@ -1,6 +1,6 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Plan, Subscription } from "@growthos/types";
+import type { Plan, Subscription, UsageSummary } from "@growthos/types";
 import { api } from "@/lib/api/client";
 import { liveOrMock } from "./liveOrMock";
 
@@ -11,6 +11,19 @@ const MOCK_SUBSCRIPTION: Subscription = {
   currentPeriodStart: null,
   currentPeriodEnd: null,
   cancelAt: null,
+};
+
+const MOCK_USAGE: UsageSummary = {
+  plan: "starter",
+  metrics: [
+    { metric: "recommendations_generated", used: 0, limit: 5 },
+    { metric: "ai_creatives_generated", used: 0, limit: 10 },
+  ],
+  features: [
+    { feature: "whiteLabel", enabled: false },
+    { feature: "geoTracking", enabled: false },
+    { feature: "apiAccess", enabled: false },
+  ],
 };
 
 // Current plan/status for the workspace. Mock fallback mirrors what a fresh, unconfigured
@@ -24,6 +37,19 @@ export function useSubscription(workspaceId: string | null | undefined) {
       liveOrMock(
         () => api.get<Subscription>(`/workspaces/${workspaceId}/billing/subscription`),
         () => MOCK_SUBSCRIPTION
+      ),
+  });
+}
+
+// Usage vs. plan limits (M5 P5.2) — powers the usage bars + upgrade prompts.
+export function useUsage(workspaceId: string | null | undefined) {
+  return useQuery<{ data: UsageSummary; source: "live" | "mock" }>({
+    queryKey: ["billing", "usage", workspaceId],
+    enabled: Boolean(workspaceId),
+    queryFn: () =>
+      liveOrMock(
+        () => api.get<UsageSummary>(`/workspaces/${workspaceId}/billing/usage`),
+        () => MOCK_USAGE
       ),
   });
 }

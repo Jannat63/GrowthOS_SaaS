@@ -376,6 +376,16 @@ export const PLAN_LIMITS = {
   },
 } as const satisfies Record<Plan, Record<string, unknown>>;
 
+// Metered/gated features (M5 P5.2). `limit: null` means unlimited (Infinity isn't valid JSON).
+export type CountedMetric = "recommendations_generated" | "ai_creatives_generated";
+export type BooleanFeature = "whiteLabel" | "geoTracking" | "apiAccess";
+
+export interface UsageSummary {
+  plan: Plan;
+  metrics: Array<{ metric: CountedMetric; used: number; limit: number | null }>;
+  features: Array<{ feature: BooleanFeature; enabled: boolean }>;
+}
+
 // ── WebSocket events (stub — fleshed out in M2) ──────────────────────────────
 
 export type WebSocketEvent =

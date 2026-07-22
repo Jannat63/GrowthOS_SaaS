@@ -37,6 +37,7 @@ import { getWeeklyReport } from '../intelligence.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
 import { startTrial } from '../billing.js'
+import { assertFeatureEnabled } from '../plan-limits.js'
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -559,6 +560,7 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id, 'admin')
+    await assertFeatureEnabled(id, 'whiteLabel')
     const body = z
       .object({
         agencyName: z.string().max(60).nullable().optional(),

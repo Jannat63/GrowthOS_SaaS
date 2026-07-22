@@ -4,9 +4,20 @@ import { Card } from "@growthos/ui/components/card";
 import { Badge } from "@growthos/ui/components/badge";
 import { Button } from "@growthos/ui/components/button";
 import { Skeleton } from "@growthos/ui/components/skeleton";
-import { PLAN_LIMITS, type Plan } from "@growthos/types";
-import { useSubscription, useCheckout } from "@/lib/hooks/useBilling";
+import { PLAN_LIMITS, type Plan, type CountedMetric, type BooleanFeature } from "@growthos/types";
+import { useSubscription, useUsage, useCheckout } from "@/lib/hooks/useBilling";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+
+const METRIC_LABEL: Record<CountedMetric, string> = {
+  recommendations_generated: "Recommendations this week",
+  ai_creatives_generated: "AI creatives this month",
+};
+
+const FEATURE_LABEL: Record<BooleanFeature, string> = {
+  whiteLabel: "White-label branding",
+  geoTracking: "GEO / AI-citation tracking",
+  apiAccess: "API access",
+};
 
 const STATUS_VARIANT: Record<string, "default" | "muted" | "outline"> = {
   active: "default",
@@ -41,6 +52,7 @@ export function BillingSection({
   isAdmin: boolean;
 }) {
   const { data: subscription } = useSubscription(workspaceId);
+  const { data: usage } = useUsage(workspaceId);
   const checkout = useCheckout(workspaceId);
   const sub = subscription?.data;
   const trialDays = sub?.status === "trialing" ? daysLeft(sub.trialEndsAt) : null;
@@ -103,6 +115,46 @@ export function BillingSection({
               );
             })}
           </div>
+
+          {usage?.data && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-3">
+                {usage.data.metrics.map(({ metric, used, limit }) => {
+                  const pct = limit === null ? 0 : Math.min(100, Math.round((used / Math.max(limit, 1)) * 100));
+                  const atLimit = limit !== null && used >= limit;
+                  return (
+                    <div key={metric}>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{METRIC_LABEL[metric]}</span>
+                        <span className={atLimit ? "text-destructive" : "text-muted-foreground"}>
+                          {used} / {limit === null ? "∞" : limit}
+                        </span>
+                      </div>
+                      {limit !== null && (
+                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={`h-full rounded-full ${atLimit ? "bg-destructive" : "bg-primary"}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <ul className="space-y-1.5 text-xs">
+                {usage.data.features.map(({ feature, enabled }) => (
+                  <li key={feature} className="flex items-center gap-2 text-muted-foreground">
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${enabled ? "bg-primary" : "bg-muted-foreground/30"}`}
+                    />
+                    {FEATURE_LABEL[feature]}
+                    {!enabled && <span className="text-muted-foreground/70">— Growth+</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {checkout.isError && (
             <p className="text-sm text-destructive">

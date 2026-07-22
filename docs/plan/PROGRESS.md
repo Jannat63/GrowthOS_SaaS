@@ -4,9 +4,10 @@ Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 COMPLETE
 P2.1–P2.8); **M3 IN PROGRESS** — every channel module now has a live UI (P3.0 OAuth built, live pending
 Google creds; P3.1 SEO, P3.2 Google Ads, P3.3 Meta advisors, P3.4 Intelligence V1, P3.5 A+B+C1 agency all
 done — remaining M3 work is external-gated). **M4 started early** — P4.1 cross-channel attribution done.
-**M5 started** — P5.1 Billing core done (Stripe checkout + webhook + 14-day trial); P5.2–P5.4 not started.
+**M5 started** — P5.1 Billing core and P5.2 Plan limits & metering done (Stripe checkout + webhook +
+14-day trial; usage metering + PLAN_LIMIT_REACHED); P5.3–P5.4 not started.
 M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
-·  Updated: 2026-07-21
+·  Updated: 2026-07-22
 
 Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked (note blocker)
 
@@ -78,7 +79,7 @@ Gate: 500 users / MRR >$50K / agency tier.
 
 Gate: 2,000 users / MRR >$200K.
 
-## M5 — Launch & Monetization  🟨 In progress — P5.1 done (see docs/plan/M5-launch-monetization/progress.md)
+## M5 — Launch & Monetization  🟨 In progress — P5.1, P5.2 done (see docs/plan/M5-launch-monetization/progress.md)
 
 Billing pulled out of M2 P2.8 so the basic app is built first. Independent of M3/M4 — pull forward
 when a launch is scheduled.

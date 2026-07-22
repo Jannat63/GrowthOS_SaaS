@@ -1,13 +1,13 @@
 # M5 — Progress
 
-Status: [~]  ·  Updated: 2026-07-21
+Status: [~]  ·  Updated: 2026-07-22
 
 Deferred (rolling-wave) — phases will be expanded to folders when a launch is scheduled.
 
 | Item | Status | Notes |
 |------|--------|-------|
 | P5.1 Billing core | [x] | `subscriptions` + `usage_records` (0009_billing_core.sql); Stripe checkout + webhook; 14-day Growth trial auto-starts on workspace creation. Settings → Billing section (plan cards, checkout, trial countdown). |
-| P5.2 Plan limits & metering | [ ] | Metering + `PLAN_LIMIT_REACHED` (402) + upgrade prompts. Builds on `usage_records` from P5.1. |
+| P5.2 Plan limits & metering | [x] | `plan-limits.ts` — `assertWithinLimit`/`recordUsage` (rolling-window counters) + `assertFeatureEnabled` (boolean gates) + `getUsageSummary`. Wired into the one real write endpoint it applies to today (white-label branding); see log for what's framework-ready vs. actually gated. |
 | P5.3 Customer portal & lifecycle emails | [ ] | Stripe portal; Resend trial/dunning emails. |
 | P5.4 Launch readiness | [ ] | Final hardening, legal/pricing, analytics, go-live checklist. |
 
@@ -29,3 +29,23 @@ Deferred (rolling-wave) — phases will be expanded to folders when a launch is 
   Stripe isn't configured in any environment yet — checkout/webhook return `INTEGRATION_NOT_CONNECTED`
   (409) until `STRIPE_SECRET_KEY` etc. are set (see `apps/api/.env.example`), same pattern as the
   other gated integrations.
+- 2026-07-22 — P5.2 shipped, scoped honestly to what the app can actually gate right now.
+  `apps/api/src/plan-limits.ts`: `assertWithinLimit`/`recordUsage` for the two rolling-window
+  counters in `PLAN_LIMITS` (`recommendationsPerWeek` — resets Monday UTC,
+  `aiCreativesPerMonth` — resets the 1st UTC), and `assertFeatureEnabled` for the three boolean
+  features (`whiteLabel`, `geoTracking`, `apiAccess`). **Wired into one real endpoint**: white-label
+  branding (`PATCH .../branding`) now 402s a starter-plan workspace with `PLAN_LIMIT_REACHED`.
+  **Not wired in**: `recommendations_generated` / `ai_creatives_generated` metering has no call
+  site yet — both actions are currently produced by idempotent "ensure" helpers
+  (`ensureAllRecommendations`) invoked from *read* routes (dashboard load), not from a repeatable
+  user-triggered write; gating a read route would 402 people out of their own dashboard once they
+  hit the weekly cap. Real per-action generation endpoints land with the scheduled Intelligence
+  Engine loop (M3 P3.4 remainder) or AI creative automation (M4 P4.2) — call `assertWithinLimit`
+  before / `recordUsage` after at that point. Same status for `trackedKeywords`, `teamMembers`,
+  `workspaces` (live counts, not covered by this module) — no write endpoint exists yet (keyword
+  tracking, team invites, multi-workspace agency management). `plan-limits.test.ts` — 6/6 passing
+  against real Postgres (window increments, limit-reached rejection, Infinity never throws,
+  feature gate allow/deny, `getUsageSummary`'s `Infinity → null` JSON-safety conversion). New route
+  `GET .../billing/usage` + `useUsage` hook + usage bars/feature list added to `BillingSection.tsx`;
+  `BrandingSection.tsx` now surfaces mutation errors (including the new 402) instead of failing
+  silently. `CountedMetric` / `BooleanFeature` / `UsageSummary` added to `@growthos/types`.
