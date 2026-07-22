@@ -12,6 +12,7 @@ import { rawKeywords, searchTerms, creatives } from '@growthos/logic/fixtures'
 import { ensurePaidToOrganic } from './search-terms.js'
 import { ensureOrganicToPaid } from './organic-to-paid.js'
 import { ensureFatigueAlerts } from './fatigue.js'
+import { publishEvent } from './ws/events.js'
 
 type Row = typeof schema.recommendations.$inferSelect
 
@@ -90,9 +91,21 @@ export async function ensureRecommendations(workspaceId: string): Promise<Recomm
 
 // Unified queue (P2.7): ensure every recommendation type exists, then return all sorted by composite.
 export async function ensureAllRecommendations(workspaceId: string): Promise<Recommendation[]> {
+  const before = (await readOrdered(workspaceId)).length
   await ensureRecommendations(workspaceId)
   await ensurePaidToOrganic(workspaceId)
   await ensureOrganicToPaid(workspaceId)
   await ensureFatigueAlerts(workspaceId)
-  return rowsToApi(await readOrdered(workspaceId))
+  const rows = await readOrdered(workspaceId)
+  // Real-time: emit once, only when this call actually generated new rows (generation is
+  // idempotent, so repeat polls see before === rows.length and stay silent). fatigue.ts
+  // emits its own meta:fatigue_alert alongside this.
+  if (rows.length > before && rows[0]) {
+    void publishEvent(workspaceId, {
+      type: 'recommendation:new',
+      workspaceId,
+      recommendationId: rows[0].id,
+    })
+  }
+  return rowsToApi(rows)
 }

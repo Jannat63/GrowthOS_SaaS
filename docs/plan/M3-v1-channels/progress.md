@@ -17,6 +17,14 @@ Meta/Ads/DataForSEO approvals mature → then P3.2/P3.3.
 
 ## Log
 
+- 2026-07-23 — **Real-time WebSocket layer** (cross-cutting; closes the WS deferrals in M2 P2.7
+  and M3 P3.4). Redis pub/sub bus (`ws:events`) bridges the Python worker + Fastify API; a
+  raw `@fastify/websocket` endpoint (`GET /api/v1/ws`, Better-Auth-cookie auth + per-workspace
+  rooms) fans events out; the web `useRealtime` hook turns them into live TanStack-Query
+  invalidations + toasts. All four event types wired end-to-end (`job:complete`,
+  `recommendation:new`, `meta:fatigue_alert`, `analytics:mer_alert`). Additive — polling stays
+  as the fallback. Spec: `docs/superpowers/specs/2026-07-23-realtime-websocket-layer-design.md`.
+  Tests: API 8 (rooms + publish), web 4 (event→invalidation map), worker 2 (publish_event).
 - 2026-07-05 — Plan created.
 - 2026-07-12 — Added **P3.0 Real platform integrations (OAuth)** — the real-OAuth work deferred out of
   M2 (which runs on seeded data).

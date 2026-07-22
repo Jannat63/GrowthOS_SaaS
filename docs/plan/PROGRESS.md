@@ -6,7 +6,8 @@ Google creds; P3.1 SEO, P3.2 Google Ads, P3.3 Meta advisors, P3.4 Intelligence V
 done — remaining M3 work is external-gated). **M4 started early** — P4.1 cross-channel attribution done.
 M5 not started.
 M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
-·  Updated: 2026-07-22
+**Real-time WebSocket layer landed 2026-07-23** (cross-cutting) — closes the WS deferrals from M2 P2.7 and M3 P3.4.
+·  Updated: 2026-07-23
 
 Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked (note blocker)
 
@@ -46,7 +47,7 @@ Build the whole basic app on **seeded data**, each feature a full **vertical sli
 | P2.4 | Organic-to-Paid Bridge | 🔁 Slice | [x] | **Done 2026-07-17.** Meta creative briefs from top organic pages; Creative Queue page w/ act/dismiss/snooze. |
 | P2.5 | Creative Fatigue Monitor | 🔁 Slice | [x] | **Done 2026-07-17.** Fatigue surface + `fatigue_alert` recs; Fatigue Monitor page. Scheduled worker/email/WS → M3/M5/P2.7. |
 | P2.6 | Blended MER Dashboard | 🔁 Slice | [x] | **Done 2026-07-17.** MER over seeded ClickHouse; Recharts trend + channel breakdown + anomaly. Shopify/revenue-entry → M3. |
-| P2.7 | Unified Dashboard + notifications | 🎨 FE | [x] | **Done 2026-07-17.** Unified recommendations queue + TopBar action center. Real-time WS → M3. |
+| P2.7 | Unified Dashboard + notifications | 🎨 FE | [x] | **Done 2026-07-17.** Unified recommendations queue + TopBar action center. **Real-time WS layer landed 2026-07-23** (Redis pub/sub → Fastify WS → live query-invalidation + toasts). |
 | P2.8 | Hardening & polish (no billing) | 🔧 Opt | [x] | **Done 2026-07-17.** Rate limiting + perf batching + workspace settings. PDF/invites deferred. Billing → M5. |
 
 ## M3 — V1: Full Channel Coverage  🟨 In progress
@@ -61,7 +62,7 @@ approvals mature → then P3.2/P3.3.
 | P3.1 | SEO module | [~] | **Rank-tracker + organic-traffic slices done 2026-07-18** — GSC-fed keyword positions + per-page traffic from ClickHouse (`apps/api/src/seo.ts`), `/seo` tabs (rankings sparkline + clicks chart). DataForSEO features (research/audit/clustering) gated on paid key. |
 | P3.2 | Google Ads module | [~] | **Advisor + RSA + budget planner done 2026-07-18** — `@growthos/logic` google-ads-advisor (wasted-spend, classification, RSA, target-CPA/ROAS, budget allocator; 8 tests) + `/google-ads` page. Live fetch/push + Quality Score gated on the dev token. |
 | P3.3 | Meta Ads module | [~] | **Advisor + funnel/copy slice done 2026-07-18** — `@growthos/logic` meta-ads-advisor (funnel split, ad-copy + UGC generators; 4 tests) + `/meta-ads` page; fatigue done in M2. Live sync/publish + CAPI/EMQ gated on App Review. |
-| P3.4 | Intelligence Engine V1 | [x] | **V1 done 2026-07-18.** Weekly report + budget-reallocation engine; `intelligence_reports` table; `GET /intelligence/report`; `/intelligence` page. Scheduled loop + WS + 47-rule set deferred. |
+| P3.4 | Intelligence Engine V1 | [x] | **V1 done 2026-07-18.** Weekly report + budget-reallocation engine; `intelligence_reports` table; `GET /intelligence/report`; `/intelligence` page. **Real-time WS delivery landed 2026-07-23** (analytics:mer_alert + recommendation:new push live). Scheduled loop + 47-rule set still deferred. |
 | P3.5 | Agency features | [x] | **Complete 2026-07-22.** A: collaboration (`recommendation_comments` + `assigned_to`/`due_date`, `/recommendations` queue); B: `audit_logs` + write-hooks + Settings activity; C1: white-label branding (`white_label_config`, agency name/logo/accent on shell); **C2: white-labeled PDF export** (`GET .../reports/weekly.pdf`, react-pdf → streamed download, `/intelligence` Export PDF button — no Puppeteer/R2). 8 API tests + self-audit authz hardening. |
 
 Gate: 500 users / MRR >$50K / agency tier.
