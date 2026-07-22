@@ -1,6 +1,6 @@
 # M3 — Progress
 
-Status: [~]  ·  Updated: 2026-07-18  ·  **In progress** — P3.0 built (live pending Google creds); P3.4 V1 done; P3.5 A+B+C1 done; P3.1 SEO (2 slices) done; P3.2 + P3.3 advisor slices done. Every module now has a live surface.
+Status: [~]  ·  Updated: 2026-07-22  ·  **In progress** — P3.0 built (live pending Google creds); P3.4 V1 done; **P3.5 complete (A+B+C1+C2)**; P3.1 SEO (2 slices) done; P3.2 + P3.3 advisor slices done. Every module now has a live surface. Remaining M3 work is external-gated (OAuth creds, dev token, App Review, paid keys).
 
 Phases expanded to folders (`P3.0-real-integrations/` … `P3.5-agency/`). First real provider = **Google
 Search Console**. Build order: P3.0 → then the non-blocked phases (P3.4, GSC-slice of P3.1, P3.5) while
@@ -13,7 +13,7 @@ Meta/Ads/DataForSEO approvals mature → then P3.2/P3.3.
 | P3.2 Google Ads module | [~] | **Advisor + RSA + budget/target planner done** — deterministic campaign advisor, wasted-spend, RSA generator, unit-economics planner (`/google-ads`). Live fetch/push + Quality Score gated on the dev token. |
 | P3.3 Meta Ads module | [~] | **Advisor + funnel/copy slice done** — campaign advisor + full-funnel planner + ad-copy/UGC studio (`/meta-ads`); fatigue done in M2. Live sync/publish + CAPI/EMQ gated on App Review. |
 | P3.4 Intelligence Engine V1 | [x] | **V1 done** — weekly report + budget engine + `/intelligence` page. Scheduled loop + WS + 47-rule set deferred. |
-| P3.5 Agency features | [~] | **Slices A+B+C1 done** — collaboration + audit log + white-label branding. Only white-labeled PDF export (C2, needs Puppeteer+R2) remains. |
+| P3.5 Agency features | [x] | **Complete** — collaboration + audit log + white-label branding + white-labeled PDF export (C2 via react-pdf, streamed; no Puppeteer/R2). |
 
 ## Log
 
@@ -41,3 +41,6 @@ Meta/Ads/DataForSEO approvals mature → then P3.2/P3.3.
 - 2026-07-18 — **P3.3 advisor slice** — `@growthos/logic` meta-ads-advisor engine (full-funnel split,
   ad-copy + UGC generators; 4 tests) + `/meta-ads` page (shared CampaignInsightsPanel + funnel/copy
   tools). Live sync/publish + CAPI/EMQ gated on Meta App Review. Every channel module now has a live UI.
+- 2026-07-22 — **P3.5 C2 (white-labeled PDF export)** — `renderWeeklyReportPdf` (react-pdf, no headless
+  browser) + `GET .../reports/weekly.pdf` streamed download + `/intelligence` Export PDF button. Chose
+  react-pdf over Puppeteer and direct-stream over R2 (no external infra). **P3.5 now complete.**

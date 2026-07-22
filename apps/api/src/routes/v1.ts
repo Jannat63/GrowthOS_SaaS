@@ -34,6 +34,7 @@ import { getCampaignInsights } from '../google-ads.js'
 import { getMetaCampaignInsights } from '../meta-ads.js'
 import { getAttribution } from '../attribution.js'
 import { getWeeklyReport } from '../intelligence.js'
+import { renderWeeklyReportPdf } from '../reports/weekly-pdf.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
 
@@ -472,6 +473,45 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     return getWeeklyReport(id)
+  })
+
+  // White-labeled PDF export of the Weekly Intelligence Report (M3 P3.5 Slice C2). Renders the
+  // report to a PDF (react-pdf, no headless browser) and streams it as a download — branded with
+  // the workspace's white-label config when set. Guarded by membership (same as the report route).
+  // Follow-up: gate to Growth+ plans once billing (M5) lands.
+  app.get('/api/v1/workspaces/:id/reports/weekly.pdf', async (request, reply) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+
+    const [report, ws] = await Promise.all([
+      getWeeklyReport(id),
+      db
+        .select({ config: schema.workspaces.whiteLabelConfig })
+        .from(schema.workspaces)
+        .where(eq(schema.workspaces.id, id))
+        .then((r) => r[0]),
+    ])
+    const branding = (ws?.config as WhiteLabelConfig | null) ?? null
+    const pdf = await renderWeeklyReportPdf(report, branding)
+
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'report.exported',
+        entityType: 'workspace',
+        entityId: id,
+        metadata: { format: 'pdf', periodStart: report.weekStart },
+      },
+      request,
+    )
+
+    return reply
+      .header('Content-Type', 'application/pdf')
+      .header('Content-Disposition', `attachment; filename="weekly-intelligence-${report.weekStart}.pdf"`)
+      .header('Content-Length', pdf.length)
+      .send(pdf)
   })
 
   // Cross-channel attribution (M4 P4.1) — every model's per-channel credit over conversion paths.

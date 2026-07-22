@@ -1,7 +1,6 @@
 # P3.5 — Agency Features — Progress
 
-Status: [~]  ·  Updated: 2026-07-18  ·  **In progress** — Slices A + B + C1 done; only white-labeled PDF
-export (C2, infra-blocked) remains.
+Status: [x]  ·  Updated: 2026-07-22  ·  **Complete** — Slices A + B + C1 + C2 all done. P3.5 closed.
 
 ## Slices
 
@@ -10,7 +9,7 @@ export (C2, infra-blocked) remains.
 | A — Recommendation collaboration | [x] | Comments + assignment; `/recommendations` unified queue page. |
 | B — Audit log | [x] | `audit_logs` + best-effort write hooks + read endpoint + Settings activity section. |
 | C1 — White-label branding | [x] | `white_label_config` on workspaces; agency name/logo/accent applied to the shell; admin Settings form. |
-| C2 — White-labeled PDF export | [ ] | **Deferred (infra):** Puppeteer + Cloudflare R2. Slots in with the report-export work. |
+| C2 — White-labeled PDF export | [x] | `GET .../reports/weekly.pdf` renders the Weekly Intelligence Report to a branded PDF (react-pdf, **no headless browser**) and streams it as a download; `/intelligence` "Export PDF" button. |
 
 ## Slice A — what shipped (commit `4ab46f1`)
 
@@ -62,8 +61,27 @@ Before continuing, audited the A/B slices and fixed two issues: (1) `GET /audit-
 member → **admin-only** (+ UI gated to admins); (2) the assignment route accepted any userId → now
 **validates the assignee is a workspace member**.
 
+## Slice C2 — what shipped
+
+| Layer | Artifact | Tests |
+|-------|----------|-------|
+| API | `apps/api/src/reports/weekly-pdf.ts` — `renderWeeklyReportPdf(report, branding)` (react-pdf → Buffer); `GET .../reports/weekly.pdf` route in `v1.ts` (membership-guarded, streams `application/pdf` as attachment, audited `report.exported`) | 3 ✓ |
+| Web | `/intelligence` "Export PDF" button — authenticated blob fetch → browser download | typecheck ✓ |
+| Deps | `@react-pdf/renderer` + `react`/`@types/react` (aligned to **React 19** to match the monorepo and avoid a duplicate drizzle-orm peer-variant) | — |
+
+**Decisions (revised from plan):** (1) **react-pdf, not Puppeteer** — pure JS, no bundled Chromium, renders
+straight to a Buffer we stream; fits "Fastify never does heavy work" better than launching a browser.
+(2) **Stream direct, no R2** — no external Cloudflare creds needed; `renderWeeklyReportPdf` is the seam a
+future R2 uploader would call. (3) Guarded by membership like the report route; **Growth+ plan-gating is a
+flagged follow-up** for when billing (M5) lands.
+
+## Verification
+`apps/api` typecheck clean; `apps/api` tests **38/38** (incl. 3 new renderer tests asserting a valid `%PDF`
+header, with/without branding, and empty-report). `apps/web` typecheck clean. Renderer runs headless-free.
+
 ## Log
 - 2026-07-18 — Slice A (recommendation collaboration) built + committed. P3.5 opened.
 - 2026-07-18 — Slice B (audit log) built + committed.
 - 2026-07-18 — Self-audit hardening (audit-log authz + assignee validation) committed.
 - 2026-07-18 — Slice C1 (white-label branding) built + committed. Only C2 (PDF export, infra-blocked) left.
+- 2026-07-22 — Slice C2 (white-labeled PDF export) built via react-pdf (no Puppeteer/R2). **P3.5 complete.**
