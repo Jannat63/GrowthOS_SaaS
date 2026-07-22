@@ -35,4 +35,13 @@ describe("planForEvent", () => {
     expect(plan.keys).toEqual([["mer", WS]]);
     expect(plan.toastId).toBe(`mer-${WS}`);
   });
+
+  it("report:ready refreshes the intelligence report with a stable toast id", () => {
+    const plan = planForEvent(
+      { type: "report:ready", workspaceId: WS, periodStart: "2026-07-17" },
+      WS
+    );
+    expect(plan.keys).toContainEqual(["intelligence-report", WS]);
+    expect(plan.toastId).toBe(`report-${WS}`);
+  });
 });

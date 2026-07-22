@@ -1,11 +1,6 @@
 import { createClient, type ClickHouseClient } from '@clickhouse/client'
 import { calculateBlendedMER } from '@growthos/logic'
 import type { MerDashboard, MerTrendPoint } from '@growthos/types'
-import { publishEvent } from './ws/events.js'
-
-// Workspaces already alerted this process — getMerTrend is a read path, so this keeps a
-// standing anomaly from re-toasting on every dashboard load. Resets on restart (re-alerts once).
-const merAlerted = new Set<string>()
 
 let client: ClickHouseClient | null = null
 
@@ -98,12 +93,9 @@ export async function getMerTrend(workspaceId: string, days: number): Promise<Me
   const recent = avg(merValues.slice(-7))
   const prior = avg(merValues.slice(-14, -7))
   const changePercent = prior > 0 ? ((recent - prior) / prior) * 100 : 0
+  // Anomaly detection is read-only here; the autonomous scheduler owns mer_alert emission (with
+  // persistent dedupe) so a dashboard load never toasts. See apps/api/src/scheduler.
   const anomaly = { detected: Math.abs(changePercent) > 15, changePercent: Math.round(changePercent * 10) / 10 }
-
-  if (anomaly.detected && !merAlerted.has(workspaceId)) {
-    merAlerted.add(workspaceId)
-    void publishEvent(workspaceId, { type: 'analytics:mer_alert', workspaceId })
-  }
 
   return {
     trend,

@@ -44,6 +44,24 @@ export interface WhiteLabelConfig {
   primaryColor?: string | null; // hex, e.g. "#4f46e5" — overrides the --primary token
 }
 
+// Autonomous intelligence loop config (per workspace). cadenceMs = how stale a report may get
+// before the scheduler refreshes it and pushes report:ready.
+export interface AutomationConfig {
+  enabled: boolean;
+  cadenceMs: number;
+}
+
+// Observability: one scheduler tick.
+export interface SchedulerRun {
+  id: string;
+  startedAt: string;
+  finishedAt: string | null;
+  refreshedCount: number;
+  alertCount: number;
+  errorCount: number;
+  details: { refreshed?: string[]; errors?: { workspaceId: string; message: string }[] } | null;
+}
+
 export interface Workspace {
   id: string;
   name: string;
@@ -326,4 +344,5 @@ export type WebSocketEvent =
   | { type: "job:complete"; jobId: string; workspaceId: string }
   | { type: "recommendation:new"; workspaceId: string; recommendationId: string }
   | { type: "meta:fatigue_alert"; workspaceId: string; adSetId: string }
-  | { type: "analytics:mer_alert"; workspaceId: string };
+  | { type: "analytics:mer_alert"; workspaceId: string }
+  | { type: "report:ready"; workspaceId: string; periodStart: string };

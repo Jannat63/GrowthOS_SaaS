@@ -707,6 +707,54 @@ git commit -m "docs(plan): scheduled intelligence loop delivered — closes P3.4
 
 ---
 
+## Scope Expansion — Feature-Rich Automation (added 2026-07-23)
+
+The base plan (Tasks 1–7) ships the autonomous refresh loop. The following increments make it a
+full automation product. Each is an independently committable slice built on the core.
+
+### Increment B — Per-workspace automation config
+
+- **DB:** add `automationConfig` jsonb to `workspaces` (`{ enabled: boolean; cadenceMs: number }`),
+  mirroring the `whiteLabelConfig` precedent (`packages/db/src/schema/auth.ts:102`). Migration via
+  `drizzle-kit generate` → `db:migrate`.
+- **Types:** `AutomationConfig` in `@growthos/types` (defaults: `enabled: true`, weekly cadence).
+- **Selection:** `queries.listWorkspacesWithLastRun()` also returns each workspace's config; the tick
+  skips `enabled === false` and uses the **per-workspace** `cadenceMs` (falling back to the global
+  default when unset). `selectDueWorkspaces` gains per-row cadence.
+- **API:** `GET/PATCH /api/v1/workspaces/:id/automation` (read any member; PATCH admin+, zod-validated,
+  audited `automation.updated`).
+- **Web:** an **Automation** section on Settings — enable toggle + cadence select — via a
+  `useAutomation` hook; live→mock like the other hooks.
+
+### Increment C — Autonomous fresh alerting (real re-detection)
+
+- **DB:** `automation_alerts` table — `(workspaceId, alertType, signature, emittedAt)`, unique on
+  `(workspaceId, alertType)`. Persistent so an alert re-fires only when the *signature changes* (a new
+  anomaly appears, or a different creative fatigues) — replacing the per-process `merAlerted` Set.
+- **Logic:** `shouldEmitAlert(prevSignature, nextSignature): boolean` (pure, unit-tested) — emit when
+  the signature is new/changed and non-empty.
+- **Refresh:** `refreshWorkspace` additionally computes the current MER anomaly (`getMerTrend`) and
+  fatigue set (`getFatigueResults`), and for each that is newly-alertable, upserts the signature and
+  emits `analytics:mer_alert` / `meta:fatigue_alert`. Migrate `analytics.ts` off its in-memory dedupe
+  to this persistent state (shared helper).
+
+### Increment D — Observability
+
+- **DB:** `scheduler_runs` table — `(id, startedAt, finishedAt, refreshedCount, alertCount,
+  errorCount, details jsonb)`. One row per tick.
+- **Tick:** `runSchedulerTick` records a run row (counts + per-workspace error details).
+- **API:** `GET /api/v1/scheduler/runs?limit=` (admin of any of the caller's workspaces; returns recent
+  runs) + `GET /api/v1/workspaces/:id/automation/status` (last run affecting this workspace).
+- **Web:** a **Automation activity** card on Settings listing recent ticks (time, refreshed, alerts,
+  errors), via `useSchedulerRuns`.
+
+### Global additions to constraints
+
+- New events reuse the existing `publishEvent` bus and WS union (Task 1 already adds `report:ready`;
+  `analytics:mer_alert` / `meta:fatigue_alert` already exist).
+- All new DB writes are best-effort inside the tick — a metrics/alert-state write failure must never
+  abort a refresh.
+
 ## Self-Review
 
 - **Spec coverage:** scheduler start (Task 6), single-runner safety (Task 3), due-cadence selection (Task 2), the query (Task 4), the tick + per-workspace isolation + WS push (Task 5), the new event type + client (Task 1), verification incl. the `buildApp` regression guard and a live tick (Task 7). Global constraints (ESM `.js`, additive/best-effort, D4 no-Claude, flag-gated, camelCase) are enforced across the relevant tasks.

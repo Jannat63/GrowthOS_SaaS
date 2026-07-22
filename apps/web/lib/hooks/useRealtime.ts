@@ -50,6 +50,12 @@ export function planForEvent(event: WebSocketEvent, workspaceId: string): EventP
         toast: "Blended MER anomaly detected",
         toastId: `mer-${workspaceId}`,
       };
+    case "report:ready":
+      return {
+        keys: [["intelligence-report", workspaceId]],
+        toast: "Your weekly intelligence report was updated",
+        toastId: `report-${workspaceId}`,
+      };
     default:
       return { keys: [] };
   }

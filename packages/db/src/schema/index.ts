@@ -17,3 +17,5 @@ export * from './intelligence.js';
 export * from './collaboration.js';
 // Per-workspace audit log (M3 · P3.5).
 export * from './audit.js';
+// Autonomous automation loop — alert dedupe + scheduler run metrics.
+export * from './automation.js';

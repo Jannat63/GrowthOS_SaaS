@@ -12,6 +12,7 @@ import type {
   OnboardingStrategy,
   Role,
   WhiteLabelConfig,
+  AutomationConfig,
   WorkspaceMember,
 } from '@growthos/types'
 import { auth } from '../auth.js'
@@ -37,6 +38,10 @@ import { getWeeklyReport } from '../intelligence.js'
 import { renderWeeklyReportPdf } from '../reports/weekly-pdf.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
+import { listSchedulerRuns } from '../scheduler/queries.js'
+
+// Default autonomous-loop config when a workspace has never customized it.
+const DEFAULT_AUTOMATION: AutomationConfig = { enabled: true, cadenceMs: 7 * 24 * 60 * 60 * 1000 }
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -622,6 +627,61 @@ export async function registerV1Routes(app: FastifyInstance) {
       request,
     )
     return { config }
+  })
+
+  // Autonomous automation loop config (scheduled intelligence). GET is any member; PATCH is admin+.
+  app.get('/api/v1/workspaces/:id/automation', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'viewer')
+    const [ws] = await db
+      .select({ config: schema.workspaces.automationConfig })
+      .from(schema.workspaces)
+      .where(eq(schema.workspaces.id, id))
+    if (!ws) throw new AppError('WORKSPACE_NOT_FOUND', 'Workspace not found.')
+    return { config: (ws.config as AutomationConfig | null) ?? DEFAULT_AUTOMATION }
+  })
+
+  app.patch('/api/v1/workspaces/:id/automation', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const body = z
+      .object({
+        enabled: z.boolean().optional(),
+        // 1 hour .. 30 days — guards against a runaway (0) or absurd cadence.
+        cadenceMs: z.number().int().min(3_600_000).max(2_592_000_000).optional(),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    const [existing] = await db
+      .select({ config: schema.workspaces.automationConfig })
+      .from(schema.workspaces)
+      .where(eq(schema.workspaces.id, id))
+    const current = (existing?.config as AutomationConfig | null) ?? DEFAULT_AUTOMATION
+    const config: AutomationConfig = {
+      enabled: body.data.enabled ?? current.enabled,
+      cadenceMs: body.data.cadenceMs ?? current.cadenceMs,
+    }
+    await db.update(schema.workspaces).set({ automationConfig: config }).where(eq(schema.workspaces.id, id))
+    void recordAudit(
+      { workspaceId: id, actorId: user.id, action: 'automation.updated', entityType: 'workspace', entityId: id },
+      request,
+    )
+    return { config }
+  })
+
+  // Observability: recent scheduler ticks. Admin+ (operational data). Runs are global ticks, but
+  // membership-gating on the workspace keeps this behind the app's auth surface.
+  app.get('/api/v1/workspaces/:id/scheduler/runs', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const { limit } = request.query as { limit?: string }
+    const runs = await listSchedulerRuns(Math.min(Number(limit ?? 20) || 20, 100))
+    return { runs, total: runs.length }
   })
 
   // Completion gate — the single source of truth for "onboarding done".

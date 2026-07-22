@@ -64,6 +64,20 @@
       "when": 1784392131851,
       "tag": "0008_boring_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784750395883,
+      "tag": "0009_rainy_zarek",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784750428685,
+      "tag": "0010_whole_pestilence",
+      "breakpoints": true
     }
   ]
 }
