@@ -4,7 +4,7 @@ import { AppError } from '../errors.js'
 import { requireUser } from '../auth-context.js'
 import { requireWorkspaceMember } from '../guards.js'
 import { recordAudit } from '../audit.js'
-import { createCheckoutSession, getCurrentSubscription, handleWebhookEvent } from '../billing.js'
+import { createCheckoutSession, createPortalSession, getCurrentSubscription, handleWebhookEvent } from '../billing.js'
 import { getUsageSummary } from '../plan-limits.js'
 
 const checkoutSchema = z.object({
@@ -46,6 +46,14 @@ export async function registerBillingRoutes(app: FastifyInstance) {
       request,
     )
     return result
+  })
+
+  // Stripe Customer Portal — manage payment method, view invoices, cancel. Admin+ only.
+  app.post('/api/v1/workspaces/:id/billing/portal', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    return createPortalSession(id)
   })
 
   // Stripe webhook — its own encapsulated sub-plugin so the raw-body content-type parser below

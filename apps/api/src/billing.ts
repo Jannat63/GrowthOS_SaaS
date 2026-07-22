@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import type { Plan, Subscription, SubscriptionStatus } from '@growthos/types'
 import { AppError } from './errors.js'
+import { getWorkspaceOwnerEmail, sendPaymentFailedEmail, sendTrialConvertedEmail, sendTrialEndingSoonEmail } from './emails.js'
 
 /**
  * Stripe billing (M5 P5.1): checkout, webhook sync, and the trial→paid lifecycle. Reuses
@@ -28,6 +29,15 @@ const PLAN_PRICE_ENV: Record<Plan, string | undefined> = {
 
 function webOrigin(): string {
   return process.env.WEB_ORIGIN ?? 'http://localhost:3000'
+}
+
+async function getWorkspaceName(workspaceId: string): Promise<string> {
+  const [row] = await db
+    .select({ name: schema.workspaces.name })
+    .from(schema.workspaces)
+    .where(eq(schema.workspaces.id, workspaceId))
+    .limit(1)
+  return row?.name ?? 'your workspace'
 }
 
 let stripeClient: Stripe | undefined
@@ -156,6 +166,60 @@ export async function createCheckoutSession(
   return { checkoutUrl: session.url }
 }
 
+/** Create a Stripe Customer Portal session so the workspace can manage payment method / invoices / cancel. */
+export async function createPortalSession(workspaceId: string): Promise<{ portalUrl: string }> {
+  const stripe = getStripe()
+  const [existing] = await db
+    .select({ stripeCustomerId: schema.subscriptions.stripeCustomerId })
+    .from(schema.subscriptions)
+    .where(eq(schema.subscriptions.workspaceId, workspaceId))
+    .limit(1)
+
+  if (!existing?.stripeCustomerId) {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'No billing account yet — start a checkout first (Settings → Billing).',
+    )
+  }
+
+  const session = await stripe.billingPortal.sessions.create({
+    customer: existing.stripeCustomerId,
+    return_url: `${webOrigin()}/settings`,
+  })
+  return { portalUrl: session.url }
+}
+
+/**
+ * Scan trialing subscriptions ending within `withinDays` and send the reminder once per trial.
+ * NOT WIRED TO A SCHEDULER YET — Celery/Beat is deferred (see DECISIONS.md D2), same status as
+ * the fatigue monitor's scheduled alerts. Call this from whatever periodic trigger lands first
+ * (Celery Beat, a cron-hit endpoint, etc.); it's idempotent via `trialReminderSentAt`, so calling
+ * it more often than necessary is harmless.
+ */
+export async function checkTrialsEndingSoon(withinDays = 3): Promise<{ remindersSent: number }> {
+  const cutoff = new Date(Date.now() + withinDays * 24 * 60 * 60 * 1000)
+  const candidates = await db
+    .select()
+    .from(schema.subscriptions)
+    .where(eq(schema.subscriptions.status, 'trialing'))
+
+  let remindersSent = 0
+  for (const sub of candidates) {
+    if (!sub.trialEndsAt || sub.trialEndsAt > cutoff || sub.trialReminderSentAt) continue
+    const ownerEmail = await getWorkspaceOwnerEmail(sub.workspaceId)
+    if (!ownerEmail) continue
+    const workspaceName = await getWorkspaceName(sub.workspaceId)
+    const daysLeft = Math.max(0, Math.ceil((sub.trialEndsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    await sendTrialEndingSoonEmail(ownerEmail, workspaceName, daysLeft)
+    await db
+      .update(schema.subscriptions)
+      .set({ trialReminderSentAt: new Date() })
+      .where(eq(schema.subscriptions.id, sub.id))
+    remindersSent++
+  }
+  return { remindersSent }
+}
+
 /** Full upsert from a live Stripe subscription object — used once we know both workspace and plan. */
 async function syncSubscription(workspaceId: string, plan: Plan, sub: Stripe.Subscription): Promise<void> {
   const { start, end } = periodBounds(sub)
@@ -217,6 +281,12 @@ export async function handleWebhookEvent(rawBody: Buffer, signature: string | un
         typeof session.subscription === 'string' ? session.subscription : session.subscription.id
       const sub = await stripe.subscriptions.retrieve(subscriptionId)
       await syncSubscription(workspaceId, plan, sub)
+
+      const [ownerEmail, workspaceName] = await Promise.all([
+        getWorkspaceOwnerEmail(workspaceId),
+        getWorkspaceName(workspaceId),
+      ])
+      if (ownerEmail) void sendTrialConvertedEmail(ownerEmail, workspaceName, plan)
       break
     }
     case 'customer.subscription.updated': {
@@ -238,6 +308,28 @@ export async function handleWebhookEvent(rawBody: Buffer, signature: string | un
             updatedAt: new Date(),
           })
           .where(eq(schema.subscriptions.stripeSubscriptionId, sub.id))
+      }
+
+      // Dunning email — only on the transition *into* past_due, never on every subsequent update.
+      const previousStatus = (event.data.previous_attributes as Partial<Stripe.Subscription> | undefined)?.status
+      if (sub.status === 'past_due' && previousStatus && previousStatus !== 'past_due') {
+        const resolvedWorkspaceId =
+          workspaceId ??
+          (
+            await db
+              .select({ workspaceId: schema.subscriptions.workspaceId })
+              .from(schema.subscriptions)
+              .where(eq(schema.subscriptions.stripeSubscriptionId, sub.id))
+              .limit(1)
+          )[0]?.workspaceId
+        if (resolvedWorkspaceId) {
+          const [ownerEmail, workspaceName, portal] = await Promise.all([
+            getWorkspaceOwnerEmail(resolvedWorkspaceId),
+            getWorkspaceName(resolvedWorkspaceId),
+            createPortalSession(resolvedWorkspaceId).catch(() => null),
+          ])
+          if (ownerEmail && portal) void sendPaymentFailedEmail(ownerEmail, workspaceName, portal.portalUrl)
+        }
       }
       break
     }

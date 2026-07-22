@@ -21,6 +21,8 @@ export const subscriptions = pgTable(
     plan: text('plan').notNull(), // starter | growth | scale
     status: text('status').notNull(), // active | trialing | past_due | canceled
     trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+    // Set once sendTrialEndingSoonEmail has fired for this trial, so a scheduler can dedupe reruns.
+    trialReminderSentAt: timestamp('trial_reminder_sent_at', { withTimezone: true }),
     currentPeriodStart: timestamp('current_period_start', { withTimezone: true }),
     currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
     cancelAt: timestamp('cancel_at', { withTimezone: true }),

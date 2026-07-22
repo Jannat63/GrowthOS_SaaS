@@ -5,7 +5,7 @@ import { Badge } from "@growthos/ui/components/badge";
 import { Button } from "@growthos/ui/components/button";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import { PLAN_LIMITS, type Plan, type CountedMetric, type BooleanFeature } from "@growthos/types";
-import { useSubscription, useUsage, useCheckout } from "@/lib/hooks/useBilling";
+import { useSubscription, useUsage, useCheckout, usePortal } from "@/lib/hooks/useBilling";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 
 const METRIC_LABEL: Record<CountedMetric, string> = {
@@ -54,6 +54,7 @@ export function BillingSection({
   const { data: subscription } = useSubscription(workspaceId);
   const { data: usage } = useUsage(workspaceId);
   const checkout = useCheckout(workspaceId);
+  const portal = usePortal(workspaceId);
   const sub = subscription?.data;
   const trialDays = sub?.status === "trialing" ? daysLeft(sub.trialEndsAt) : null;
 
@@ -61,8 +62,18 @@ export function BillingSection({
     <Card className="p-6">
       <div className="flex items-center gap-2">
         <CreditCard className="h-4 w-4 text-muted-foreground" />
-        <h2 className="font-display text-lg font-semibold tracking-tight">Billing</h2>
+        <h2 className="font-display flex-1 text-lg font-semibold tracking-tight">Billing</h2>
         {subscription && <DataSourceBadge source={subscription.source} />}
+        {isAdmin && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={portal.isPending}
+            onClick={() => portal.mutate()}
+          >
+            {portal.isPending ? "Redirecting…" : "Manage billing"}
+          </Button>
+        )}
       </div>
 
       {!sub ? (
@@ -161,6 +172,13 @@ export function BillingSection({
               {checkout.error instanceof Error
                 ? checkout.error.message
                 : "Could not start checkout. Try again in a moment."}
+            </p>
+          )}
+          {portal.isError && (
+            <p className="text-sm text-destructive">
+              {portal.error instanceof Error
+                ? portal.error.message
+                : "Could not open the billing portal. Try again in a moment."}
             </p>
           )}
         </div>

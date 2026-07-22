@@ -8,7 +8,7 @@ Deferred (rolling-wave) — phases will be expanded to folders when a launch is 
 |------|--------|-------|
 | P5.1 Billing core | [x] | `subscriptions` + `usage_records` (0009_billing_core.sql); Stripe checkout + webhook; 14-day Growth trial auto-starts on workspace creation. Settings → Billing section (plan cards, checkout, trial countdown). |
 | P5.2 Plan limits & metering | [x] | `plan-limits.ts` — `assertWithinLimit`/`recordUsage` (rolling-window counters) + `assertFeatureEnabled` (boolean gates) + `getUsageSummary`. Wired into the one real write endpoint it applies to today (white-label branding); see log for what's framework-ready vs. actually gated. |
-| P5.3 Customer portal & lifecycle emails | [ ] | Stripe portal; Resend trial/dunning emails. |
+| P5.3 Customer portal & lifecycle emails | [x] | Stripe Customer Portal; Resend trial-converted + dunning emails wired to real webhook triggers; trial-ending-soon reminder built but not scheduler-wired (no scheduler exists yet — see log). |
 | P5.4 Launch readiness | [ ] | Final hardening, legal/pricing, analytics, go-live checklist. |
 
 ## Log
@@ -49,3 +49,20 @@ Deferred (rolling-wave) — phases will be expanded to folders when a launch is 
   `GET .../billing/usage` + `useUsage` hook + usage bars/feature list added to `BillingSection.tsx`;
   `BrandingSection.tsx` now surfaces mutation errors (including the new 402) instead of failing
   silently. `CountedMetric` / `BooleanFeature` / `UsageSummary` added to `@growthos/types`.
+- 2026-07-22 — P5.3 shipped. `createPortalSession` (billing.ts) + `POST .../billing/portal` route +
+  `usePortal` hook + "Manage billing" button in `BillingSection.tsx`. `apps/api/src/emails.ts` —
+  Resend-backed `sendTrialEndingSoonEmail` / `sendPaymentFailedEmail` / `sendTrialConvertedEmail`,
+  all best-effort (never throw — mirrors Stripe's "gated, never crashes" pattern) plus
+  `getWorkspaceOwnerEmail` (billing contact = the org's `owner` role). Receipts intentionally NOT
+  reinvented — use Stripe's own Dashboard → Settings → Customer emails toggle instead. **Wired to
+  real triggers**: trial-converted fires on `checkout.session.completed`; the dunning email fires
+  only on the actual transition *into* `past_due` (checked via Stripe's `event.data
+  .previous_attributes`, not on every webhook ping, so it doesn't re-fire on unrelated updates).
+  **Not scheduler-wired**: `checkTrialsEndingSoon()` is fully built and tested (new
+  `trialReminderSentAt` column, migration `0010_trial_reminder_column.sql`, dedupes so repeat calls
+  are harmless) but nothing calls it periodically yet — there's no scheduler in this codebase
+  (Celery/Beat deferred per `DECISIONS.md` D2), the same status as the fatigue monitor's scheduled
+  alerts. Call it from whatever periodic trigger lands first. Tests: `emails.test.ts` (2/2, pure DB
+  logic) + a new `checkTrialsEndingSoon` case in `billing.test.ts` (send-once-then-dedupe) + a
+  past_due-transition case that deliberately avoids a live Stripe network call. All passing against
+  real Postgres; full suite re-run clean with zero regressions from P5.1/P5.2.

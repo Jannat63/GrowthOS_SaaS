@@ -72,3 +72,20 @@ export function useCheckout(workspaceId: string | null | undefined) {
     },
   });
 }
+
+// Opens the Stripe Customer Portal (manage payment method, invoices, cancel). No mock fallback —
+// same reasoning as useCheckout.
+export function usePortal(workspaceId: string | null | undefined) {
+  return useMutation({
+    mutationFn: async () => {
+      const { portalUrl } = await api.post<{ portalUrl: string }>(
+        `/workspaces/${workspaceId}/billing/portal`,
+        {}
+      );
+      return portalUrl;
+    },
+    onSuccess: (portalUrl) => {
+      window.location.href = portalUrl;
+    },
+  });
+}
