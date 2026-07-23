@@ -5,5 +5,6 @@ allowBuilds:
   # Optional Better Auth CLI adapters we don't use (drizzle/neon only) — deny their build scripts.
   '@prisma/client': false
   better-sqlite3: false
+  core-js: true
   esbuild: true
   sharp: true

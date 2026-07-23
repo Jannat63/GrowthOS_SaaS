@@ -1,11 +1,13 @@
 import Fastify, { type FastifyInstance, type FastifyError } from 'fastify'
 import cors from '@fastify/cors'
+import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import { fromNodeHeaders } from 'better-auth/node'
 import { auth } from './auth.js'
 import { AppError } from './errors.js'
 import { registerV1Routes } from './routes/v1.js'
 import { registerConnectionRoutes } from './routes/connections.js'
+import { registerBillingRoutes } from './routes/billing.js'
 
 /**
  * Build the Fastify app. Kept separate from `listen` so it can be exercised
@@ -18,6 +20,12 @@ export function buildApp(): FastifyInstance {
     origin: process.env.WEB_ORIGIN ?? 'http://localhost:3000',
     credentials: true,
   })
+
+  // Security headers (M5 P5.4 hardening). CSP is left at helmet's safe default rather than a
+  // hand-tuned policy — this is an API (JSON responses only, no HTML/script serving), so the
+  // main value here is the non-CSP headers (X-Content-Type-Options, X-Frame-Options, HSTS, etc.).
+  // Revisit if this app ever serves HTML/inline scripts directly.
+  app.register(helmet)
 
   // Rate limiting (P2.8 hardening): 200 req/min per IP by default, emitting the RATE_LIMITED envelope.
   app.register(rateLimit, {
@@ -54,6 +62,8 @@ export function buildApp(): FastifyInstance {
   app.register(registerV1Routes)
   // Real platform OAuth connect/callback/disconnect/sync (M3 P3.0).
   app.register(registerConnectionRoutes)
+  // Stripe billing: checkout, subscription read, webhook (M5 P5.1).
+  app.register(registerBillingRoutes)
 
   // Better Auth (D1) owns /api/auth/* — sign-up/in, sessions, and the organization
   // (workspace) endpoints. Convert Fastify's req/reply to the Web Request/Response

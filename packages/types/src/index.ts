@@ -320,6 +320,72 @@ export interface ScoredCreative {
   message: string;
 }
 
+// ── Billing (M5 P5.1) ─────────────────────────────────────────────────────────
+
+export type Plan = "starter" | "growth" | "scale";
+
+export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled";
+
+export interface Subscription {
+  plan: Plan;
+  status: SubscriptionStatus;
+  trialEndsAt: string | null;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  cancelAt: string | null;
+}
+
+// Plan limits reference (blueprint DATA_MODELS.md). Enforcement (PLAN_LIMIT_REACHED, 402) lands
+// in M5 P5.2 — this table is the shared source of truth both apps/api and apps/web read from.
+export const PLAN_LIMITS = {
+  starter: {
+    workspaces: 1,
+    trackedKeywords: 500,
+    adSpendLimit: 10_000,
+    recommendationsPerWeek: 5,
+    aiCreativesPerMonth: 10,
+    teamMembers: 1,
+    geoTracking: false,
+    whiteLabel: false,
+    crossChannelAttribution: "mer_only",
+    apiAccess: false,
+  },
+  growth: {
+    workspaces: 5,
+    trackedKeywords: 2_500,
+    adSpendLimit: 50_000,
+    recommendationsPerWeek: Infinity,
+    aiCreativesPerMonth: 100,
+    teamMembers: 5,
+    geoTracking: true,
+    whiteLabel: true,
+    crossChannelAttribution: "full",
+    apiAccess: false,
+  },
+  scale: {
+    workspaces: Infinity,
+    trackedKeywords: 10_000,
+    adSpendLimit: Infinity,
+    recommendationsPerWeek: Infinity,
+    aiCreativesPerMonth: Infinity,
+    teamMembers: Infinity,
+    geoTracking: true,
+    whiteLabel: true,
+    crossChannelAttribution: "full_custom",
+    apiAccess: true,
+  },
+} as const satisfies Record<Plan, Record<string, unknown>>;
+
+// Metered/gated features (M5 P5.2). `limit: null` means unlimited (Infinity isn't valid JSON).
+export type CountedMetric = "recommendations_generated" | "ai_creatives_generated";
+export type BooleanFeature = "whiteLabel" | "geoTracking" | "apiAccess";
+
+export interface UsageSummary {
+  plan: Plan;
+  metrics: Array<{ metric: CountedMetric; used: number; limit: number | null }>;
+  features: Array<{ feature: BooleanFeature; enabled: boolean }>;
+}
+
 // ── WebSocket events (stub — fleshed out in M2) ──────────────────────────────
 
 export type WebSocketEvent =

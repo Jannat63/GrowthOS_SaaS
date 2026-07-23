@@ -22,7 +22,7 @@ export function SiteHeader() {
           <Link href="#how" className="transition-colors hover:text-foreground">
             How it works
           </Link>
-          <Link href="#pricing" className="transition-colors hover:text-foreground">
+          <Link href="/pricing" className="transition-colors hover:text-foreground">
             Pricing
           </Link>
         </nav>

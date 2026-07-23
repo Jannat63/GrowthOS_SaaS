@@ -6,6 +6,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { signUp } from "@/lib/auth/client";
+import { trackEvent } from "@/lib/analytics";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@growthos/ui/components/button";
 import { Input } from "@growthos/ui/components/input";
@@ -27,6 +28,7 @@ export default function SignUpPage() {
       toast.error(error.message ?? "Could not create your account.");
       return;
     }
+    trackEvent("account_created");
     toast.success("Account created. Welcome to GrowthOS.");
     router.push("/welcome");
   }

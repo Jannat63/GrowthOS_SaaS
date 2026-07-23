@@ -36,6 +36,8 @@ import { getAttribution } from '../attribution.js'
 import { getWeeklyReport } from '../intelligence.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
+import { startTrial } from '../billing.js'
+import { assertFeatureEnabled } from '../plan-limits.js'
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -106,6 +108,8 @@ export async function registerV1Routes(app: FastifyInstance) {
         body: { name: parsed.data.name, slug: parsed.data.slug },
         headers: fromNodeHeaders(request.headers),
       })
+      // Start the 14-day Growth trial (PRD 4.1). Best-effort — never blocks workspace creation.
+      if (workspace) void startTrial(workspace.id)
       reply.status(201)
       return { workspace }
     } catch {
@@ -556,6 +560,7 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id, 'admin')
+    await assertFeatureEnabled(id, 'whiteLabel')
     const body = z
       .object({
         agencyName: z.string().max(60).nullable().optional(),
