@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Plan, Subscription, UsageSummary } from "@growthos/types";
 import { api } from "@/lib/api/client";
+import { trackEvent } from "@/lib/analytics";
 import { liveOrMock } from "./liveOrMock";
 
 const MOCK_SUBSCRIPTION: Subscription = {
@@ -60,6 +61,7 @@ export function useCheckout(workspaceId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (plan: Plan) => {
+      trackEvent("checkout_started", { plan });
       const { checkoutUrl } = await api.post<{ checkoutUrl: string }>(
         `/workspaces/${workspaceId}/billing/checkout`,
         { plan }

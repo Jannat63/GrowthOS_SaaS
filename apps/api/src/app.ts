@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance, type FastifyError } from 'fastify'
 import cors from '@fastify/cors'
+import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import { fromNodeHeaders } from 'better-auth/node'
 import { auth } from './auth.js'
@@ -19,6 +20,12 @@ export function buildApp(): FastifyInstance {
     origin: process.env.WEB_ORIGIN ?? 'http://localhost:3000',
     credentials: true,
   })
+
+  // Security headers (M5 P5.4 hardening). CSP is left at helmet's safe default rather than a
+  // hand-tuned policy — this is an API (JSON responses only, no HTML/script serving), so the
+  // main value here is the non-CSP headers (X-Content-Type-Options, X-Frame-Options, HSTS, etc.).
+  // Revisit if this app ever serves HTML/inline scripts directly.
+  app.register(helmet)
 
   // Rate limiting (P2.8 hardening): 200 req/min per IP by default, emitting the RATE_LIMITED envelope.
   app.register(rateLimit, {

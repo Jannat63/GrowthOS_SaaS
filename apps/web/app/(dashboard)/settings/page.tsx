@@ -73,7 +73,9 @@ export default function SettingsPage() {
         )}
       </Card>
 
-      <BillingSection workspaceId={workspaceId} isAdmin={isAdmin} />
+      <Suspense fallback={null}>
+        <BillingSection workspaceId={workspaceId} isAdmin={isAdmin} />
+      </Suspense>
 
       {isAdmin && <BrandingSection workspaceId={workspaceId} />}
 

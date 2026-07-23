@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { api } from "@/lib/api/client";
+import { trackEvent } from "@/lib/analytics";
 import { useOnboarding } from "@/lib/stores/onboarding";
 import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
 import { Button } from "@growthos/ui/components/button";
@@ -54,6 +55,7 @@ export default function CreateWorkspacePage() {
     // Persist the profile collected earlier + kick off the analysis pipeline (P2.2).
     // If it can't run (e.g. no valid website), fall through to the ready screen.
     const workspaceId = data.id;
+    trackEvent("workspace_created", { workspaceId });
     const { websiteUrl, category, monthlyBudget } = useOnboarding.getState();
     const normalizedUrl = websiteUrl && !/^https?:\/\//.test(websiteUrl) ? `https://${websiteUrl}` : websiteUrl;
     try {

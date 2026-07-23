@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 const GROUPS = [
-  { title: "Product", links: ["Features", "Pricing", "How it works"] },
-  { title: "Company", links: ["About", "Blog", "Careers"] },
-  { title: "Legal", links: ["Privacy", "Terms", "Security"] },
+  { title: "Product", links: [{ label: "Features", href: "/#features" }, { label: "Pricing", href: "/pricing" }, { label: "How it works", href: "/#how" }] },
+  { title: "Company", links: [{ label: "About", href: "#" }, { label: "Blog", href: "#" }, { label: "Careers", href: "#" }] },
+  { title: "Legal", links: [{ label: "Privacy", href: "/privacy" }, { label: "Terms", href: "/terms" }, { label: "Security", href: "#" }] },
 ];
 
 export function SiteFooter() {
@@ -30,9 +30,9 @@ export function SiteFooter() {
               <h3 className="text-sm font-semibold">{g.title}</h3>
               <ul className="mt-4 space-y-2.5 text-sm text-muted-foreground">
                 {g.links.map((l) => (
-                  <li key={l}>
-                    <Link href="#" className="transition-colors hover:text-foreground">
-                      {l}
+                  <li key={l.label}>
+                    <Link href={l.href} className="transition-colors hover:text-foreground">
+                      {l.label}
                     </Link>
                   </li>
                 ))}
@@ -42,7 +42,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t pt-6 text-sm text-muted-foreground sm:flex-row">
-          <p>© {new Date().getFullYear()} GrowthOS. Placeholder footer.</p>
+          <p>© {new Date().getFullYear()} GrowthOS.</p>
           <div className="flex gap-6">
             <Link href="/sign-in" className="hover:text-foreground">Sign in</Link>
             <Link href="/sign-up" className="hover:text-foreground">Start free</Link>

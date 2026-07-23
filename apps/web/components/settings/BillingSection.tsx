@@ -1,4 +1,6 @@
 "use client";
+import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CreditCard } from "lucide-react";
 import { Card } from "@growthos/ui/components/card";
 import { Badge } from "@growthos/ui/components/badge";
@@ -6,6 +8,7 @@ import { Button } from "@growthos/ui/components/button";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import { PLAN_LIMITS, type Plan, type CountedMetric, type BooleanFeature } from "@growthos/types";
 import { useSubscription, useUsage, useCheckout, usePortal } from "@/lib/hooks/useBilling";
+import { trackEvent } from "@/lib/analytics";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 
 const METRIC_LABEL: Record<CountedMetric, string> = {
@@ -57,6 +60,19 @@ export function BillingSection({
   const portal = usePortal(workspaceId);
   const sub = subscription?.data;
   const trialDays = sub?.status === "trialing" ? daysLeft(sub.trialEndsAt) : null;
+
+  // Stripe redirects here with ?checkout=success after a completed purchase (see billing.ts
+  // success_url) — the only reliable client-side signal for a completed checkout, since the
+  // actual plan sync happens server-side via webhook with no browser present. Strip the param
+  // after firing so a page refresh doesn't double-count it.
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("checkout") === "success") {
+      trackEvent("checkout_completed");
+      router.replace("/settings");
+    }
+  }, [searchParams, router]);
 
   return (
     <Card className="p-6">
