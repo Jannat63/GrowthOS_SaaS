@@ -18,6 +18,7 @@ import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { ConnectionsSection } from "@/components/settings/ConnectionsSection";
 import { ActivitySection } from "@/components/settings/ActivitySection";
 import { BrandingSection } from "@/components/settings/BrandingSection";
+import { BillingSection } from "@/components/settings/BillingSection";
 
 const ROLE_VARIANT: Record<string, "default" | "muted" | "outline"> = {
   owner: "default",
@@ -71,6 +72,10 @@ export default function SettingsPage() {
           <Skeleton className="mt-4 h-16 w-full" />
         )}
       </Card>
+
+      <Suspense fallback={null}>
+        <BillingSection workspaceId={workspaceId} isAdmin={isAdmin} />
+      </Suspense>
 
       {isAdmin && <BrandingSection workspaceId={workspaceId} />}
 
