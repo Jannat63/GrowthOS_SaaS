@@ -154,6 +154,42 @@ export interface OrganicTrafficResponse {
   };
 }
 
+// Schema markup generator (SEO extras — works off page URL structure + workspace business info,
+// no DataForSEO or content-crawling needed). `placeholders` lists the jsonLd keys the tool
+// couldn't infer and left as a `[SET_...]` marker for the user to fill in by hand.
+export type SchemaMarkupType =
+  | "WebPage"
+  | "Article"
+  | "Product"
+  | "CollectionPage"
+  | "FAQPage"
+  | "Organization";
+export interface SchemaMarkupResponse {
+  pageUrl: string;
+  detectedType: SchemaMarkupType;
+  availableTypes: SchemaMarkupType[];
+  jsonLd: Record<string, unknown>;
+  placeholders: string[];
+}
+
+// Internal link optimizer (SEO extras — works off already-tracked keyword rankings + organic
+// pages, no crawled link graph needed). Flags keywords in the "striking distance" band
+// (position 4-15) and suggests linking from a higher-authority page using the keyword as anchor
+// text — the same heuristic real SEO tools use for this exact recommendation type.
+export interface InternalLinkRecommendation {
+  targetPage: string;
+  sourcePage: string;
+  keyword: string;
+  anchorText: string;
+  currentPosition: number;
+  priority: "high" | "medium" | "low";
+  reason: string;
+}
+export interface InternalLinkRecommendationsResponse {
+  recommendations: InternalLinkRecommendation[];
+  summary: { opportunities: number; highPriority: number };
+}
+
 // An entry in a workspace's audit log (M3 P3.5).
 export interface AuditLogEntry {
   id: string;
