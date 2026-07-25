@@ -1,4 +1,8 @@
 import { buildApp } from './app.js'
+import { validateEnv, logIntegrationStatus } from './env.js'
+
+validateEnv()
+logIntegrationStatus()
 
 const app = buildApp()
 const port = Number(process.env.API_PORT ?? 3001)

@@ -30,13 +30,10 @@ import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
 import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
 import { getKeywordRankings, getOrganicTraffic } from '../seo.js'
-import { generateSchemaMarkup } from '../schema-markup-lookup.js'
-import { getInternalLinkRecommendations } from '../internal-links.js'
 import { getCampaignInsights } from '../google-ads.js'
 import { getMetaCampaignInsights } from '../meta-ads.js'
 import { getAttribution } from '../attribution.js'
 import { getWeeklyReport } from '../intelligence.js'
-import { generateReportPdf } from '../pdf-report-generate.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
 import { startTrial } from '../billing.js'
@@ -463,33 +460,6 @@ export async function registerV1Routes(app: FastifyInstance) {
     return getOrganicTraffic(id)
   })
 
-  // Schema markup generator (SEO extras) — no DataForSEO needed, works off the page URL +
-  // workspace business info. `?page=` required; `?type=` optionally overrides the auto-detected
-  // schema type.
-  const schemaMarkupQuery = z.object({
-    page: z.string().min(1, 'A page URL is required (?page=/blog/your-post).'),
-    type: z.enum(['WebPage', 'Article', 'Product', 'CollectionPage', 'FAQPage', 'Organization']).optional(),
-  })
-  app.get('/api/v1/workspaces/:id/seo/schema-markup', async (request) => {
-    const user = await requireUser(request)
-    const { id } = request.params as { id: string }
-    await requireWorkspaceMember(user.id, id)
-    const query = schemaMarkupQuery.safeParse(request.query)
-    if (!query.success) {
-      throw new AppError('VALIDATION_ERROR', query.error.issues[0]?.message ?? 'Invalid input.')
-    }
-    return generateSchemaMarkup(id, query.data.page, query.data.type)
-  })
-
-  // Internal link optimizer (SEO extras) — no crawled link graph needed, works off already-tracked
-  // keyword rankings + organic pages (see internal-links.ts for the "striking distance" heuristic).
-  app.get('/api/v1/workspaces/:id/seo/internal-links', async (request) => {
-    const user = await requireUser(request)
-    const { id } = request.params as { id: string }
-    await requireWorkspaceMember(user.id, id)
-    return getInternalLinkRecommendations(id)
-  })
-
   // Organic-to-paid — top organic pages worth amplifying with Meta (+ generate recs/creative briefs).
   app.get('/api/v1/workspaces/:id/seo/top-pages', async (request) => {
     const user = await requireUser(request)
@@ -617,20 +587,6 @@ export async function registerV1Routes(app: FastifyInstance) {
       request,
     )
     return { config }
-  })
-
-  // White-labeled PDF report (M3 P3.5 Slice C2). Generated on demand and streamed straight back —
-  // nothing is persisted (no R2 credentials exist in this codebase; see pdf-report-generate.ts).
-  // Read access matches branding's: open down to `client`, the exact audience for a white-labeled
-  // report.
-  app.get('/api/v1/workspaces/:id/reports/pdf', async (request, reply) => {
-    const user = await requireUser(request)
-    const { id } = request.params as { id: string }
-    await requireWorkspaceMember(user.id, id, 'client')
-    const { buffer, filename } = await generateReportPdf(id)
-    reply.header('Content-Disposition', `attachment; filename="${filename}"`)
-    reply.type('application/pdf')
-    return reply.send(buffer)
   })
 
   // Completion gate — the single source of truth for "onboarding done".

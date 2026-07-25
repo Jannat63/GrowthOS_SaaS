@@ -2,7 +2,7 @@
 
 Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 COMPLETE** (seeded Insight Loop MVP,
 P2.1–P2.8); **M3 IN PROGRESS** — every channel module now has a live UI (P3.0 OAuth built, live pending
-Google creds; P3.1 SEO, P3.2 Google Ads, P3.3 Meta advisors, P3.4 Intelligence V1, P3.5 agency ALL
+Google creds; P3.1 SEO, P3.2 Google Ads, P3.3 Meta advisors, P3.4 Intelligence V1, P3.5 A+B+C1 agency all
 done — remaining M3 work is external-gated). **M4 started early** — P4.1 cross-channel attribution done.
 **M5 COMPLETE** — P5.1 Billing core, P5.2 Plan limits & metering, P5.3 Customer portal &
 lifecycle emails, and P5.4 Launch readiness all done. See
@@ -65,7 +65,7 @@ approvals mature → then P3.2/P3.3.
 | P3.2 | Google Ads module | [~] | **Advisor + RSA + budget planner done 2026-07-18** — `@growthos/logic` google-ads-advisor (wasted-spend, classification, RSA, target-CPA/ROAS, budget allocator; 8 tests) + `/google-ads` page. Live fetch/push + Quality Score gated on the dev token. |
 | P3.3 | Meta Ads module | [~] | **Advisor + funnel/copy slice done 2026-07-18** — `@growthos/logic` meta-ads-advisor (funnel split, ad-copy + UGC generators; 4 tests) + `/meta-ads` page; fatigue done in M2. Live sync/publish + CAPI/EMQ gated on App Review. |
 | P3.4 | Intelligence Engine V1 | [x] | **V1 done 2026-07-18.** Weekly report + budget-reallocation engine; `intelligence_reports` table; `GET /intelligence/report`; `/intelligence` page. Scheduled loop + WS + 47-rule set deferred. |
-| P3.5 | Agency features | [x] | **All slices done** (C2 completed 2026-07-25) — A: collaboration (`recommendation_comments` + `assigned_to`/`due_date`, `/recommendations` queue); B: `audit_logs` + write-hooks + Settings activity; C1: white-label branding (`white_label_config`, agency name/logo/accent on shell); C2: white-labeled PDF export (Puppeteer, renders the same `WeeklyReport` the Intelligence page shows, streamed on demand — no R2 upload, see P3.5 progress.md for why). 5 API tests + self-audit authz hardening + 6 more for the PDF template. |
+| P3.5 | Agency features | [~] | **Slices A+B+C1 done 2026-07-18** — A: collaboration (`recommendation_comments` + `assigned_to`/`due_date`, `/recommendations` queue); B: `audit_logs` + write-hooks + Settings activity; C1: white-label branding (`white_label_config`, agency name/logo/accent on shell). 5 API tests + self-audit authz hardening. Only C2 (white-labeled PDF, Puppeteer+R2) remains. |
 
 Gate: 500 users / MRR >$50K / agency tier.
 

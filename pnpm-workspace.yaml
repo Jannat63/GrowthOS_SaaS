@@ -7,5 +7,4 @@ allowBuilds:
   better-sqlite3: false
   core-js: true
   esbuild: true
-  puppeteer: true
   sharp: true

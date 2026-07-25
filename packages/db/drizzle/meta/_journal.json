@@ -64,6 +64,20 @@
       "when": 1784392131851,
       "tag": "0008_boring_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784612577288,
+      "tag": "0009_billing_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784688745536,
+      "tag": "0010_trial_reminder_column",
+      "breakpoints": true
     }
   ]
 }

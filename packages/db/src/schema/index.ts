@@ -17,3 +17,5 @@ export * from './intelligence.js';
 export * from './collaboration.js';
 // Per-workspace audit log (M3 · P3.5).
 export * from './audit.js';
+// Stripe subscriptions + usage metering (M5 · P5.1).
+export * from './billing.js';

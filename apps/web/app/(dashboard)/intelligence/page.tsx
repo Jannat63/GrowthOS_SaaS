@@ -1,8 +1,7 @@
 "use client";
-import { ArrowRight, Lightbulb, TrendingUp, Wallet, FileDown } from "lucide-react";
+import { ArrowRight, Lightbulb, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@growthos/ui/components/card";
 import { Badge } from "@growthos/ui/components/badge";
-import { Button } from "@growthos/ui/components/button";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import {
   Table,
@@ -15,7 +14,6 @@ import {
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useReport } from "@/lib/hooks/useReport";
-import { useDownloadReportPdf } from "@/lib/hooks/useDownloadReportPdf";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 
 // Channel slugs (google_ads, meta_ads, …) → human labels. Falls back to Title Case.
@@ -42,7 +40,6 @@ export default function IntelligencePage() {
 
   const { data: report } = useReport(workspaceId);
   const r = report?.data;
-  const downloadPdf = useDownloadReportPdf(workspaceId);
 
   return (
     <div className="animate-rise space-y-6">
@@ -56,25 +53,7 @@ export default function IntelligencePage() {
             {r ? ` of ${r.weekStart}` : ""}.
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1.5">
-          <div className="flex items-center gap-2">
-            {report && <DataSourceBadge source={report.source} />}
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!workspaceId || downloadPdf.isPending}
-              onClick={() => downloadPdf.mutate()}
-            >
-              <FileDown className="h-3.5 w-3.5" />
-              {downloadPdf.isPending ? "Generating…" : "Download PDF"}
-            </Button>
-          </div>
-          {downloadPdf.isError && (
-            <p className="text-xs text-destructive">
-              {downloadPdf.error instanceof Error ? downloadPdf.error.message : "Could not generate the PDF."}
-            </p>
-          )}
-        </div>
+        {report && <DataSourceBadge source={report.source} />}
       </div>
 
       {!r ? (
