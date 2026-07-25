@@ -36,6 +36,7 @@ import { getCampaignInsights } from '../google-ads.js'
 import { getMetaCampaignInsights } from '../meta-ads.js'
 import { getAttribution } from '../attribution.js'
 import { getWeeklyReport } from '../intelligence.js'
+import { generateReportPdf } from '../pdf-report-generate.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
 import { startTrial } from '../billing.js'
@@ -616,6 +617,20 @@ export async function registerV1Routes(app: FastifyInstance) {
       request,
     )
     return { config }
+  })
+
+  // White-labeled PDF report (M3 P3.5 Slice C2). Generated on demand and streamed straight back —
+  // nothing is persisted (no R2 credentials exist in this codebase; see pdf-report-generate.ts).
+  // Read access matches branding's: open down to `client`, the exact audience for a white-labeled
+  // report.
+  app.get('/api/v1/workspaces/:id/reports/pdf', async (request, reply) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'client')
+    const { buffer, filename } = await generateReportPdf(id)
+    reply.header('Content-Disposition', `attachment; filename="${filename}"`)
+    reply.type('application/pdf')
+    return reply.send(buffer)
   })
 
   // Completion gate — the single source of truth for "onboarding done".
