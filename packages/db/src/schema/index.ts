@@ -19,3 +19,5 @@ export * from './collaboration.js';
 export * from './audit.js';
 // Stripe subscriptions + usage metering (M5 · P5.1).
 export * from './billing.js';
+// Public API keys (M4 P4.4 buildable half).
+export * from './api-keys.js';

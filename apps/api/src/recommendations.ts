@@ -6,9 +6,10 @@ import {
   scoreKeywords,
   analyzeSearchTerms,
   detectFatigueAll,
+  analyzeCampaigns,
   toRecommendation,
 } from '@growthos/logic'
-import { rawKeywords, searchTerms, creatives } from '@growthos/logic/fixtures'
+import { rawKeywords, searchTerms, creatives, adCampaigns, metaCampaigns } from '@growthos/logic/fixtures'
 import { ensurePaidToOrganic } from './search-terms.js'
 import { ensureOrganicToPaid } from './organic-to-paid.js'
 import { ensureFatigueAlerts } from './fatigue.js'
@@ -61,11 +62,13 @@ export async function ensureRecommendations(workspaceId: string): Promise<Recomm
     )
   if (existing.length > 0) return rowsToApi(await readOrdered(workspaceId))
 
-  const mapped = generateCrossChannelRecommendations(
-    scoreKeywords(rawKeywords),
-    analyzeSearchTerms(searchTerms),
-    detectFatigueAll(creatives),
-  ).map((r) => toRecommendation(r, workspaceId))
+  const mapped = generateCrossChannelRecommendations({
+    keywords: scoreKeywords(rawKeywords),
+    searchTerms: analyzeSearchTerms(searchTerms),
+    creatives: detectFatigueAll(creatives),
+    googleCampaigns: analyzeCampaigns(adCampaigns),
+    metaCampaigns: analyzeCampaigns(metaCampaigns),
+  }).map((r) => toRecommendation(r, workspaceId))
   if (mapped.length === 0) return []
 
   await db.insert(schema.recommendations).values(

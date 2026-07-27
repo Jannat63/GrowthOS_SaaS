@@ -25,11 +25,9 @@ and how to verify it, not just a checkbox to tick.
 - [ ] **Resend domain verification.** Verify your sending domain in Resend, set `RESEND_API_KEY`
       and `RESEND_FROM_EMAIL` to a verified address — unverified domains get emails spam-filtered
       or bounced.
-- [ ] **Trial-ending-soon reminders need a scheduler.** `checkTrialsEndingSoon()` in `billing.ts`
-      is built and tested but nothing calls it periodically — there's no scheduler in this codebase
-      yet (Celery/Beat deferred per `docs/blueprint/DECISIONS.md` D2). Without this, trial users
-      get no reminder email before their trial ends. Wire it to whatever scheduling mechanism
-      lands first (see §5).
+- [x] **Trial-ending-soon reminders now run automatically.** ~~Nothing calls `checkTrialsEndingSoon()`
+      periodically~~ — resolved 2026-07-26: `apps/api/src/scheduler.ts` wires it to a daily
+      `node-cron` job (09:00 UTC). No further action needed here.
 - [ ] **Plan-limit enforcement is partial by design, not oversight.** Only white-label branding is
       actually gated by `assertFeatureEnabled` today. `recommendations_generated` /
       `ai_creatives_generated` metering has no real call site yet — see
@@ -95,17 +93,27 @@ If launching without these, the honest move is telling users upfront which chann
 - [ ] No uptime/health monitoring beyond the `/health` endpoint existing — nothing polls it yet.
 - [ ] Rate limiting exists (`@fastify/rate-limit`, M2 P2.8) but limits haven't been load-tested
       against realistic traffic.
+- [ ] **Public API (`/api/public/v1/*`, M4 P4.4) shares the same global rate limit as everything
+      else** (`@fastify/rate-limit`, 200 req/min per `RATE_LIMIT_MAX`). External API consumers
+      (Zapier, a customer's scripts) may want per-key limits distinct from the app's own browser
+      traffic before this is advertised as a real integration surface.
 
 ## 5. Infrastructure — blocks scale, not necessarily launch
 
 - [ ] **ClickHouse Cloud.** Currently runs locally via Docker (`docs/blueprint/DECISIONS.md` D3,
       free-tier-first). Needs a real ClickHouse Cloud instance (or equivalent) before this can run
       anywhere but a single dev machine.
-- [ ] **No scheduler exists.** Celery/Beat is deferred per D2. This blocks: trial-ending email
-      reminders (§1), the Intelligence Engine's 4-hourly rule evaluation
-      (`docs/plan/M3-channel-modules/` P3.4 remainder), and the Creative Fatigue Monitor's
-      scheduled alerts. All three are built and tested against on-demand calls; none run on a
-      schedule yet.
+- [x] **Scheduler now exists.** ~~No scheduler exists~~ — resolved 2026-07-26: `apps/api/src/scheduler.ts`,
+      a lightweight `node-cron` in-process scheduler (Celery/Beat remains deferred per D2 — this
+      isn't that, it's a smaller single-dependency alternative). Wires trial-ending reminders
+      (daily) and the Intelligence Engine's weekly-report refresh (every 4h, recomputes each
+      workspace's channel spend/revenue/ROAS from current data). **Still not wired**: the Creative
+      Fatigue Monitor's alerts — deliberately, not an oversight. `ensureFatigueAlerts` generates
+      alerts exactly once per workspace ever (`if (existing.length > 0) return`); scheduling it
+      would be a guaranteed no-op for any workspace already past onboarding, and it runs over a
+      static fixture besides (not live Meta creative data), so even a redesigned version would
+      produce identical output every call until that's connected. See
+      `docs/plan/M4-v2-automation/progress.md` for the full reasoning.
 - [ ] **pgvector extension** must be enabled on the production Neon instance
       (`CREATE EXTENSION vector;`) if not already done.
 

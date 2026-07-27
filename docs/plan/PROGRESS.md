@@ -2,8 +2,11 @@
 
 Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 COMPLETE** (seeded Insight Loop MVP,
 P2.1–P2.8); **M3 IN PROGRESS** — every channel module now has a live UI (P3.0 OAuth built, live pending
-Google creds; P3.1 SEO, P3.2 Google Ads, P3.3 Meta advisors, P3.4 Intelligence V1, P3.5 A+B+C1 agency all
-done — remaining M3 work is external-gated). **M4 started early** — P4.1 cross-channel attribution done.
+Google creds; P3.1 SEO, P3.2 Google Ads, P3.3 Meta advisors, P3.4 Intelligence V1, P3.5 agency ALL
+done — remaining M3 work is external-gated). **M4 started early** — P4.1 cross-channel attribution,
+the Intelligence Engine rule-set expansion (5→19 rules across all 6 bridges), a lightweight scheduler
+(`node-cron`, wires trial reminders + intelligence refresh), and P4.4's public API (Bearer-key
+authenticated, OpenAPI docs) are all done.
 **M5 COMPLETE** — P5.1 Billing core, P5.2 Plan limits & metering, P5.3 Customer portal &
 lifecycle emails, and P5.4 Launch readiness all done. See
 docs/plan/M5-launch-monetization/GO_LIVE_CHECKLIST.md for what's still required before actually
@@ -65,7 +68,7 @@ approvals mature → then P3.2/P3.3.
 | P3.2 | Google Ads module | [~] | **Advisor + RSA + budget planner done 2026-07-18** — `@growthos/logic` google-ads-advisor (wasted-spend, classification, RSA, target-CPA/ROAS, budget allocator; 8 tests) + `/google-ads` page. Live fetch/push + Quality Score gated on the dev token. |
 | P3.3 | Meta Ads module | [~] | **Advisor + funnel/copy slice done 2026-07-18** — `@growthos/logic` meta-ads-advisor (funnel split, ad-copy + UGC generators; 4 tests) + `/meta-ads` page; fatigue done in M2. Live sync/publish + CAPI/EMQ gated on App Review. |
 | P3.4 | Intelligence Engine V1 | [x] | **V1 done 2026-07-18.** Weekly report + budget-reallocation engine; `intelligence_reports` table; `GET /intelligence/report`; `/intelligence` page. Scheduled loop + WS + 47-rule set deferred. |
-| P3.5 | Agency features | [~] | **Slices A+B+C1 done 2026-07-18** — A: collaboration (`recommendation_comments` + `assigned_to`/`due_date`, `/recommendations` queue); B: `audit_logs` + write-hooks + Settings activity; C1: white-label branding (`white_label_config`, agency name/logo/accent on shell). 5 API tests + self-audit authz hardening. Only C2 (white-labeled PDF, Puppeteer+R2) remains. |
+| P3.5 | Agency features | [x] | **All slices done** (C2 completed 2026-07-25) — A: collaboration (`recommendation_comments` + `assigned_to`/`due_date`, `/recommendations` queue); B: `audit_logs` + write-hooks + Settings activity; C1: white-label branding (`white_label_config`, agency name/logo/accent on shell); C2: white-labeled PDF export (Puppeteer, renders the same `WeeklyReport` the Intelligence page shows, streamed on demand — no R2 upload, see P3.5 progress.md for why). 5 API tests + self-audit authz hardening + 6 more for the PDF template. |
 
 Gate: 500 users / MRR >$50K / agency tier.
 
@@ -74,6 +77,9 @@ Gate: 500 users / MRR >$50K / agency tier.
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
 | P4.1 | Cross-channel attribution | [~] | **Engine + comparison UI done 2026-07-18** — `@growthos/logic` attribution (last/first-click, linear, time-decay, position-based; 9 tests) over a `conversion_paths` ClickHouse table; `/attribution` model-comparison page. Real paths pending live conversions. |
+| — | Intelligence Engine rule-set expansion | [x] | **Done 2026-07-26** — `cross-channel-engine.ts` rewritten as a rule registry, 5→19 rules (20 recommendation outputs) across all 6 channel-pair bridges (added `GoogleAds→Meta`, `Meta→GoogleAds`, plus a blended-MER cross-cutting rule). 37 tests. Not a numbered blueprint phase — see `docs/plan/M4-v2-automation/progress.md` for why "47" was never a real spec. |
+| — | Scheduler | [x] | **Done 2026-07-26** — `apps/api/src/scheduler.ts`, lightweight `node-cron` in-process (Celery/Beat stays deferred per D2). Wires `checkTrialsEndingSoon` (daily) + per-workspace `getWeeklyReport` refresh (4h). Deliberately does NOT wire fatigue alerts — see progress.md for why re-running that specific function is a guaranteed no-op today. 3 tests. |
+| P4.4 | Public API (buildable half) | [~] | **Done 2026-07-26** — `api_keys` table (SHA-256 hash only), Bearer-authenticated `/api/public/v1/*` routes, OpenAPI spec + docs UI via `@fastify/swagger`, Settings → API Keys UI. Verified with a real signup→upgrade→create-key→call-public-API→revoke run. GEO/AI-citation tracking (this phase's other half) still needs external access this codebase doesn't have. 15 tests. |
 | P4.2 | AI creative automation | [ ] | Outline — expand to folder when reached. |
 | P4.3 | Automated campaign management | [ ] | Outline — expand to folder when reached. |
 | P4.4 | GEO tracking + public API | [ ] | Outline — expand to folder when reached. |

@@ -28,6 +28,8 @@ const BRIDGE_CHANNELS: Record<string, [string, string]> = {
   "GoogleAds→SEO": ["google_ads", "seo"],
   "Meta→SEO": ["meta_ads", "seo"],
   "SEO→Meta": ["seo", "meta_ads"],
+  "GoogleAds→Meta": ["google_ads", "meta_ads"],
+  "Meta→GoogleAds": ["meta_ads", "google_ads"],
 };
 
 // Maps a cross-channel engine rec onto the persisted Recommendation shape. Used by BOTH the API

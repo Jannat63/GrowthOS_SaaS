@@ -6,20 +6,23 @@ import {
   scoreKeywords,
   analyzeSearchTerms,
   detectFatigueAll,
+  analyzeCampaigns,
   toRecommendation,
 } from "@growthos/logic";
-import { rawKeywords, searchTerms, creatives } from "@growthos/logic/fixtures";
+import { rawKeywords, searchTerms, creatives, adCampaigns, metaCampaigns } from "@growthos/logic/fixtures";
 import { api } from "@/lib/api/client";
 import { liveOrMock } from "./liveOrMock";
 
 // Mock fallback runs the SAME engine + mapper over the SAME fixtures the API uses,
 // so live and fallback agree in both shape and content.
 function mockRecommendations(workspaceId: string): Recommendation[] {
-  return generateCrossChannelRecommendations(
-    scoreKeywords(rawKeywords),
-    analyzeSearchTerms(searchTerms),
-    detectFatigueAll(creatives)
-  )
+  return generateCrossChannelRecommendations({
+    keywords: scoreKeywords(rawKeywords),
+    searchTerms: analyzeSearchTerms(searchTerms),
+    creatives: detectFatigueAll(creatives),
+    googleCampaigns: analyzeCampaigns(adCampaigns),
+    metaCampaigns: analyzeCampaigns(metaCampaigns),
+  })
     .map((r) => {
       const m = toRecommendation(r, workspaceId);
       return {

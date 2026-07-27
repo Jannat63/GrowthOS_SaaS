@@ -1,5 +1,6 @@
 import { buildApp } from './app.js'
 import { validateEnv, logIntegrationStatus } from './env.js'
+import { startScheduler } from './scheduler.js'
 
 validateEnv()
 logIntegrationStatus()
@@ -11,3 +12,5 @@ app.listen({ port, host: '0.0.0.0' }).catch((err) => {
   app.log.error(err)
   process.exit(1)
 })
+
+startScheduler()
