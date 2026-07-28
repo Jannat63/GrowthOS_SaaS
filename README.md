@@ -2,7 +2,6 @@
 
 Unified SEO · Google Ads · Meta Ads Platform
 
-Jannat
 
 ## Complete SaaS Research Blueprint
 
