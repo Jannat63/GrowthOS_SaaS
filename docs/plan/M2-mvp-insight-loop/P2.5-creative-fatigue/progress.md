@@ -13,7 +13,7 @@ Fatigue detection runs synchronously in the API via `@growthos/logic` (no Python
 | Alert-card UI + suggestions | [x] | `/fatigue-monitor` — refresh alerts + all-creatives status grid. |
 | Acted/ignored tracking | [x] | `PATCH /recommendations/:recId` (act/snooze/dismiss). |
 | Scheduled 4-hourly worker + `meta_ad_sets` table | [–] | → M3 (real data + scheduling). |
-| Resend email + WebSocket | [–] | Email → M5; WS `meta:fatigue_alert` → P2.7. |
+| Resend email + WebSocket | [~] | Email → M5 (still not built — no email exists for fatigue alerts specifically). WS `meta:fatigue_alert` → **shipped 2026-07-27**, see P2.7 progress.md. |
 
 ## Log
 

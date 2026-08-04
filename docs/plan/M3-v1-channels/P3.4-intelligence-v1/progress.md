@@ -18,11 +18,16 @@ See `VERIFY.md`. Backend green (typecheck + vitest); `pnpm --filter @growthos/we
 `/intelligence` route emitted. Live E2E over real channel data lands once P3.0 GSC / P3.2 Ads data flows.
 
 ## Deferred (documented, not dropped)
-- **4-hourly scheduled evaluation loop** — needs a scheduler process; report is generate-on-read for now.
-- **WebSocket** `intelligence:report_ready` — needs WS infra (also unblocks the P2.7 notification center).
-- **Full 47-rule set** — "47" is product vision, not existing code (legacy has the same 5 rules already
-  in `packages/logic`); grown incrementally as real channel data arrives.
-- **First-party-data orchestrator** — after P3.2 (Ads) / P3.3 (Meta) are live.
+- **4-hourly scheduled evaluation loop** — ~~needs a scheduler process~~ **shipped 2026-07-26**:
+  `apps/api/src/scheduler.ts`, `runIntelligenceRefresh` runs every 4h. See `docs/plan/M4-v2-automation/progress.md`.
+- **WebSocket** `intelligence:report_ready` — ~~needs WS infra~~ **shipped 2026-07-27**, fired from the
+  scheduler task above on each successful refresh. See P2.7 progress.md for the full WS build.
+- **Full 47-rule set** — ~~"47" is product vision, not existing code~~ **expanded 2026-07-26**: 5 → 19
+  registry entries (20 recommendation outputs) across all 6 channel-pair bridges. Still not a literal
+  "47" — checked every blueprint doc, that number is never actually enumerated anywhere. See
+  `docs/plan/M4-v2-automation/progress.md` for the full reasoning and what's still fixture-driven.
+- **First-party-data orchestrator** — after P3.2 (Ads) / P3.3 (Meta) are live. Still not started —
+  genuinely blocked on those external integrations, unlike the three items above.
 
 ## Log
 - 2026-07-17 — Backend built + committed (`22167a8`): logic engine, DB table + migration, API route.

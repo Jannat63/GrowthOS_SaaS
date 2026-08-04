@@ -5,8 +5,9 @@ P2.1–P2.8); **M3 IN PROGRESS** — every channel module now has a live UI (P3.
 Google creds; P3.1 SEO, P3.2 Google Ads, P3.3 Meta advisors, P3.4 Intelligence V1, P3.5 agency ALL
 done — remaining M3 work is external-gated). **M4 started early** — P4.1 cross-channel attribution,
 the Intelligence Engine rule-set expansion (5→19 rules across all 6 bridges), a lightweight scheduler
-(`node-cron`, wires trial reminders + intelligence refresh), and P4.4's public API (Bearer-key
-authenticated, OpenAPI docs) are all done.
+(`node-cron`, wires trial reminders + intelligence refresh), P4.4's public API (Bearer-key
+authenticated, OpenAPI docs), and real-time WebSocket transport (resolves a deferral independently
+named in P2.5/P2.6/P2.7/P3.4 — see P2.7's progress.md) are all done.
 **M5 COMPLETE** — P5.1 Billing core, P5.2 Plan limits & metering, P5.3 Customer portal &
 lifecycle emails, and P5.4 Launch readiness all done. See
 docs/plan/M5-launch-monetization/GO_LIVE_CHECKLIST.md for what's still required before actually
@@ -79,6 +80,7 @@ Gate: 500 users / MRR >$50K / agency tier.
 | P4.1 | Cross-channel attribution | [~] | **Engine + comparison UI done 2026-07-18** — `@growthos/logic` attribution (last/first-click, linear, time-decay, position-based; 9 tests) over a `conversion_paths` ClickHouse table; `/attribution` model-comparison page. Real paths pending live conversions. |
 | — | Intelligence Engine rule-set expansion | [x] | **Done 2026-07-26** — `cross-channel-engine.ts` rewritten as a rule registry, 5→19 rules (20 recommendation outputs) across all 6 channel-pair bridges (added `GoogleAds→Meta`, `Meta→GoogleAds`, plus a blended-MER cross-cutting rule). 37 tests. Not a numbered blueprint phase — see `docs/plan/M4-v2-automation/progress.md` for why "47" was never a real spec. |
 | — | Scheduler | [x] | **Done 2026-07-26** — `apps/api/src/scheduler.ts`, lightweight `node-cron` in-process (Celery/Beat stays deferred per D2). Wires `checkTrialsEndingSoon` (daily) + per-workspace `getWeeklyReport` refresh (4h). Deliberately does NOT wire fatigue alerts — see progress.md for why re-running that specific function is a guaranteed no-op today. 3 tests. |
+| — | Real-time WebSocket transport | [x] | **Done 2026-07-27** — resolves a deferral independently named across P2.5/P2.6/P2.7/P3.4. `ws.ts` (in-process rooms + Redis relay) + `routes/ws.ts` (cookie-session auth via `preHandler`, before the upgrade completes) + a real Python-worker→Redis→API relay for `job:complete`/`job:failed`. All 5 named events wired to real trigger points. 9 tests (6 pure logic + 3 real server/real `ws` client). Caught and fixed a real hang-forever bug in `publish()` when Redis is down. Full writeup in P2.7's progress.md. |
 | P4.4 | Public API (buildable half) | [~] | **Done 2026-07-26** — `api_keys` table (SHA-256 hash only), Bearer-authenticated `/api/public/v1/*` routes, OpenAPI spec + docs UI via `@fastify/swagger`, Settings → API Keys UI. Verified with a real signup→upgrade→create-key→call-public-API→revoke run. GEO/AI-citation tracking (this phase's other half) still needs external access this codebase doesn't have. 15 tests. |
 | P4.2 | AI creative automation | [ ] | Outline — expand to folder when reached. |
 | P4.3 | Automated campaign management | [ ] | Outline — expand to folder when reached. |

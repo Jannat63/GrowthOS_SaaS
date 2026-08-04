@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { BrandingProvider } from "@/components/layout/BrandingProvider";
+import { WorkspaceSocketProvider } from "@/components/layout/WorkspaceSocketProvider";
 
 export default function DashboardLayout({
   children,
@@ -10,6 +11,7 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen bg-background">
       <BrandingProvider />
+      <WorkspaceSocketProvider />
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />

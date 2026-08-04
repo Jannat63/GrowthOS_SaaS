@@ -19,10 +19,10 @@ async def process_one(pool, raw: str) -> None:
     await mark_processing(pool, env.job_id)
     try:
         result = await dispatch(env.type, env.payload, env.job_id, env.workspace_id)
-        await mark_complete(pool, env.job_id, result)
+        await mark_complete(pool, env.job_id, env.workspace_id, result)
     except Exception as exc:  # one bad job never kills the loop
         log.exception("job %s failed", env.job_id)
-        await mark_failed(pool, env.job_id, str(exc))
+        await mark_failed(pool, env.job_id, env.workspace_id, str(exc))
 
 
 async def run_consumer(stop_event: asyncio.Event) -> None:

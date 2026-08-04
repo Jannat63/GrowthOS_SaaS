@@ -114,6 +114,14 @@ If launching without these, the honest move is telling users upfront which chann
       static fixture besides (not live Meta creative data), so even a redesigned version would
       produce identical output every call until that's connected. See
       `docs/plan/M4-v2-automation/progress.md` for the full reasoning.
+- [ ] **WebSocket transport's room registry is per-process.** `apps/api/src/ws.ts` holds connected
+      sockets in an in-memory `Map`, matching this app's current single-long-running-process
+      deployment model (same assumption the scheduler makes). The design already supports scaling to
+      multiple API instances — every event goes through Redis pub/sub rather than being delivered
+      locally-only, specifically so any instance subscribed to the channel can relay it — but this
+      hasn't been tested with more than one instance running. Verify before running multiple API
+      replicas behind a load balancer, and confirm the load balancer's WS upgrade handling / sticky
+      sessions aren't required (they shouldn't be, given the Redis relay, but confirm for real).
 - [ ] **pgvector extension** must be enabled on the production Neon instance
       (`CREATE EXTENSION vector;`) if not already done.
 

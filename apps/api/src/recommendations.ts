@@ -13,6 +13,7 @@ import { rawKeywords, searchTerms, creatives, adCampaigns, metaCampaigns } from 
 import { ensurePaidToOrganic } from './search-terms.js'
 import { ensureOrganicToPaid } from './organic-to-paid.js'
 import { ensureFatigueAlerts } from './fatigue.js'
+import { publish } from './ws.js'
 
 type Row = typeof schema.recommendations.$inferSelect
 
@@ -88,6 +89,7 @@ export async function ensureRecommendations(workspaceId: string): Promise<Recomm
       rawData: m.rawData,
     })),
   )
+  void publish({ type: 'recommendation:new', workspaceId, payload: { count: mapped.length, source: 'cross_channel' } })
   return rowsToApi(await readOrdered(workspaceId))
 }
 

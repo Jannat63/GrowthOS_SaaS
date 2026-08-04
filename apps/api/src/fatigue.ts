@@ -3,6 +3,7 @@ import { db, schema } from '@growthos/db'
 import type { ScoredCreative } from '@growthos/types'
 import { detectFatigueAll, fatigueAlertRecommendation } from '@growthos/logic'
 import { creatives } from '@growthos/logic/fixtures'
+import { publish } from './ws.js'
 
 export function getFatigueResults(): ScoredCreative[] {
   return detectFatigueAll(creatives).map((f) => ({
@@ -52,4 +53,5 @@ export async function ensureFatigueAlerts(workspaceId: string): Promise<void> {
       }
     }),
   )
+  void publish({ type: 'meta:fatigue_alert', workspaceId, payload: { count: alerts.length } })
 }

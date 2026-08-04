@@ -11,6 +11,7 @@ import { registerV1Routes } from './routes/v1.js'
 import { registerConnectionRoutes } from './routes/connections.js'
 import { registerBillingRoutes } from './routes/billing.js'
 import { registerPublicApiRoutes } from './routes/public-api.js'
+import { registerWsRoutes } from './routes/ws.js'
 
 /**
  * Build the Fastify app. Kept separate from `listen` so it can be exercised
@@ -86,6 +87,9 @@ export function buildApp(): FastifyInstance {
   app.register(registerBillingRoutes)
   // Public REST API — Bearer-token authenticated, versioned separately (M4 P4.4).
   app.register(registerPublicApiRoutes)
+  // Real-time WebSocket transport — recommendation:new, job:complete/failed, meta:fatigue_alert,
+  // analytics:mer_alert, intelligence:report_ready.
+  app.register(registerWsRoutes)
 
   // Better Auth (D1) owns /api/auth/* — sign-up/in, sessions, and the organization
   // (workspace) endpoints. Convert Fastify's req/reply to the Web Request/Response
