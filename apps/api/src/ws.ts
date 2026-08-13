@@ -43,6 +43,13 @@ const REDIS_CHANNEL = 'growthos:ws-events'
 const rooms = new Map<string, Set<WebSocket>>()
 
 export function subscribeSocket(workspaceId: string, socket: WebSocket): void {
+  // Start the Redis fan-out the first time a socket actually joins a room, not at plugin
+  // registration: `registerWsRoutes` runs inside `buildApp()`, so subscribing there opened a Redis
+  // connection in every route test that built the app, whether or not it used WebSockets at all
+  // (docs/AUDIT-2026-08-13-post-merge.md #9). With no local sockets there is nothing for the
+  // subscriber to deliver to anyway, so this is the earliest point it's genuinely needed.
+  startWsRedisSubscriber()
+
   let room = rooms.get(workspaceId)
   if (!room) {
     room = new Set()

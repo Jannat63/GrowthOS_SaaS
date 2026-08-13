@@ -3,11 +3,14 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import { listActiveWorkspaceIds, runIntelligenceRefresh, runTrialReminders } from './scheduler.js'
 
-// Integration: requires Neon (dev stack up) — same as billing.test.ts. runIntelligenceRefresh's
-// resilience test deliberately does NOT mock a ClickHouse failure — in this dev environment
-// ClickHouse genuinely isn't running, so every workspace's getWeeklyReport call fails for real.
-// That's used as the test condition itself: if the function survives 3/3 real failures without
-// throwing, the per-workspace try/catch is proven correct under an actual failure, not a stubbed one.
+// Integration: requires Neon + Redis (dev stack up) — Redis because both scheduled tasks now run
+// under a lock so multiple API instances can't double-run them. runIntelligenceRefresh's resilience
+// test deliberately does NOT mock a ClickHouse failure — in this dev environment ClickHouse
+// genuinely isn't running, so every workspace's getWeeklyReport call fails for real. That's used as
+// the test condition itself: if the tick survives 3/3 real failures without throwing, the
+// per-workspace try/catch is proven correct under an actual failure, not a stubbed one.
+//
+// The seeded workspaces have no intelligence report, so they are always "due" regardless of cadence.
 describe('scheduler', () => {
   const wsA = 'test-scheduler-ws-a'
   const wsB = 'test-scheduler-ws-b'

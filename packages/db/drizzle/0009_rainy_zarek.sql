@@ -1,1 +1,0 @@
-ALTER TABLE "workspaces" ADD COLUMN "automation_config" jsonb;

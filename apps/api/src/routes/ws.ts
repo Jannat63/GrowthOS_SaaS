@@ -3,7 +3,7 @@ import websocketPlugin from '@fastify/websocket'
 import { AppError } from '../errors.js'
 import { getSessionUser } from '../auth-context.js'
 import { requireWorkspaceMember } from '../guards.js'
-import { subscribeSocket, unsubscribeSocket, startWsRedisSubscriber } from '../ws.js'
+import { subscribeSocket, unsubscribeSocket } from '../ws.js'
 
 /**
  * `GET /api/v1/workspaces/:id/ws` — upgrades to a WebSocket, authenticated with the same cookie
@@ -25,7 +25,6 @@ import { subscribeSocket, unsubscribeSocket, startWsRedisSubscriber } from '../w
  */
 export async function registerWsRoutes(app: FastifyInstance) {
   await app.register(websocketPlugin)
-  startWsRedisSubscriber()
 
   app.get(
     '/api/v1/workspaces/:id/ws',

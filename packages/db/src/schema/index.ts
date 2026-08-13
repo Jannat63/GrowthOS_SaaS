@@ -21,3 +21,5 @@ export * from './audit.js';
 export * from './billing.js';
 // Public API keys (M4 P4.4 buildable half).
 export * from './api-keys.js';
+// Autonomous automation loop — alert de-dupe + scheduler run log (M4).
+export * from './automation.js';

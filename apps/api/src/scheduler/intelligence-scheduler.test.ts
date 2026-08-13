@@ -6,7 +6,7 @@ const getWeeklyReport = vi.fn()
 const getMerTrend = vi.fn()
 const getFatigueResults = vi.fn()
 const emitIfChanged = vi.fn()
-const publishEvent = vi.fn()
+const publish = vi.fn()
 
 vi.mock('./lock.js', () => ({
   withRedisLock: async (_k: string, _t: number, fn: () => Promise<void>) => {
@@ -19,7 +19,8 @@ vi.mock('./alerts.js', () => ({ emitIfChanged }))
 vi.mock('../intelligence.js', () => ({ getWeeklyReport }))
 vi.mock('../analytics.js', () => ({ getMerTrend }))
 vi.mock('../fatigue.js', () => ({ getFatigueResults }))
-vi.mock('../ws/events.js', () => ({ publishEvent }))
+// The single WebSocket transport (ws.ts) — the duplicate ../ws/events.js was deleted post-merge.
+vi.mock('../ws.js', () => ({ publish }))
 
 const { runSchedulerTick, refreshWorkspace } = await import('./intelligence-scheduler.js')
 
@@ -31,17 +32,17 @@ beforeEach(() => {
     getMerTrend,
     getFatigueResults,
     emitIfChanged,
-    publishEvent,
+    publish,
   ])
     m.mockReset()
   getWeeklyReport.mockResolvedValue({ weekStart: '2026-07-17' })
-  getMerTrend.mockResolvedValue({ anomaly: { detected: false, changePercent: 0 } })
+  getMerTrend.mockResolvedValue({ anomaly: { detected: false, changePercent: 0 }, summary: { blendedMER: 3 } })
   getFatigueResults.mockReturnValue([])
   emitIfChanged.mockResolvedValue(false)
 })
 
 describe('runSchedulerTick', () => {
-  it('refreshes only due workspaces and pushes report:ready for each', async () => {
+  it('refreshes only due workspaces and pushes intelligence:report_ready for each', async () => {
     const now = new Date('2026-07-23T00:00:00Z')
     listWorkspacesWithLastRun.mockResolvedValue([
       { workspaceId: 'due', lastRunAt: null, config: null },
@@ -53,10 +54,10 @@ describe('runSchedulerTick', () => {
     expect(count).toBe(1)
     expect(getWeeklyReport).toHaveBeenCalledWith('due')
     expect(getWeeklyReport).not.toHaveBeenCalledWith('fresh')
-    expect(publishEvent).toHaveBeenCalledWith('due', {
-      type: 'report:ready',
+    expect(publish).toHaveBeenCalledWith({
+      type: 'intelligence:report_ready',
       workspaceId: 'due',
-      periodStart: '2026-07-17',
+      payload: { periodStart: '2026-07-17' },
     })
     expect(recordSchedulerRun).toHaveBeenCalledWith(
       expect.objectContaining({ refreshedCount: 1, errorCount: 0 }),
@@ -83,13 +84,20 @@ describe('runSchedulerTick', () => {
 
   it('emits a fresh mer_alert when the anomaly signature is new', async () => {
     listWorkspacesWithLastRun.mockResolvedValue([{ workspaceId: 'w', lastRunAt: null, config: null }])
-    getMerTrend.mockResolvedValue({ anomaly: { detected: true, changePercent: -22 } })
+    getMerTrend.mockResolvedValue({
+      anomaly: { detected: true, changePercent: -22 },
+      summary: { blendedMER: 2.4 },
+    })
     emitIfChanged.mockImplementation(async (_ws: string, type: string) => type === 'mer_anomaly')
 
     await runSchedulerTick(new Date('2026-07-23T00:00:00Z'))
 
     expect(emitIfChanged).toHaveBeenCalledWith('w', 'mer_anomaly', 'mer:-22')
-    expect(publishEvent).toHaveBeenCalledWith('w', { type: 'analytics:mer_alert', workspaceId: 'w' })
+    expect(publish).toHaveBeenCalledWith({
+      type: 'analytics:mer_alert',
+      workspaceId: 'w',
+      payload: { changePercent: -22, blendedMER: 2.4 },
+    })
   })
 })
 
@@ -105,10 +113,10 @@ describe('refreshWorkspace', () => {
 
     expect(alerts).toBe(1)
     expect(emitIfChanged).toHaveBeenCalledWith('w1', 'fatigue', 'Creative A:fatigued')
-    expect(publishEvent).toHaveBeenCalledWith('w1', {
+    expect(publish).toHaveBeenCalledWith({
       type: 'meta:fatigue_alert',
       workspaceId: 'w1',
-      adSetId: 'Creative A',
+      payload: { adSetId: 'Creative A' },
     })
   })
 })

@@ -32,9 +32,14 @@ export function buildApp(): FastifyInstance {
   app.register(helmet)
 
   // Rate limiting (P2.8 hardening): 200 req/min per IP by default, emitting the RATE_LIMITED envelope.
+  // The Stripe webhook is exempt: its caller is Stripe, not a user, deliveries arrive in bursts
+  // from a small set of source IPs, and a 429 is treated by Stripe as a failed delivery to retry —
+  // rate-limiting it turns a spike into a retry storm (docs/AUDIT-2026-08-13-post-merge.md #15).
+  // It is authenticated by webhook signature instead, which is the stronger control here.
   app.register(rateLimit, {
     max: Number(process.env.RATE_LIMIT_MAX ?? 200),
     timeWindow: '1 minute',
+    allowList: (request) => request.url === '/api/v1/billing/webhook',
     errorResponseBuilder: () => ({
       error: { code: 'RATE_LIMITED', message: 'Too many requests — slow down.', statusCode: 429 },
     }),
