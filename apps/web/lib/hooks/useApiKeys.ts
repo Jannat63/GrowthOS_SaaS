@@ -18,10 +18,11 @@ export interface CreatedApiKey extends ApiKeySummary {
 // No live/mock fallback here, same reasoning as useCheckout/usePortal — creating or revoking a
 // credential is a real security action, not something to silently fake when the API is unreachable.
 export function useApiKeys(workspaceId: string | null | undefined) {
-  return useQuery<{ keys: ApiKeySummary[] }>({
+  return useQuery<{ data: ApiKeySummary[]; total: number }>({
     queryKey: ["api-keys", workspaceId],
     enabled: Boolean(workspaceId),
-    queryFn: () => api.get<{ keys: ApiKeySummary[] }>(`/workspaces/${workspaceId}/api-keys`),
+    queryFn: () =>
+      api.get<{ data: ApiKeySummary[]; total: number }>(`/workspaces/${workspaceId}/api-keys`),
   });
 }
 

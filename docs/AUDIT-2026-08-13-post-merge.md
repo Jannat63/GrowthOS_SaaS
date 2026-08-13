@@ -84,6 +84,19 @@ fresh environment would never create `automation_alerts` / `scheduler_runs` — 
   `prevId` chain extended), since the merge had overwritten the branch's snapshots. Without them the
   next `drizzle-kit generate` would emit a *second* migration creating the same tables.
 
+**CONFIRMED LATER, AND WORSE THAN DESCRIBED.** Running the test suite exposed the other half of this
+collision on the dev database itself: it had 17 tables, missing `subscriptions`, `usage_records`, and
+`api_keys` entirely. Its last applied migration timestamp (`1784750428685`) is *newer* than main's
+billing migrations (`1784612577288`, `1784688745536`), and drizzle applies strictly in timestamp
+order — so `drizzle-kit migrate` skipped them silently and always would have. Every M5 billing
+feature was dead on that database while appearing fully built in the repo.
+
+Repaired by applying those two migrations by hand (all three missing ones are `CREATE TABLE` /
+`CREATE INDEX` / `ADD COLUMN` only — no drops, no data changes), then running `drizzle-kit migrate`
+for the rest, which took the database to all 20 tables. That run also proved the `IF NOT EXISTS`
+guards above work against a database that already had the automation objects. A **fresh** environment
+was never affected: it applies the journal in order.
+
 ### [x] 7. `docs/plan` lost the automation-loop record
 `3c92c41`'s updates to `PROGRESS.md` and `M3-v1-channels/progress.md` were overwritten, leaving zero
 mentions of a shipped feature in the documents CLAUDE.md names as the source of truth for progress.
@@ -156,23 +169,29 @@ webhook signature, which is the stronger control.
 is now bounded by `WHERE trial_reminder_sent_at IS NULL` as a side effect of #10, so it no longer
 reads every trialing subscription on every run.
 
-### [!] 13. The Growth Hub's headline metrics are permanently mock — DEFERRED
-`useGrowthHub.ts` calls `/workspaces/:id/analytics/growth-hub`, which exists nowhere in `apps/api`
-(zero matches). `liveOrMock` silently serves fixture data, so the dashboard home page shows invented
-KPIs while M2 is marked complete. The hook's comment still says "the endpoint arrives in M2".
+### [x] 13. The Growth Hub had no revenue, conversions, or SEO numbers
+**The original finding was wrong and is corrected here.** `useGrowthHub.ts` did call a
+`/analytics/growth-hub` endpoint that did not exist — but nothing imported the hook. The page renders
+from `useMer`, `useRecommendations`, and `useConnections`, all real endpoints. The dashboard home was
+never showing invented numbers; the hook and its mock were simply dead code.
 
-**Deferred, not hidden:** this is a missing feature, not merge damage — building it means defining
-the KPI set against real ClickHouse data and verifying the numbers, which cannot be done responsibly
-without running anything. **This is the single most user-visible item on the list** and should be
-the next piece of work.
+The real gap was what the hub *didn't* show: no revenue, no conversions, and nothing at all from
+SEO — one of the three channels the product is premised on.
 
-### [!] 14. List endpoints do not paginate as the contract requires — DEFERRED
-CLAUDE.md specifies `limit`/`offset` + `total` for list endpoints; only `GET /audit-logs` complies.
-`recommendations`, `members`, `connections`, `content-briefs` return unbounded arrays, and
-`api-keys` returns `{ keys }` rather than `{ data, total }`.
+**Fixed:** `GET /workspaces/:id/analytics/growth-hub` returns each metric with its previous-window
+value plus the Goal Simulator's baseline, aggregated from `ad_performance` and `organic_traffic`.
+Windows are measured from `max(date)` in the data rather than `today()`, or every seeded workspace
+would read as empty. The page gained revenue/organic-clicks/conversions tiles with deltas.
 
-**Deferred:** every one of these has a web caller that destructures the current shape, so this is a
-coordinated API + web change that needs the test suites to land safely.
+### [x] 14. List endpoints did not paginate as the contract requires
+CLAUDE.md specifies `limit`/`offset` + `total`; only `GET /audit-logs` complied.
+
+**Fixed:** `recommendations`, `content-briefs`, and `comments` — the three sets that grow without
+bound — take `limit`/`offset` and return a real `COUNT` as `total`, via a shared `parsePage` helper
+that `audit-logs` now uses too. `api-keys` moved from `{ keys }` to `{ data, total }`, with its hook
+and settings component. The default page size equals the maximum (100) on purpose: the problem was
+unbounded queries, and a smaller default would silently truncate screens that render the whole list
+today — trading an unbounded query for missing data. `total` lets a caller detect a partial set.
 
 ### [!] 16. Background work logs via `console.*` instead of the Fastify logger — DEFERRED
 `scheduler.ts`, `ws.ts`, and `scheduler/*` use `console.log`/`console.error`, so scheduled-job output

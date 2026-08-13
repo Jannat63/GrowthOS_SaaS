@@ -15,6 +15,7 @@ import { ensureOrganicToPaid } from './organic-to-paid.js'
 import { ensureFatigueAlerts } from './fatigue.js'
 import { publish } from './ws.js'
 import { getRemainingAllowance, recordUsage } from './plan-limits.js'
+import type { Page, Paged } from './pagination.js'
 
 type Row = typeof schema.recommendations.$inferSelect
 
@@ -38,12 +39,13 @@ function rowsToApi(rows: Row[]): Recommendation[] {
   }))
 }
 
-async function readOrdered(workspaceId: string): Promise<Row[]> {
-  return db
+async function readOrdered(workspaceId: string, page?: Page): Promise<Row[]> {
+  const q = db
     .select()
     .from(schema.recommendations)
     .where(eq(schema.recommendations.workspaceId, workspaceId))
     .orderBy(desc(schema.recommendations.compositeScore))
+  return page ? q.limit(page.limit).offset(page.offset) : q
 }
 
 /**
@@ -110,7 +112,7 @@ async function runGenerators(workspaceId: string): Promise<void> {
 }
 
 /**
- * Unified queue (P2.7): ensure every recommendation type exists, then return all sorted by composite.
+ * Unified queue (P2.7): make sure every recommendation type exists for this workspace.
  *
  * Plan-metered at generation, never at read (M5 P5.2). Reaching the plan's weekly limit stops NEW
  * recommendations from being generated; everything already generated is still returned in full. The
@@ -127,7 +129,7 @@ async function runGenerators(workspaceId: string): Promise<void> {
  * that reads as broken. Deliberate: the limit governs how often generation runs, not the exact row
  * count of a single batch.
  */
-export async function ensureAllRecommendations(workspaceId: string): Promise<Recommendation[]> {
+async function ensureGenerated(workspaceId: string): Promise<void> {
   const allowance = await getRemainingAllowance(workspaceId, 'recommendations_generated')
 
   if (allowance === Infinity) {
@@ -138,7 +140,27 @@ export async function ensureAllRecommendations(workspaceId: string): Promise<Rec
     const created = (await countRecommendations(workspaceId)) - before
     if (created > 0) await recordUsage(workspaceId, 'recommendations_generated', created)
   }
-  // allowance === 0 → generate nothing this window; existing rows are still returned below.
+  // allowance === 0 → generate nothing this window; existing rows are still returned to callers.
+}
 
+/**
+ * The whole queue, unpaginated — kept for the public API, whose consumers pull the full set into
+ * their own tooling and have no way to page.
+ */
+export async function ensureAllRecommendations(workspaceId: string): Promise<Recommendation[]> {
+  await ensureGenerated(workspaceId)
   return rowsToApi(await readOrdered(workspaceId))
+}
+
+/** Paginated read of the same queue — what the internal list route serves. */
+export async function listRecommendations(
+  workspaceId: string,
+  page: Page,
+): Promise<Paged<Recommendation>> {
+  await ensureGenerated(workspaceId)
+  const [rows, total] = await Promise.all([
+    readOrdered(workspaceId, page),
+    countRecommendations(workspaceId),
+  ])
+  return { data: rowsToApi(rows), total }
 }

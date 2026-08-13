@@ -2,6 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import { listComments, addComment, assignRecommendation } from './collaboration.js'
+import { MAX_LIMIT } from './pagination.js'
+
+const PAGE = { limit: MAX_LIMIT, offset: 0 }
 
 // Integration: requires Neon (dev stack up).
 describe('recommendation collaboration', () => {
@@ -38,9 +41,20 @@ describe('recommendation collaboration', () => {
     expect(c1).not.toBeNull()
     expect(c2).not.toBeNull()
 
-    const list = await listComments(ws, recId)
+    const list = await listComments(ws, recId, PAGE)
     expect(list).not.toBeNull()
-    expect(list!.map((c) => c.body)).toEqual(['First comment', 'Second comment'])
+    expect(list!.data.map((c) => c.body)).toEqual(['First comment', 'Second comment'])
+    expect(list!.total).toBe(2)
+  })
+
+  it('pages the thread and reports the full total, not the page size', async () => {
+    const firstPage = await listComments(ws, recId, { limit: 1, offset: 0 })
+    expect(firstPage!.data.map((c) => c.body)).toEqual(['First comment'])
+    expect(firstPage!.total).toBe(2)
+
+    const secondPage = await listComments(ws, recId, { limit: 1, offset: 1 })
+    expect(secondPage!.data.map((c) => c.body)).toEqual(['Second comment'])
+    expect(secondPage!.total).toBe(2)
   })
 
   it('assigns and unassigns a recommendation', async () => {
@@ -60,7 +74,7 @@ describe('recommendation collaboration', () => {
   })
 
   it('rejects collaboration on a rec outside the workspace', async () => {
-    expect(await listComments('other-ws', recId)).toBeNull()
+    expect(await listComments('other-ws', recId, PAGE)).toBeNull()
     expect(await addComment('other-ws', recId, 'user-a', 'nope')).toBeNull()
     expect(await assignRecommendation('other-ws', recId, 'user-a', null)).toBe(false)
   })

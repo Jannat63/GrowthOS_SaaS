@@ -28,9 +28,11 @@ describe('paid-to-organic', () => {
 
     await ensurePaidToOrganic(ws)
     const recs1 = await db.select().from(schema.recommendations).where(eq(schema.recommendations.workspaceId, ws))
-    const briefs1 = await getContentBriefs(ws)
+    const briefs1 = await getContentBriefs(ws, { limit: 100, offset: 0 })
     expect(recs1.length).toBeGreaterThanOrEqual(1)
-    expect(briefs1.length).toBe(recs1.length)
+    expect(briefs1.data.length).toBe(recs1.length)
+    // `total` counts every brief in the workspace, not just the page that was returned.
+    expect(briefs1.total).toBe(recs1.length)
 
     await ensurePaidToOrganic(ws) // idempotent
     const recs2 = await db.select().from(schema.recommendations).where(eq(schema.recommendations.workspaceId, ws))

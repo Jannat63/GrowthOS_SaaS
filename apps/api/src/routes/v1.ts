@@ -20,7 +20,8 @@ import { AppError } from '../errors.js'
 import { requireUser } from '../auth-context.js'
 import { requireWorkspaceMember } from '../guards.js'
 import { enqueue } from '../jobs/enqueue.js'
-import { ensureAllRecommendations } from '../recommendations.js'
+import { listRecommendations } from '../recommendations.js'
+import { parsePage } from '../pagination.js'
 import {
   ensurePaidToOrganic,
   getScoredSearchTerms,
@@ -283,12 +284,12 @@ export async function registerV1Routes(app: FastifyInstance) {
   )
 
   // Backend-owned recommendations — generated once from the canonical engine, then persisted.
+  // Paginated: this set grows without bound per workspace (see pagination.ts on the default).
   app.get('/api/v1/workspaces/:id/recommendations', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    const data = await ensureAllRecommendations(id)
-    return { data, total: data.length }
+    return listRecommendations(id, parsePage(request.query))
   })
 
   // Act / dismiss / snooze a recommendation.
@@ -331,11 +332,11 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id, recId } = request.params as { id: string; recId: string }
     await requireWorkspaceMember(user.id, id)
-    const data = await listComments(id, recId)
-    if (data === null) {
+    const result = await listComments(id, recId, parsePage(request.query))
+    if (result === null) {
       throw new AppError('WORKSPACE_NOT_FOUND', 'Recommendation not found in this workspace.')
     }
-    return { data, total: data.length }
+    return result
   })
 
   app.post('/api/v1/workspaces/:id/recommendations/:recId/comments', async (request, reply) => {
@@ -422,14 +423,8 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id, 'admin')
-    const q = z
-      .object({
-        limit: z.coerce.number().int().positive().max(100).optional(),
-        offset: z.coerce.number().int().nonnegative().optional(),
-      })
-      .safeParse(request.query)
-    const limit = q.success ? (q.data.limit ?? 20) : 20
-    const offset = q.success ? (q.data.offset ?? 0) : 0
+    // Default 20 rather than the shared default: this is a scrollback log, not a screen's worth of data.
+    const { limit, offset } = parsePage(request.query, 20)
     return getAuditLogs(id, limit, offset)
   })
 
@@ -571,8 +566,7 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    const data = await getContentBriefs(id)
-    return { data, total: data.length }
+    return getContentBriefs(id, parsePage(request.query))
   })
 
   // Workspace members + roles (P2.8 settings) — guarded by membership.
@@ -683,7 +677,9 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id, 'admin')
-    return { keys: await listApiKeys(id) }
+    // `{ data, total }` like every other list endpoint — this returned `{ keys }` alone.
+    const data = await listApiKeys(id)
+    return { data, total: data.length }
   })
 
   app.delete('/api/v1/workspaces/:id/api-keys/:keyId', async (request) => {
