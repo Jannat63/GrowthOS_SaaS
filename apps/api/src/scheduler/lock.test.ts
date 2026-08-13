@@ -46,4 +46,20 @@ describe('withRedisLock', () => {
     await expect(withRedisLock('k', 5000, fn)).rejects.toThrow('boom')
     expect(del).toHaveBeenCalledWith('k')
   })
+
+  it('gives up rather than hanging when Redis never answers, and skips the run', async () => {
+    // The shared client has maxRetriesPerRequest: null, so an unreachable Redis leaves commands
+    // queued forever instead of rejecting. Callers are cron callbacks — a hang here wedges the
+    // scheduled task for the life of the process.
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    set.mockReturnValueOnce(new Promise(() => {})) // never settles
+    const fn = vi.fn()
+
+    const ran = await withRedisLock('k', 5000, fn)
+
+    expect(ran).toBe(false)
+    expect(fn).not.toHaveBeenCalled()
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('could not acquire lock'), expect.anything())
+    errorSpy.mockRestore()
+  }, 10_000)
 })

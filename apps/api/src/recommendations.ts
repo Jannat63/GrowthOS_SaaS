@@ -121,26 +121,41 @@ async function runGenerators(workspaceId: string): Promise<void> {
  *
  * Usage is measured by counting rows either side of the generators rather than by trusting them to
  * report: they're four independent one-shot helpers across three modules, and a miscount would
- * silently overcharge a customer's allowance. Unlimited plans skip the counting entirely.
+ * silently overcharge a customer's allowance.
  *
  * KNOWN IMPRECISION: the allowance is checked once, before the batch, so a workspace with 2 of 5
- * remaining that generates 8 lands at 8 used, not 5. Each generator is one-shot per workspace, so
- * this can overshoot at most once, and stopping mid-batch would leave the queue in a partial state
- * that reads as broken. Deliberate: the limit governs how often generation runs, not the exact row
- * count of a single batch.
+ * remaining that generates 8 lands at 8 used, not 5. Stopping mid-batch would leave the queue in a
+ * partial state that reads as broken. Deliberate: the limit governs how often generation runs, not
+ * the exact row count of a single batch.
  */
 async function ensureGenerated(workspaceId: string): Promise<void> {
-  const allowance = await getRemainingAllowance(workspaceId, 'recommendations_generated')
+  const before = await countRecommendations(workspaceId)
 
-  if (allowance === Infinity) {
+  // The first batch is onboarding, not weekly accrual, and is deliberately NOT metered.
+  //
+  // The four generators emit roughly twenty rows in one shot — four times a Starter plan's entire
+  // weekly allowance of five. Metering that batch leaves every Starter workspace pinned at its cap
+  // from its very first dashboard load, unable to accrue anything new for the rest of the week and
+  // re-capped the instant the next window opens. That is "5 recommendations, ever", which is not
+  // what the pricing page sells. Charging for the initial population is the wrong reading of a
+  // per-week limit.
+  //
+  // So the cap governs INCREMENTAL generation: once a workspace has recommendations, any further
+  // generation is metered and gated. No repeatable generator exists yet (all four are one-shot per
+  // workspace), so today this branch is reached only after a reset — but it is the correct
+  // semantics for when the scheduled loop or M4 P4.2 starts producing new recommendations on a
+  // cadence, and it is the branch the limit was written for.
+  if (before === 0) {
     await runGenerators(workspaceId)
-  } else if (allowance > 0) {
-    const before = await countRecommendations(workspaceId)
-    await runGenerators(workspaceId)
-    const created = (await countRecommendations(workspaceId)) - before
-    if (created > 0) await recordUsage(workspaceId, 'recommendations_generated', created)
+    return
   }
-  // allowance === 0 → generate nothing this window; existing rows are still returned to callers.
+
+  const allowance = await getRemainingAllowance(workspaceId, 'recommendations_generated')
+  if (allowance <= 0) return // capped this window; existing rows are still returned to callers
+
+  await runGenerators(workspaceId)
+  const created = (await countRecommendations(workspaceId)) - before
+  if (created > 0) await recordUsage(workspaceId, 'recommendations_generated', created)
 }
 
 /**
