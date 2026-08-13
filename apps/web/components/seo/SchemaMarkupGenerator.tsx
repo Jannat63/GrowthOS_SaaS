@@ -8,6 +8,7 @@ import type { SchemaMarkupType } from "@growthos/types";
 import { useOrganicTraffic } from "@/lib/hooks/useOrganicTraffic";
 import { useSchemaMarkup } from "@/lib/hooks/useSchemaMarkup";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 
 const TYPE_OPTIONS: Array<{ value: SchemaMarkupType | ""; label: string }> = [
   { value: "", label: "Auto-detect from URL" },
@@ -48,7 +49,7 @@ export function SchemaMarkupGenerator({ workspaceId }: { workspaceId: string | n
       <div className="flex items-center gap-2">
         <Code2 className="h-4 w-4 text-muted-foreground" />
         <h2 className="font-display text-lg font-semibold tracking-tight">Schema markup generator</h2>
-        {markup && <DataSourceBadge source={markup.source} />}
+        {markup && <DataSourceBadge source={markup.source} platform={MODULE_PLATFORMS.seo} />}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         Pick a page to get a starter JSON-LD snippet — fields we can&apos;t infer are left as{" "}

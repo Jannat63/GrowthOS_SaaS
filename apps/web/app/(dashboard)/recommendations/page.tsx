@@ -9,6 +9,7 @@ import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useRecommendations } from "@/lib/hooks/useRecommendations";
 import { useMembers } from "@/lib/hooks/useMembers";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { RecommendationCard } from "@/components/recommendations/RecommendationCard";
 import { cn } from "@/lib/utils/cn";
 
@@ -44,7 +45,7 @@ export default function RecommendationsPage() {
             Your unified growth queue — assign owners, discuss, and act as a team.
           </p>
         </div>
-        {recs && <DataSourceBadge source={recs.source} />}
+        {recs && <DataSourceBadge source={recs.source} platform={MODULE_PLATFORMS.crossChannel} />}
       </div>
 
       <div className="flex items-center gap-2">

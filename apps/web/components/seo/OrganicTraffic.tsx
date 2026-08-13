@@ -20,6 +20,7 @@ import {
 } from "@growthos/ui/components/table";
 import { useOrganicTraffic } from "@/lib/hooks/useOrganicTraffic";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { SeoTile } from "@/components/seo/SeoTile";
 
 const num = (n: number) => n.toLocaleString("en-US");
@@ -32,7 +33,7 @@ export function OrganicTraffic({ workspaceId }: { workspaceId: string | null }) 
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">{traffic && <DataSourceBadge source={traffic.source} />}</div>
+      <div className="flex justify-end">{traffic && <DataSourceBadge source={traffic.source} platform={MODULE_PLATFORMS.seo} />}</div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SeoTile label="Clicks (30d)" value={num(t.summary.totalClicks)} />
         <SeoTile label="Impressions (30d)" value={num(t.summary.totalImpressions)} />

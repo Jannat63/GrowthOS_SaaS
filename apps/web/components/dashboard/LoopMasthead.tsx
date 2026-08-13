@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils/cn";
 import type { MERResult } from "@growthos/logic";
 import { CHANNELS, CHANNEL_ORDER, type ChannelKey } from "./channels";
 import { DataSourceBadge } from "./DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 
 /** Node coordinates on the 320×320 orbit — SEO up top, the two paid channels below. */
 const POS: Record<ChannelKey, { x: number; y: number; chip: string }> = {
@@ -154,7 +155,7 @@ export function LoopMasthead({
           <span className="text-xs font-medium uppercase tracking-[0.2em] text-primary">
             Your insight loop
           </span>
-          <DataSourceBadge source={source} />
+          <DataSourceBadge source={source} platform={MODULE_PLATFORMS.crossChannel} />
         </div>
         <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight md:text-3xl">
           One loop across SEO, Google&nbsp;Ads &amp; Meta

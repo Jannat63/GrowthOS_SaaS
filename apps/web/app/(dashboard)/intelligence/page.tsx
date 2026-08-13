@@ -17,6 +17,7 @@ import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useReport } from "@/lib/hooks/useReport";
 import { useDownloadReportPdf } from "@/lib/hooks/useDownloadReportPdf";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 
 // Channel slugs (google_ads, meta_ads, …) → human labels. Falls back to Title Case.
 const CHANNEL_LABEL: Record<string, string> = {
@@ -58,7 +59,7 @@ export default function IntelligencePage() {
         </div>
         <div className="flex flex-col items-end gap-1.5">
           <div className="flex items-center gap-2">
-            {report && <DataSourceBadge source={report.source} />}
+            {report && <DataSourceBadge source={report.source} platform={MODULE_PLATFORMS.crossChannel} />}
             <Button
               variant="outline"
               size="sm"

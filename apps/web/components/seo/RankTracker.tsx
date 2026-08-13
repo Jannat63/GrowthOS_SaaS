@@ -14,6 +14,7 @@ import {
 } from "@growthos/ui/components/table";
 import { useKeywordRankings } from "@/lib/hooks/useKeywordRankings";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { SeoTile } from "@/components/seo/SeoTile";
 import { cn } from "@/lib/utils/cn";
 
@@ -77,7 +78,7 @@ export function RankTracker({ workspaceId }: { workspaceId: string | null }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">{rankings && <DataSourceBadge source={rankings.source} />}</div>
+      <div className="flex justify-end">{rankings && <DataSourceBadge source={rankings.source} platform={MODULE_PLATFORMS.seo} />}</div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SeoTile label="Tracked keywords" value={r.summary.tracked} />
         <SeoTile label="Avg position" value={r.summary.avgPosition} />

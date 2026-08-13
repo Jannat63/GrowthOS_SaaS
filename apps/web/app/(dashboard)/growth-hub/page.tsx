@@ -35,6 +35,7 @@ import { useRecommendations } from "@/lib/hooks/useRecommendations";
 import { useConnections } from "@/lib/hooks/useConnections";
 import { platformToChannel, type ChannelKey } from "@/components/dashboard/channels";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { GoalSimulator } from "@/components/dashboard/GoalSimulator";
 
 // The four "moves" of the loop — each maps to a recommendation type + its module.
@@ -91,7 +92,7 @@ export default function GrowthHubPage() {
             One efficiency number, and the loop&rsquo;s next moves across every channel.
           </p>
         </div>
-        {recs && <DataSourceBadge source={recs.source} />}
+        {recs && <DataSourceBadge source={recs.source} platform={MODULE_PLATFORMS.crossChannel} />}
       </div>
 
       {/* Stat row — the MER tile is the signature: the one number the whole loop feeds. */}

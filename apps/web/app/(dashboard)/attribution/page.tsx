@@ -16,6 +16,7 @@ import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useAttribution } from "@/lib/hooks/useAttribution";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { cn } from "@/lib/utils/cn";
 
 const MODELS: { key: AttributionModel; label: string }[] = [
@@ -57,7 +58,7 @@ export default function AttributionPage() {
             How revenue credit shifts across channels under different attribution models.
           </p>
         </div>
-        {attribution && <DataSourceBadge source={attribution.source} />}
+        {attribution && <DataSourceBadge source={attribution.source} platform={MODULE_PLATFORMS.attribution} />}
       </div>
 
       {!a ? (

@@ -6,6 +6,7 @@ import { Skeleton } from "@growthos/ui/components/skeleton";
 import type { InternalLinkRecommendation } from "@growthos/types";
 import { useInternalLinks } from "@/lib/hooks/useInternalLinks";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 
 const PRIORITY_VARIANT: Record<InternalLinkRecommendation["priority"], "default" | "muted" | "outline"> = {
   high: "default",
@@ -22,7 +23,7 @@ export function InternalLinkOptimizer({ workspaceId }: { workspaceId: string | n
       <div className="flex items-center gap-2">
         <Link2 className="h-4 w-4 text-muted-foreground" />
         <h2 className="font-display text-lg font-semibold tracking-tight">Internal link optimizer</h2>
-        {data && <DataSourceBadge source={data.source} />}
+        {data && <DataSourceBadge source={data.source} platform={MODULE_PLATFORMS.seo} />}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         Keywords ranking #4–15 — close enough to page 1&apos;s top results that a well-placed internal link can help close the gap.

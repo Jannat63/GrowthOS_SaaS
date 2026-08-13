@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { ThemeProvider } from "next-themes";
 import { toast } from "sonner";
 import { Toaster } from "@growthos/ui/components/sonner";
+import { TooltipProvider } from "@growthos/ui/components/tooltip";
 import { initAnalytics } from "@/lib/analytics";
 import { ApiError } from "@/lib/api/client";
 
@@ -63,8 +64,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
     >
       <QueryClientProvider client={client}>
-        {children}
-        <Toaster position="top-center" richColors />
+        {/* Radix requires a provider above any Tooltip. Mounted once at the root rather than per
+            usage — DataSourceBadge renders a tooltip and appears on nearly every dashboard page. */}
+        <TooltipProvider delayDuration={200}>
+          {children}
+          <Toaster position="top-center" richColors />
+        </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );
