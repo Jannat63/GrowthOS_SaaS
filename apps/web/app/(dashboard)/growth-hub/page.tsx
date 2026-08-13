@@ -18,6 +18,9 @@ import {
   Wallet,
   ListChecks,
   AlertTriangle,
+  DollarSign,
+  MousePointerClick,
+  ShoppingCart,
 } from "lucide-react";
 import type { Recommendation } from "@growthos/types";
 import { Card } from "@growthos/ui/components/card";
@@ -27,10 +30,12 @@ import { cn } from "@/lib/utils/cn";
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useMer } from "@/lib/hooks/useMer";
+import { useGrowthHub } from "@/lib/hooks/useGrowthHub";
 import { useRecommendations } from "@/lib/hooks/useRecommendations";
 import { useConnections } from "@/lib/hooks/useConnections";
 import { platformToChannel, type ChannelKey } from "@/components/dashboard/channels";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { GoalSimulator } from "@/components/dashboard/GoalSimulator";
 
 // The four "moves" of the loop — each maps to a recommendation type + its module.
 const MOVES = [
@@ -59,8 +64,11 @@ export default function GrowthHubPage() {
   const workspaceId = activeId ?? me?.data.memberships[0]?.workspaceId ?? null;
 
   const { data: mer } = useMer(workspaceId, 30);
+  const { data: hub } = useGrowthHub(workspaceId, 30);
   const { data: recs } = useRecommendations(workspaceId);
   const { data: conn } = useConnections(workspaceId);
+
+  const kpi = (key: string) => hub?.data.kpis.find((k) => k.key === key);
 
   const pending = (recs?.data ?? []).filter((r) => r.status === "pending");
   const countByType = (t: string) => pending.filter((r) => r.type === t).length;
@@ -92,7 +100,8 @@ export default function GrowthHubPage() {
         <StatTile
           icon={Wallet}
           label="Ad spend (30d)"
-          value={mer ? `$${Math.round(mer.data.summary.totalSpend).toLocaleString()}` : undefined}
+          value={kpi("adSpend")?.value}
+          deltaPct={kpi("adSpend")?.deltaPct}
           hint="Google + Meta combined"
         />
         <StatTile
@@ -110,6 +119,33 @@ export default function GrowthHubPage() {
           tone={atRisk > 0 ? "warn" : "default"}
           href="/fatigue-monitor"
         />
+      </div>
+
+      {/* Outcome metrics — what the loop is actually producing, plus a forward projection. */}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          icon={DollarSign}
+          label="Revenue (30d)"
+          value={kpi("revenue")?.value}
+          deltaPct={kpi("revenue")?.deltaPct}
+          hint="Blended across every channel"
+        />
+        <StatTile
+          icon={MousePointerClick}
+          label="Organic clicks (30d)"
+          value={kpi("organicClicks")?.value}
+          deltaPct={kpi("organicClicks")?.deltaPct}
+          hint="Search Console, all pages"
+          href="/seo"
+        />
+        <StatTile
+          icon={ShoppingCart}
+          label="Conversions (30d)"
+          value={kpi("conversions")?.value}
+          deltaPct={kpi("conversions")?.deltaPct}
+          hint="Google + Meta combined"
+        />
+        <GoalSimulator baseline={hub?.data.baseline} />
       </div>
 
       {/* Trend + priority actions */}
@@ -217,7 +253,9 @@ export default function GrowthHubPage() {
             <span key={k} className="inline-flex items-center gap-2 text-sm">
               <span className={cn("h-2 w-2 rounded-full", connected ? "bg-success" : "bg-muted-foreground/40")} />
               <span className="font-medium">{label}</span>
-              <span className="text-xs text-muted-foreground">{connected ? "Connected" : "Not connected"}</span>
+              <span className="text-xs text-muted-foreground">
+                {connected ? (hub?.data.channelMetric[k] ?? "Connected") : "Not connected"}
+              </span>
             </span>
           );
         })}
@@ -266,6 +304,7 @@ function StatTile({
   hint,
   href,
   tone = "default",
+  deltaPct,
 }: {
   icon: typeof Wallet;
   label: string;
@@ -273,6 +312,8 @@ function StatTile({
   hint: string;
   href?: string;
   tone?: "default" | "warn";
+  /** null = the previous window was zero, so no percentage change exists to show. */
+  deltaPct?: number | null;
 }) {
   const body = (
     <Card className={cn("flex h-full flex-col p-5", href && "transition-colors hover:border-primary/40 hover:bg-secondary/40")}>
@@ -280,7 +321,20 @@ function StatTile({
         <Icon className="h-3.5 w-3.5" /> {label}
       </div>
       {value !== undefined ? (
-        <p className="mt-2 font-display text-3xl font-semibold tabular-nums">{value}</p>
+        <div className="mt-2 flex items-baseline gap-2">
+          <p className="font-display text-3xl font-semibold tabular-nums">{value}</p>
+          {deltaPct != null && (
+            <span
+              className={cn(
+                "text-xs font-medium tabular-nums",
+                deltaPct > 0 ? "text-success" : deltaPct < 0 ? "text-destructive" : "text-muted-foreground"
+              )}
+            >
+              {deltaPct > 0 ? "+" : ""}
+              {deltaPct}%
+            </span>
+          )}
+        </div>
       ) : (
         <Skeleton className="mt-2 h-9 w-20" />
       )}

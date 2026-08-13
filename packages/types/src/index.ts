@@ -363,6 +363,47 @@ export interface MerDashboard {
   anomaly: { detected: boolean; changePercent: number };
 }
 
+// Growth Hub headline metrics (M2 P2.6 follow-on).
+//
+// Every metric carries its own previous-window value rather than a pre-computed delta: the API
+// stays presentational-decision-free (formatting and delta math live in the web hook, next to the
+// engine calls), and a consumer that wants the raw pair can have it.
+export interface GrowthHubMetric {
+  current: number;
+  previous: number;
+}
+
+export interface GrowthHubResponse {
+  /** Length of each comparison window, in days. Both windows are this long. */
+  windowDays: number;
+  metrics: {
+    revenue: GrowthHubMetric;
+    googleSpend: GrowthHubMetric;
+    metaSpend: GrowthHubMetric;
+    organicClicks: GrowthHubMetric;
+    conversions: GrowthHubMetric;
+  };
+  /** Per-channel headline for the loop masthead. */
+  channels: {
+    seo: { organicClicks: number };
+    google: { conversions: number };
+    meta: { conversions: number };
+  };
+  /**
+   * Inputs for the Goal Simulator engine (`simulateGoal`). `currentConversionRate` uses clicks
+   * (paid + organic) as the sessions proxy — GSC exposes no sessions metric, so this is the closest
+   * real signal the pipeline carries. `currentAOV` is raw ad-reported conversion value per
+   * conversion, deliberately NOT scaled by the blended-revenue factor: an order value is an order
+   * value.
+   */
+  baseline: {
+    currentConversionRate: number;
+    currentAOV: number;
+    /** The window's actual session count — the anchor a target is adjusted up or down from. */
+    currentSessions: number;
+  };
+}
+
 // Creative Fatigue (M2 P2.5)
 export interface ScoredCreative {
   name: string;

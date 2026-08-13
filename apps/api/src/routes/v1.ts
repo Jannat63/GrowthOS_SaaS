@@ -36,6 +36,7 @@ import { getInternalLinkRecommendations } from '../internal-links.js'
 import { getCampaignInsights } from '../google-ads.js'
 import { getMetaCampaignInsights } from '../meta-ads.js'
 import { getAttribution } from '../attribution.js'
+import { getGrowthHub } from '../growth-hub.js'
 import { getWeeklyReport } from '../intelligence.js'
 import { generateReportPdf } from '../pdf-report-generate.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
@@ -526,6 +527,19 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     return getAttribution(id)
+  })
+
+  // Growth Hub headline metrics — revenue/spend/organic/conversions for the current window vs the
+  // preceding one, plus the Goal Simulator's baseline. Windows are measured from the latest date in
+  // the data, not today (see growth-hub.ts).
+  app.get('/api/v1/workspaces/:id/analytics/growth-hub', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const q = z
+      .object({ days: z.coerce.number().int().positive().max(90).optional() })
+      .safeParse(request.query)
+    return getGrowthHub(id, q.success ? (q.data.days ?? 30) : 30)
   })
 
   // Blended MER — trend + channel breakdown from ClickHouse ad_performance (seeded per workspace).
