@@ -34,7 +34,12 @@ export interface RunMetrics {
   refreshedCount: number
   alertCount: number
   errorCount: number
-  details: { refreshed: string[]; errors: { workspaceId: string; message: string }[] }
+  details: {
+    refreshed: string[]
+    errors: { workspaceId: string; message: string }[]
+    /** Automation actions proposed this tick (P4.3a). */
+    automationProposed?: number
+  }
 }
 
 /** Persist one scheduler tick's metrics (observability). Best-effort — never throws into the tick. */

@@ -6,6 +6,7 @@ import { withRedisLock } from './lock.js'
 import { selectDueWorkspaces } from './schedule.js'
 import { emitIfChanged } from './alerts.js'
 import { listWorkspacesWithLastRun, recordSchedulerRun } from './queries.js'
+import { runAutomationForWorkspace } from '../automation/actions.js'
 
 /**
  * The autonomous intelligence tick: one guarded pass that refreshes every workspace whose report is
@@ -31,6 +32,15 @@ function lockTtlMs(): number {
 /** Default staleness threshold — the report is a *weekly* one, and each workspace can override this via `automation_config.cadenceMs`. */
 function cadenceMs(): number {
   return Number(process.env.INTELLIGENCE_CADENCE_MS ?? 7 * 24 * 60 * 60 * 1000)
+}
+
+/**
+ * Ceiling on workspaces refreshed per tick, so a tick's duration stays bounded by a constant rather
+ * than by customer count and cannot outlast its own lock. Anything left over is picked up next tick,
+ * stalest-first — see `selectDueWorkspaces`.
+ */
+function maxWorkspacesPerTick(): number {
+  return Number(process.env.SCHEDULER_MAX_WORKSPACES_PER_TICK ?? 25)
 }
 
 /**
@@ -88,10 +98,12 @@ export async function runSchedulerTick(now: Date = new Date()): Promise<number> 
   await withRedisLock(LOCK_KEY, lockTtlMs(), async () => {
     const startedAt = new Date()
     const rows = await listWorkspacesWithLastRun()
-    const due = selectDueWorkspaces(rows, now, cadenceMs())
+    const due = selectDueWorkspaces(rows, now, cadenceMs(), maxWorkspacesPerTick())
     const refreshedIds: string[] = []
     const errors: { workspaceId: string; message: string }[] = []
     let alertCount = 0
+
+    let automationProposed = 0
 
     for (const workspaceId of due) {
       try {
@@ -103,6 +115,18 @@ export async function runSchedulerTick(now: Date = new Date()): Promise<number> 
         console.error(`[scheduler] refresh failed for workspace ${workspaceId}:`, err)
         errors.push({ workspaceId, message })
       }
+
+      // Automation planning (P4.3a) runs independently of the report refresh: a ClickHouse hiccup
+      // that stops one must not also stop the other, so this sits outside the catch above rather
+      // than inside the same try. A workspace with no enabled rules returns immediately.
+      try {
+        const outcome = await runAutomationForWorkspace(workspaceId, now)
+        automationProposed += outcome.proposed
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        console.error(`[scheduler] automation planning failed for workspace ${workspaceId}:`, err)
+        errors.push({ workspaceId, message })
+      }
     }
 
     await recordSchedulerRun({
@@ -110,7 +134,7 @@ export async function runSchedulerTick(now: Date = new Date()): Promise<number> 
       refreshedCount: refreshed,
       alertCount,
       errorCount: errors.length,
-      details: { refreshed: refreshedIds, errors },
+      details: { refreshed: refreshedIds, errors, automationProposed },
     })
   })
   return refreshed

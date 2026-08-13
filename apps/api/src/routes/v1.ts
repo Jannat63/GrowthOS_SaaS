@@ -46,6 +46,8 @@ import { startTrial } from '../billing.js'
 import { assertFeatureEnabled, assertCanCreateWorkspace } from '../plan-limits.js'
 import { createApiKey, listApiKeys, revokeApiKey } from '../api-keys.js'
 import { listSchedulerRuns } from '../scheduler/queries.js'
+import { listRules, upsertRule, deleteRule } from '../automation/rules.js'
+import { listActions, approveAction, rejectAction } from '../automation/actions.js'
 
 // Default autonomous-loop config when a workspace has never customized it.
 const DEFAULT_AUTOMATION: AutomationConfig = { enabled: true, cadenceMs: 7 * 24 * 60 * 60 * 1000 }
@@ -734,6 +736,126 @@ export async function registerV1Routes(app: FastifyInstance) {
       request,
     )
     return { config }
+  })
+
+  // ── Automated campaign management (M4 · P4.3a) ─────────────────────────────────────────────
+  // Rules are read by any member (seeing what's automated is not privileged) but written only by
+  // admin+, and every write is audited: these decide whether the platform may spend money on its own.
+  const ACTION_TYPES = ['pause_campaign', 'adjust_budget', 'refresh_creative', 'queue_content'] as const
+  const ruleSchema = z.object({
+    actionType: z.enum(ACTION_TYPES),
+    enabled: z.boolean().optional(),
+    mode: z.enum(['suggest', 'auto']).optional(),
+    threshold: z
+      .object({
+        minWastedSpend: z.number().nonnegative().optional(),
+        minRoas: z.number().nonnegative().optional(),
+        budgetIncreasePercent: z.number().min(0).max(100).optional(),
+        minConversions: z.number().int().nonnegative().optional(),
+      })
+      .nullable()
+      .optional(),
+    caps: z
+      .object({
+        // Hard ceiling on the ceiling: no rule may authorise more than a 50% single move, whatever
+        // the operator types. A runaway budget change is the worst outcome this feature can produce.
+        maxChangePercent: z.number().min(0).max(50).optional(),
+        maxActionsPerDay: z.number().int().positive().max(100).optional(),
+        minDailyBudget: z.number().nonnegative().optional(),
+      })
+      .nullable()
+      .optional(),
+  })
+
+  app.get('/api/v1/workspaces/:id/automation/rules', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const data = await listRules(id)
+    return { data, total: data.length }
+  })
+
+  // PATCH, not PUT: upsertRule overwrites only the fields supplied, so flipping `enabled` must not
+  // wipe thresholds and caps someone tuned earlier. The verb matches the semantics.
+  app.patch('/api/v1/workspaces/:id/automation/rules', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const body = ruleSchema.safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    const rule = await upsertRule(id, body.data)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'automation.rule_updated',
+        entityType: 'automation_rule',
+        entityId: rule.id,
+        metadata: { actionType: rule.actionType, mode: rule.mode, enabled: rule.enabled },
+      },
+      request,
+    )
+    return rule
+  })
+
+  app.delete('/api/v1/workspaces/:id/automation/rules/:actionType', async (request) => {
+    const user = await requireUser(request)
+    const { id, actionType } = request.params as { id: string; actionType: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    if (!(await deleteRule(id, actionType))) {
+      throw new AppError('NOT_FOUND', 'No such automation rule in this workspace.')
+    }
+    void recordAudit(
+      { workspaceId: id, actorId: user.id, action: 'automation.rule_deleted', entityType: 'automation_rule', metadata: { actionType } },
+      request,
+    )
+    return { deleted: true }
+  })
+
+  // The approval queue. Readable by any member — an automated change to someone's campaigns should
+  // be visible to everyone who can see the campaigns.
+  app.get('/api/v1/workspaces/:id/automation/actions', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const q = z
+      .object({ status: z.enum(['proposed', 'approved', 'executed', 'failed', 'rejected', 'expired']).optional() })
+      .safeParse(request.query)
+    return listActions(id, parsePage(request.query), q.success ? q.data.status : undefined)
+  })
+
+  // Approving runs the action. Admin+ — this is the human gate on real spend.
+  app.post('/api/v1/workspaces/:id/automation/actions/:actionId/approve', async (request) => {
+    const user = await requireUser(request)
+    const { id, actionId } = request.params as { id: string; actionId: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const action = await approveAction(id, actionId, user.id)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'automation.action_approved',
+        entityType: 'automation_action',
+        entityId: actionId,
+        metadata: { actionType: action.actionType, status: action.status },
+      },
+      request,
+    )
+    return action
+  })
+
+  app.post('/api/v1/workspaces/:id/automation/actions/:actionId/reject', async (request) => {
+    const user = await requireUser(request)
+    const { id, actionId } = request.params as { id: string; actionId: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const action = await rejectAction(id, actionId, user.id)
+    void recordAudit(
+      { workspaceId: id, actorId: user.id, action: 'automation.action_rejected', entityType: 'automation_action', entityId: actionId },
+      request,
+    )
+    return action
   })
 
   // Observability: recent scheduler ticks. Admin+ (operational data). Runs are global ticks, but

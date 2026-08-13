@@ -13,6 +13,7 @@ import {
   Megaphone,
   BarChart3,
   GitBranch,
+  Bot,
   Settings,
   PanelLeftClose,
   PanelLeftOpen,
@@ -41,6 +42,7 @@ const NAV = [
   { href: "/meta-ads", label: "Meta Ads", icon: Megaphone, ready: true },
   { href: "/analytics", label: "Analytics", icon: BarChart3, ready: true },
   { href: "/attribution", label: "Attribution", icon: GitBranch, ready: true },
+  { href: "/automation", label: "Automation", icon: Bot, ready: true },
 ];
 
 export function Sidebar() {

@@ -1,5 +1,5 @@
 import type { CampaignInsight } from "./google-ads-advisor.js";
-import type { FatigueResult } from "./creative-fatigue.js";
+import type { FatigueStatus } from "./creative-fatigue.js";
 import type { AnalyzedSearchTerm } from "./search-terms-bridge.js";
 
 /**
@@ -31,32 +31,36 @@ export type AutomationActionType =
 
 export type AutomationMode = "suggest" | "auto";
 
+// Every optional below spells out `| undefined` because these types are populated from zod-parsed
+// request bodies and from jsonb columns, where an absent field arrives as present-and-undefined.
+// Under `exactOptionalPropertyTypes` that is distinct from missing, and omitting it makes the type
+// unusable at exactly the boundary it exists to describe.
 export interface AutomationCaps {
   /** Hard ceiling on any single budget move, in percent. Defaults to 20. */
-  maxChangePercent?: number;
+  maxChangePercent?: number | undefined;
   /** Ceiling on proposals of this action type per day. Unlimited when unset. */
-  maxActionsPerDay?: number;
+  maxActionsPerDay?: number | undefined;
   /** A budget move may never take a campaign's daily spend below this. */
-  minDailyBudget?: number;
+  minDailyBudget?: number | undefined;
 }
 
 export interface AutomationThreshold {
   /** pause_campaign: only campaigns wasting at least this much. Default 50. */
-  minWastedSpend?: number;
+  minWastedSpend?: number | undefined;
   /** adjust_budget: only scale campaigns at or above this ROAS. Default 3. */
-  minRoas?: number;
+  minRoas?: number | undefined;
   /** adjust_budget: how much to raise, before caps. Default 20. */
-  budgetIncreasePercent?: number;
+  budgetIncreasePercent?: number | undefined;
   /** queue_content: minimum paid conversions before a term earns a brief. Default 1. */
-  minConversions?: number;
+  minConversions?: number | undefined;
 }
 
 export interface AutomationRule {
   actionType: AutomationActionType;
   enabled: boolean;
   mode: AutomationMode;
-  threshold?: AutomationThreshold | null;
-  caps?: AutomationCaps | null;
+  threshold?: AutomationThreshold | null | undefined;
+  caps?: AutomationCaps | null | undefined;
 }
 
 export type ActionPlatform = "google_ads" | "meta_ads" | "content";
@@ -81,10 +85,25 @@ export interface ProposedAction {
   autoApprove: boolean;
 }
 
+/**
+ * Exactly the creative fields the planner reads — deliberately narrower than `FatigueResult`.
+ *
+ * The API surfaces fatigue as `ScoredCreative` (no `hoursSinceLaunch`) while the engine produces
+ * `FatigueResult` (with it). Both satisfy this, so the planner accepts either without a cast, and
+ * asking for fields it never reads would have been a false dependency.
+ */
+export interface FatigueSignal {
+  name: string;
+  status: FatigueStatus;
+  frequency: number;
+  ctrThisWeek: number;
+  ctrDeclinePercent: number;
+}
+
 export interface PlannerSignals {
   googleCampaigns?: CampaignInsight[];
   metaCampaigns?: CampaignInsight[];
-  creatives?: FatigueResult[];
+  creatives?: FatigueSignal[];
   searchTerms?: AnalyzedSearchTerm[];
 }
 
@@ -167,7 +186,7 @@ function planAdjustBudget(
     }));
 }
 
-function planRefreshCreative(rule: AutomationRule, creatives: FatigueResult[]): ProposedAction[] {
+function planRefreshCreative(rule: AutomationRule, creatives: FatigueSignal[]): ProposedAction[] {
   return creatives
     .filter((c) => c.status === "fatigued")
     .map((c) => ({

@@ -30,6 +30,27 @@ describe('selectDueWorkspaces', () => {
     expect(selectDueWorkspaces(rows, now, CADENCE)).toEqual(['never', 'stale'])
   })
 
+  it('returns the stalest workspaces first, so nothing starves behind a busy neighbour', () => {
+    const rows: WorkspaceRun[] = [
+      { workspaceId: 'recent', lastRunAt: new Date('2026-07-10T00:00:00Z'), config: null },
+      { workspaceId: 'ancient', lastRunAt: new Date('2026-06-01T00:00:00Z'), config: null },
+      { workspaceId: 'never', lastRunAt: null, config: null },
+    ]
+    expect(selectDueWorkspaces(rows, now, CADENCE)).toEqual(['never', 'ancient', 'recent'])
+  })
+
+  it('bounds the batch so a tick cannot outlast its own lock as the account list grows', () => {
+    const rows: WorkspaceRun[] = Array.from({ length: 10 }, (_, i) => ({
+      workspaceId: `ws-${i}`,
+      lastRunAt: new Date(Date.UTC(2026, 6, 1 + i)),
+      config: null,
+    }))
+    const selected = selectDueWorkspaces(rows, now, CADENCE, 3)
+    expect(selected).toHaveLength(3)
+    // The three that have waited longest — the rest roll into the next tick.
+    expect(selected).toEqual(['ws-0', 'ws-1', 'ws-2'])
+  })
+
   it('honors a per-workspace cadence over the default', () => {
     const rows: WorkspaceRun[] = [
       // 2 days old: not due under the 7-day default, but due under a 1-day custom cadence.

@@ -7,6 +7,7 @@ const getMerTrend = vi.fn()
 const getFatigueResults = vi.fn()
 const emitIfChanged = vi.fn()
 const publish = vi.fn()
+const runAutomationForWorkspace = vi.fn()
 
 vi.mock('./lock.js', () => ({
   withRedisLock: async (_k: string, _t: number, fn: () => Promise<void>) => {
@@ -21,6 +22,10 @@ vi.mock('../analytics.js', () => ({ getMerTrend }))
 vi.mock('../fatigue.js', () => ({ getFatigueResults }))
 // The single WebSocket transport (ws.ts) — the duplicate ../ws/events.js was deleted post-merge.
 vi.mock('../ws.js', () => ({ publish }))
+// Automation planning shares the tick but is a separate concern with its own DB access; stubbed
+// here so these tests stay about the refresh loop. Its own behaviour is covered by the planner's
+// unit tests and automation.test.ts.
+vi.mock('../automation/actions.js', () => ({ runAutomationForWorkspace }))
 
 const { runSchedulerTick, refreshWorkspace } = await import('./intelligence-scheduler.js')
 
@@ -33,8 +38,10 @@ beforeEach(() => {
     getFatigueResults,
     emitIfChanged,
     publish,
+    runAutomationForWorkspace,
   ])
     m.mockReset()
+  runAutomationForWorkspace.mockResolvedValue({ proposed: 0, autoExecuted: 0, failed: 0 })
   getWeeklyReport.mockResolvedValue({ weekStart: '2026-07-17' })
   getMerTrend.mockResolvedValue({ anomaly: { detected: false, changePercent: 0 }, summary: { blendedMER: 3 } })
   getFatigueResults.mockReturnValue([])
