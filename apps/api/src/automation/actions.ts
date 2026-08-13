@@ -30,6 +30,28 @@ import type { ActionTargetShape, StoredAction } from './types.js'
 /** Statuses that still occupy their target — a second proposal against the same thing would stack. */
 const OPEN_STATUSES = ['proposed', 'approved'] as const
 
+/**
+ * Action types whose input signal is a shared fixture rather than the workspace's own data, and
+ * which are therefore withheld from planning.
+ *
+ * `getFatigueResults()` takes no workspaceId — it scores a global fixture, so every workspace is
+ * told the same "Creative A" is fatigued. Proposing a refresh of a creative that exists in nobody's
+ * ad account is harmless while every advertising adapter is a dry run, and becomes a live footgun
+ * the moment P4.3b registers a real one: the platform would be asked to act on an identifier the
+ * account has never seen.
+ *
+ * Gating it here, rather than trusting a future change to remember, means the unsafe combination
+ * cannot be reached by adding an adapter alone. Remove an entry from this set when its signal
+ * becomes workspace-specific — the same way `ad_performance` already is via
+ * `ensureAdPerformanceSeed`.
+ *
+ * `queue_content` is deliberately NOT withheld despite also reading a fixture: it is additive,
+ * entirely internal, idempotent per keyword, and produces exactly what `ensurePaidToOrganic` already
+ * creates by hand on the same data. It touches no external account, so the argument above does not
+ * apply to it.
+ */
+const FIXTURE_DERIVED_ACTIONS: ReadonlySet<AutomationActionType> = new Set(['refresh_creative'])
+
 async function loadRules(workspaceId: string): Promise<AutomationRule[]> {
   const rows = await db
     .select()
@@ -98,7 +120,9 @@ export async function planForWorkspace(
   workspaceId: string,
   now: Date = new Date(),
 ): Promise<ProposedAction[]> {
-  const rules = await loadRules(workspaceId)
+  const rules = (await loadRules(workspaceId)).filter(
+    (r) => !FIXTURE_DERIVED_ACTIONS.has(r.actionType),
+  )
   if (rules.filter((r) => r.enabled).length === 0) return []
 
   const [google, meta, state] = await Promise.all([

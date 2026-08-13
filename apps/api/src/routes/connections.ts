@@ -38,7 +38,9 @@ export async function registerConnectionRoutes(app: FastifyInstance) {
     let parsed
     try {
       parsed = verifyState(state)
-    } catch {
+    } catch (err) {
+      // Expected for a tampered or expired state — log at warn, not error.
+      request.log.warn({ err }, 'oauth callback: state verification failed')
       return reply.redirect(`${web}/settings?connect_error=state`)
     }
 
@@ -66,7 +68,14 @@ export async function registerConnectionRoutes(app: FastifyInstance) {
       const conn = await getConnection(parsed.workspaceId, connectionId)
       if (conn) void syncGscConnection(conn).catch(() => {})
       return reply.redirect(`${web}/settings?connected=${parsed.platform}`)
-    } catch {
+    } catch (err) {
+      // Token exchange failures, provider outages, and a missing TOKEN_ENCRYPTION_KEY all land here
+      // and were previously indistinguishable and unlogged — an operator debugging a broken
+      // integration had nothing to go on but a query parameter.
+      request.log.error(
+        { err, platform: parsed.platform, workspaceId: parsed.workspaceId },
+        'oauth callback failed',
+      )
       return reply.redirect(`${web}/settings?connect_error=1`)
     }
   })
