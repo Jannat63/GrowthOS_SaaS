@@ -56,9 +56,14 @@ export async function generateReportPdf(workspaceId: string): Promise<GeneratedR
   let browser: Browser
   try {
     browser = await getBrowser()
-  } catch {
+  } catch (err) {
     // No Chromium available in this environment — same "gated integration, never crashes the
     // app" pattern as Stripe/Resend, rather than a raw 500 with a Puppeteer stack trace.
+    //
+    // The user-facing message assumes Chromium is simply absent, which is the common case; the
+    // cause is logged because a browser that IS installed and failing for some other reason would
+    // otherwise be indistinguishable from one that was never there.
+    console.error('[pdf] could not launch a browser', err)
     throw new AppError(
       'INTEGRATION_NOT_CONNECTED',
       'PDF rendering is unavailable in this environment (Puppeteer/Chromium not installed).',

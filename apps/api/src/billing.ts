@@ -96,8 +96,12 @@ export async function startTrial(workspaceId: string): Promise<void> {
       currentPeriodEnd: trialEndsAt,
     })
     await db.update(schema.workspaces).set({ plan: TRIAL_PLAN }).where(eq(schema.workspaces.id, workspaceId))
-  } catch {
-    // Non-critical — see fallback in getCurrentSubscription.
+  } catch (err) {
+    // Never block workspace creation on billing — `getCurrentSubscription` falls back cleanly when
+    // no row exists. But this failing silently means a customer who should be on a 14-day Growth
+    // trial is quietly treated as Starter, which they will experience as features mysteriously
+    // missing. That needs to be visible to an operator, even though it is not worth failing on.
+    console.error(`[billing] startTrial failed for workspace ${workspaceId}`, err)
   }
 }
 
@@ -286,7 +290,11 @@ export async function handleWebhookEvent(rawBody: Buffer, signature: string | un
   let event: Stripe.Event
   try {
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)
-  } catch {
+  } catch (err) {
+    // The response stays deliberately vague — never tell an unauthenticated caller why their
+    // signature was rejected. The log is not vague: a run of these is either a misconfigured
+    // webhook secret or somebody probing the endpoint, and both need to be visible.
+    console.error('[billing] rejected a webhook with an invalid signature', err)
     throw new AppError('VALIDATION_ERROR', 'Invalid Stripe webhook signature.')
   }
 
