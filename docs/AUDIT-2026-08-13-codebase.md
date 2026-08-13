@@ -21,15 +21,19 @@ code, not inferred from docs.
 | 6 | Automation acts on global fixtures | ✅ fixed for fatigue — now reads per-workspace `creative_performance`, and `refresh_creative` is un-gated. `getScoredSearchTerms()` is still fixture-derived, deliberately: `queue_content` is additive, internal and idempotent, so it carries none of the risk |
 | 7 | Security-critical secrets unvalidated at boot | ✅ fixed |
 | 8 | OAuth callback swallows failures unlogged | ✅ fixed |
-| 9 | Test suite unreliable | ❌ attempted, reverted — see the note below |
-| 10 | No error monitoring or uptime checks | 🟡 `/health/ready` added; no Sentry, and nothing polls it |
+| 9 | Test suite unreliable | ✅ fixed — the diagnosis below was **wrong**; see "What it actually was" |
+| 10 | No error monitoring or uptime checks | ✅ fixed for monitoring — `/health/ready`, crash reporting gated on `SENTRY_DSN`, process-level handlers. **Still nothing polls the endpoint** — needs a host and an uptime service |
 | 11 | Background work logs via `console.*` | ✅ fixed — shared pino logger; zero `console.*` left outside `env.ts`'s pre-boot banner |
 | 12 | Swallowed `catch {}` blocks | ✅ fixed — all 7, one of which hid a real bug |
-| 13 | `README.md` replaced by an unrelated commit | ❌ needs a human |
-| 14 | Seeded data presented as real | ❌ product decision, not a code fix |
+| 13 | `README.md` replaced by an unrelated commit | ✅ fixed — it was a verbatim copy of the blueprint, so nothing was lost; replaced with a real orientation README |
+| 14 | Seeded data presented as real | ✅ fixed — three-state provenance (`live`/`sample`/`offline`) plus a plain notice until a channel is connected |
 
-Seven fixed outright, one contained, two partial, four outstanding. The list below is the original
-audit, unedited — the reasoning is what makes the remaining items actionable.
+**13 of 14 fixed.** The one remaining item is the uptime half of #10: `/health/ready` exists and
+answers correctly, but nothing polls it, and nothing can until this is deployed somewhere with a
+URL. That is a hosting decision, not code.
+
+The list below is the original audit, unedited. Two of its conclusions turned out to be wrong, and
+both are worth keeping visible rather than quietly correcting — see the notes on #9 and #13.
 
 ---
 
@@ -160,9 +164,51 @@ evaluating, cheapest first:
 The rejected shortcut is worth naming: leaving the duplicate in place "because tests pass" would
 have put two copies of the ORM in the production bundle to fix a test problem.
 
+#### What it actually was — the analysis above is wrong, and instructively so
+
+Everything above is a correct description of a real dependency problem, and an incorrect diagnosis
+of *this* one. It reasoned from the proposed fix (local Postgres) backwards, and never checked the
+one thing the error message was pointing at.
+
+`@neondatabase/serverless` makes **exactly one `fetch` per query, with no retry**, and wraps a
+thrown fetch as `NeonDbError("Error connecting to database: ...")` — verbatim the error every
+failing run produced. The database was never the problem. An unretried network call was.
+
+Three causes, all fixed:
+
+1. **No retry in the driver.** `neonConfig.fetchFunction` replaces the transport, so the retry lives
+   in `packages/db/src/retry.ts` and protects production too. Reads retry on any transient failure;
+   writes only when the request provably never arrived, because Neon's HTTP endpoint gives each
+   statement its own implicit transaction and a replayed INSERT has nothing to roll back.
+2. **A 5-second default test timeout**, against a database measured in this very document at 5–17
+   seconds per query. This is finding #3 — the 4s web-client timeout — repeated in
+   `vitest.config.ts`, and it went unnoticed here while being written up there.
+3. **Setup living in an `it()`** in `ws.test.ts`, so one slow signup produced a cascade of
+   `Invalid value "undefined" for header "cookie"` that named neither the cause nor the failure.
+   This is the "cascade" the original note observed but attributed to the database.
+
+Result: three consecutive fully green runs (36/36 files, 166/166 tests) where the first run of the
+session had 12 files and 20 tests failing. Concurrency is capped at 4 workers — the middle ground
+between unbounded and the `fileParallelism: false` extreme this document already measured at 256s.
+
+**The lesson worth keeping:** the reverted local-Postgres attempt was real work that produced a real
+finding about pnpm peer resolution, and that finding was persuasive enough to stop anyone re-reading
+the error message. A note explaining why something is hard is also a note that discourages looking
+again.
+
 ### 10. No error monitoring, no uptime checks
 Carried over from `GO_LIVE_CHECKLIST.md` §4 and still true. A production crash appears only in logs;
 nothing polls `/health`.
+
+**Monitoring done.** `/health/ready` probes Postgres, Redis and ClickHouse independently and reports
+which one is down. `apps/api/src/monitoring.ts` reports unexpected 500s, failures in the three
+unattended scheduler tasks, unhandled rejections and uncaught exceptions — gated on `SENTRY_DSN`,
+with the SDK loaded dynamically and deliberately left out of `package.json` so nothing is carried
+until someone opts in. Process-level crash handlers were a separate gap and are now covered: Node's
+default prints to stderr outside pino, so those crashes were invisible to structured logging.
+
+**Uptime still open**, and cannot be closed from here — polling `/health/ready` needs the app
+deployed at a URL and an external checker pointed at it. It is a hosting decision, not code.
 
 ---
 
@@ -181,10 +227,37 @@ justified-and-commented, or logged.
 ### 13. `README.md` was replaced by an unrelated commit
 `8c4b7b5` ("Update print statement from 'Hello' to 'Goodbye'") added 1011 lines. Needs a human read.
 
+**It didn't need one.** The 1011 lines were a verbatim copy of `docs/GrowthOS_SaaS_Blueprint.md` —
+1011 of 1011 lines identical, the blueprint having one extra author line that `3774322` then removed
+from the README. "Needs a human" was a guess made without diffing it against the document it was
+obviously a copy of; thirty seconds of checking would have closed this on the day. Replaced with a
+real orientation README.
+
 ### 14. Seeded data is presented as real throughout the product
 Every channel module except Search Console computes over fixtures or seeded ClickHouse rows. The only
 signal to a user is the `DataSourceBadge`. Before anyone pays for this, seeded channels should say so
 plainly — this is a trust issue more than a code issue.
+
+**Fixed, and it was worse than described.** The badge did not merely fail to warn — it rendered
+**"Live data" in green** over seeded figures, because `liveOrMock`'s `"live"` only ever meant "the
+API responded". The single signal the product gave was actively misleading.
+
+There are three states, so there are now three: `live` (the provider behind this view is connected),
+`sample` (the API answered with demonstration data), `offline` (the API was unreachable). The last
+two are both fake but kept apart deliberately — `sample` is the expected state before onboarding and
+is fixed by connecting an account; `offline` means something is broken.
+
+Multi-channel views require *every* provider. A blended MER built from real Google spend and seeded
+Meta spend is not a real MER, and treating it as live would be this same bug in a form far harder to
+notice.
+
+The badge alone was not enough to call it fixed: it is small, and the state it describes is currently
+the default for every new workspace. The dashboard layout now says so plainly, once, until a channel
+is connected. `resolveProvenance` is a pure function so the rule is tested (8 cases, weighted toward
+what must never return `live`).
+
+This was logged as "a product decision, not a code fix". Half true — how much to disclose was a
+judgement call, but *not misrepresenting seeded data as the customer's own* never needed a decision.
 
 ---
 
