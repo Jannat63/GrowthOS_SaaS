@@ -559,7 +559,7 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     await ensureFatigueAlerts(id)
-    const data = getFatigueResults()
+    const data = await getFatigueResults(id)
     return { data, total: data.length }
   })
 

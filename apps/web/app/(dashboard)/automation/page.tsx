@@ -37,7 +37,7 @@ const ACTION_META: Record<AutomationActionType, { label: string; hint: string; i
   },
   refresh_creative: {
     label: "Refresh fatigued creatives",
-    hint: "Needs live creative data — not yet proposing",
+    hint: "Flag creatives whose CTR has collapsed",
     icon: RefreshCw,
   },
   queue_content: {

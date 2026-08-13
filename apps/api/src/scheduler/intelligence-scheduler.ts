@@ -73,7 +73,7 @@ export async function refreshWorkspace(workspaceId: string): Promise<number> {
 
   // Creative fatigue. Signature is the set of non-healthy creatives + status, so it re-alerts when a
   // new creative fatigues or one recovers.
-  const fatigued = getFatigueResults().filter((f) => f.status !== 'healthy')
+  const fatigued = (await getFatigueResults(workspaceId)).filter((f) => f.status !== 'healthy')
   const fatigueSig = fatigued.map((f) => `${f.name}:${f.status}`).sort().join('|')
   if (await emitIfChanged(workspaceId, 'fatigue', fatigueSig)) {
     await publish({

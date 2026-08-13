@@ -34,23 +34,21 @@ const OPEN_STATUSES = ['proposed', 'approved'] as const
  * Action types whose input signal is a shared fixture rather than the workspace's own data, and
  * which are therefore withheld from planning.
  *
- * `getFatigueResults()` takes no workspaceId — it scores a global fixture, so every workspace is
- * told the same "Creative A" is fatigued. Proposing a refresh of a creative that exists in nobody's
- * ad account is harmless while every advertising adapter is a dry run, and becomes a live footgun
- * the moment P4.3b registers a real one: the platform would be asked to act on an identifier the
- * account has never seen.
+ * `refresh_creative` was here, because `getFatigueResults()` scored a global fixture and told every
+ * workspace the same "Creative A" was fatigued — an identifier no real ad account has ever seen.
+ * Fatigue now reads per-workspace rows from `creative_performance`, so that objection is gone and
+ * the entry with it.
  *
- * Gating it here, rather than trusting a future change to remember, means the unsafe combination
- * cannot be reached by adding an adapter alone. Remove an entry from this set when its signal
- * becomes workspace-specific — the same way `ad_performance` already is via
- * `ensureAdPerformanceSeed`.
- *
- * `queue_content` is deliberately NOT withheld despite also reading a fixture: it is additive,
+ * `queue_content` is deliberately NOT withheld despite still reading a fixture: it is additive,
  * entirely internal, idempotent per keyword, and produces exactly what `ensurePaidToOrganic` already
- * creates by hand on the same data. It touches no external account, so the argument above does not
- * apply to it.
+ * creates by hand from the same data. It touches no external account, so the risk that motivates
+ * this set — asking a live platform to act on an identifier it does not recognise — cannot arise.
+ *
+ * Keep the mechanism even while empty. It is the thing that stops a future adapter being wired up
+ * to a signal that isn't real yet, and re-deriving that reasoning under deadline is how the unsafe
+ * combination gets shipped.
  */
-const FIXTURE_DERIVED_ACTIONS: ReadonlySet<AutomationActionType> = new Set(['refresh_creative'])
+const FIXTURE_DERIVED_ACTIONS: ReadonlySet<AutomationActionType> = new Set()
 
 async function loadRules(workspaceId: string): Promise<AutomationRule[]> {
   const rows = await db
@@ -135,7 +133,7 @@ export async function planForWorkspace(
     {
       googleCampaigns: google.campaigns,
       metaCampaigns: meta.campaigns,
-      creatives: getFatigueResults(),
+      creatives: await getFatigueResults(workspaceId),
       searchTerms: analyzeSearchTerms(searchTerms),
     },
     rules,
