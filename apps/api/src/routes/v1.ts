@@ -42,7 +42,7 @@ import { generateReportPdf } from '../pdf-report-generate.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
 import { startTrial } from '../billing.js'
-import { assertFeatureEnabled } from '../plan-limits.js'
+import { assertFeatureEnabled, assertCanCreateWorkspace } from '../plan-limits.js'
 import { createApiKey, listApiKeys, revokeApiKey } from '../api-keys.js'
 import { listSchedulerRuns } from '../scheduler/queries.js'
 
@@ -108,11 +108,14 @@ export async function registerV1Routes(app: FastifyInstance) {
 
   // Create a workspace (delegates to Better Auth's organization plugin — single source of truth).
   app.post('/api/v1/workspaces', async (request, reply) => {
-    await requireUser(request)
+    const user = await requireUser(request)
     const parsed = createWorkspaceSchema.safeParse(request.body)
     if (!parsed.success) {
       throw new AppError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid input.')
     }
+    // Plan gate (M5 P5.2). Deliberately outside the try below — that catch turns everything into
+    // "the slug may already be taken", which would mask a 402 as a validation error.
+    await assertCanCreateWorkspace(user.id)
     try {
       const workspace = await auth.api.createOrganization({
         body: { name: parsed.data.name, slug: parsed.data.slug },

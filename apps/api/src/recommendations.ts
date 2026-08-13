@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, count, desc, eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import type { Recommendation } from '@growthos/types'
 import {
@@ -14,6 +14,7 @@ import { ensurePaidToOrganic } from './search-terms.js'
 import { ensureOrganicToPaid } from './organic-to-paid.js'
 import { ensureFatigueAlerts } from './fatigue.js'
 import { publish } from './ws.js'
+import { getRemainingAllowance, recordUsage } from './plan-limits.js'
 
 type Row = typeof schema.recommendations.$inferSelect
 
@@ -93,11 +94,51 @@ export async function ensureRecommendations(workspaceId: string): Promise<Recomm
   return rowsToApi(await readOrdered(workspaceId))
 }
 
-// Unified queue (P2.7): ensure every recommendation type exists, then return all sorted by composite.
-export async function ensureAllRecommendations(workspaceId: string): Promise<Recommendation[]> {
+async function countRecommendations(workspaceId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(schema.recommendations)
+    .where(eq(schema.recommendations.workspaceId, workspaceId))
+  return row?.n ?? 0
+}
+
+async function runGenerators(workspaceId: string): Promise<void> {
   await ensureRecommendations(workspaceId)
   await ensurePaidToOrganic(workspaceId)
   await ensureOrganicToPaid(workspaceId)
   await ensureFatigueAlerts(workspaceId)
+}
+
+/**
+ * Unified queue (P2.7): ensure every recommendation type exists, then return all sorted by composite.
+ *
+ * Plan-metered at generation, never at read (M5 P5.2). Reaching the plan's weekly limit stops NEW
+ * recommendations from being generated; everything already generated is still returned in full. The
+ * alternative — throwing PLAN_LIMIT_REACHED from here — would 402 a Starter customer out of their
+ * own dashboard, since this is the read path for the whole recommendations queue.
+ *
+ * Usage is measured by counting rows either side of the generators rather than by trusting them to
+ * report: they're four independent one-shot helpers across three modules, and a miscount would
+ * silently overcharge a customer's allowance. Unlimited plans skip the counting entirely.
+ *
+ * KNOWN IMPRECISION: the allowance is checked once, before the batch, so a workspace with 2 of 5
+ * remaining that generates 8 lands at 8 used, not 5. Each generator is one-shot per workspace, so
+ * this can overshoot at most once, and stopping mid-batch would leave the queue in a partial state
+ * that reads as broken. Deliberate: the limit governs how often generation runs, not the exact row
+ * count of a single batch.
+ */
+export async function ensureAllRecommendations(workspaceId: string): Promise<Recommendation[]> {
+  const allowance = await getRemainingAllowance(workspaceId, 'recommendations_generated')
+
+  if (allowance === Infinity) {
+    await runGenerators(workspaceId)
+  } else if (allowance > 0) {
+    const before = await countRecommendations(workspaceId)
+    await runGenerators(workspaceId)
+    const created = (await countRecommendations(workspaceId)) - before
+    if (created > 0) await recordUsage(workspaceId, 'recommendations_generated', created)
+  }
+  // allowance === 0 → generate nothing this window; existing rows are still returned below.
+
   return rowsToApi(await readOrdered(workspaceId))
 }
