@@ -104,11 +104,25 @@ async function countRecommendations(workspaceId: string): Promise<number> {
   return row?.n ?? 0
 }
 
+/**
+ * Runs the four one-shot generators concurrently.
+ *
+ * Each guards on its own recommendation `type` (`cross_channel`, `paid_to_organic`,
+ * `organic_to_paid`, `fatigue_alert`) and batches its own inserts, so none can observe or clobber
+ * another's rows — they were written to compose. Sequencing them therefore bought nothing and cost
+ * the sum of four independent round-trip chains against Neon instead of the slowest one. On the
+ * dashboard's first load for a new workspace that was the difference between a visible wait and a
+ * quick one; it was also enough to push the full-generation test past a 30s timeout.
+ *
+ * If a future generator ever depends on another's output, it must not simply be added to this list.
+ */
 async function runGenerators(workspaceId: string): Promise<void> {
-  await ensureRecommendations(workspaceId)
-  await ensurePaidToOrganic(workspaceId)
-  await ensureOrganicToPaid(workspaceId)
-  await ensureFatigueAlerts(workspaceId)
+  await Promise.all([
+    ensureRecommendations(workspaceId),
+    ensurePaidToOrganic(workspaceId),
+    ensureOrganicToPaid(workspaceId),
+    ensureFatigueAlerts(workspaceId),
+  ])
 }
 
 /**
