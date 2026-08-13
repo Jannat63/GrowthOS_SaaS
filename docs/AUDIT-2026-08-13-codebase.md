@@ -117,8 +117,29 @@ four different sets of files, every one passing in isolation, with `Error connec
 fetch failed` rather than assertion failures. `fileParallelism: false` was tried and reverted: it
 tripled runtime (75s → 256s) and still produced 8 failures, which rules out connection concurrency.
 
-Root cause is ~150 integration tests against a remote free-tier Neon. **Fix:** run Postgres locally
-in `docker-compose.yml` alongside ClickHouse and Redis, migrate on setup, point the suite at it.
+Root cause is ~150 integration tests against a remote free-tier Neon.
+
+**ATTEMPTED AND REVERTED — read this before trying again.** The obvious fix is a local Postgres in
+`docker-compose.yml`, but `packages/db/src/client.ts` uses `drizzle-orm/neon-http`, which speaks
+Neon's own protocol and cannot talk to an ordinary Postgres. Supporting both means selecting the
+driver from the connection string and adding `pg`.
+
+Adding `pg` splits `drizzle-orm` into **two separately-resolved instances** under pnpm (it is a peer
+dependency, so a new peer set produces a new resolution hash). Types from one are then not
+assignable to the other, and the API package fails to compile with ~17 errors of the form
+`SQL<unknown> is not assignable to SQL<unknown>`. Adding `pg` to `apps/api` as well does not fix it.
+Restoring the committed lockfile and reinstalling does.
+
+So the next attempt needs to solve the dependency graph first, not the database. Options worth
+evaluating, cheapest first:
+1. `pnpm.overrides` or a shared peer set pinning one `drizzle-orm` instance across the workspace.
+2. A dedicated Neon branch per test run — keeps one driver, gets isolation, but not speed or
+   offline capability.
+3. Moving all database access behind `packages/db` so no other package imports `drizzle-orm`
+   directly. The cleanest long-term shape, and the largest change.
+
+The rejected shortcut is worth naming: leaving the duplicate in place "because tests pass" would
+have put two copies of the ORM in the production bundle to fix a test problem.
 
 ### 10. No error monitoring, no uptime checks
 Carried over from `GO_LIVE_CHECKLIST.md` §4 and still true. A production crash appears only in logs;
