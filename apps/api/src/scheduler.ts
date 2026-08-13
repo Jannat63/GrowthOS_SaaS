@@ -5,6 +5,7 @@ import { withRedisLock } from './scheduler/lock.js'
 import { runSchedulerTick } from './scheduler/intelligence-scheduler.js'
 import { failStuckJobs } from './jobs/reaper.js'
 import { moduleLogger } from './logger.js'
+import { captureException } from './monitoring.js'
 
 const log = moduleLogger('scheduler')
 
@@ -60,6 +61,7 @@ export async function runTrialReminders(): Promise<void> {
     if (!ran) log.info('trial reminders: skipped, another instance holds the lock')
   } catch (err) {
     log.error({ err }, 'trial reminders failed')
+    captureException(err, { task: 'trial-reminders' })
   }
 }
 
@@ -73,6 +75,7 @@ export async function runIntelligenceRefresh(): Promise<void> {
     log.info(`intelligence refresh: ${refreshed} workspace(s) refreshed`)
   } catch (err) {
     log.error({ err }, 'intelligence refresh failed')
+    captureException(err, { task: 'intelligence-refresh' })
   }
 }
 
@@ -90,6 +93,7 @@ export async function runStuckJobSweep(): Promise<void> {
     if (!ran) log.info('stuck-job sweep: skipped, another instance holds the lock')
   } catch (err) {
     log.error({ err }, 'stuck-job sweep failed')
+    captureException(err, { task: 'stuck-job-sweep' })
   }
 }
 

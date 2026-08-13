@@ -9,6 +9,7 @@ import { fromNodeHeaders } from 'better-auth/node'
 import { auth } from './auth.js'
 import { AppError } from './errors.js'
 import { logger } from './logger.js'
+import { captureException } from './monitoring.js'
 import { registerV1Routes } from './routes/v1.js'
 import { registerConnectionRoutes } from './routes/connections.js'
 import { registerBillingRoutes } from './routes/billing.js'
@@ -112,6 +113,15 @@ export function buildApp() {
         .send({ error: { code: 'VALIDATION_ERROR', message: err.message, statusCode: 400 } })
     }
     request.log.error(err)
+    // Only unexpected failures are reported. AppError and validation errors above are the API
+    // working correctly — a 402 or a 403 is an answer, not an incident, and routing those to
+    // monitoring would bury the real crashes in expected traffic.
+    captureException(err, {
+      url: request.url,
+      method: request.method,
+      requestId: request.id,
+      workspaceId: (request.params as { id?: string } | undefined)?.id,
+    })
     return reply.status(500).send({
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error', statusCode: 500 },
     })

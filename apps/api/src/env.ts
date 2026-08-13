@@ -28,6 +28,10 @@ const OPTIONAL_INTEGRATIONS: Array<{ vars: string[]; label: string }> = [
   // Google Search Console is the one integration that genuinely works end-to-end, and it was the
   // only one missing from this list.
   { vars: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'], label: 'Google OAuth / Search Console sync (connect will fail)' },
+  // Worth warning about even though nothing breaks without it: unlike the others, its absence has
+  // no symptom. A missing Stripe key produces a visible 409; missing error monitoring produces a
+  // silent one, and is only noticed when an incident has already gone unobserved.
+  { vars: ['SENTRY_DSN'], label: 'Sentry error monitoring (crashes will only reach the logs)' },
 ]
 
 /**

@@ -70,6 +70,7 @@ describe('env', () => {
         RESEND_API_KEY: 'x',
         GOOGLE_CLIENT_ID: 'x',
         GOOGLE_CLIENT_SECRET: 'x',
+        SENTRY_DSN: 'x',
       } as unknown as NodeJS.ProcessEnv
       logIntegrationStatus(fullEnv)
       expect(warn).not.toHaveBeenCalled()
