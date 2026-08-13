@@ -5,6 +5,8 @@ import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { RankTracker } from "@/components/seo/RankTracker";
 import { OrganicTraffic } from "@/components/seo/OrganicTraffic";
+import { SchemaMarkupGenerator } from "@/components/seo/SchemaMarkupGenerator";
+import { InternalLinkOptimizer } from "@/components/seo/InternalLinkOptimizer";
 
 export default function SeoPage() {
   const { data: me } = useWorkspace();
@@ -24,12 +26,20 @@ export default function SeoPage() {
         <TabsList>
           <TabsTrigger value="rankings">Rank tracker</TabsTrigger>
           <TabsTrigger value="traffic">Organic traffic</TabsTrigger>
+          <TabsTrigger value="schema">Schema markup</TabsTrigger>
+          <TabsTrigger value="links">Internal links</TabsTrigger>
         </TabsList>
         <TabsContent value="rankings">
           <RankTracker workspaceId={workspaceId} />
         </TabsContent>
         <TabsContent value="traffic">
           <OrganicTraffic workspaceId={workspaceId} />
+        </TabsContent>
+        <TabsContent value="schema">
+          <SchemaMarkupGenerator workspaceId={workspaceId} />
+        </TabsContent>
+        <TabsContent value="links">
+          <InternalLinkOptimizer workspaceId={workspaceId} />
         </TabsContent>
       </Tabs>
 

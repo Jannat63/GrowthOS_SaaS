@@ -17,5 +17,7 @@ export * from './intelligence.js';
 export * from './collaboration.js';
 // Per-workspace audit log (M3 · P3.5).
 export * from './audit.js';
-// Autonomous automation loop — alert dedupe + scheduler run metrics.
-export * from './automation.js';
+// Stripe subscriptions + usage metering (M5 · P5.1).
+export * from './billing.js';
+// Public API keys (M4 P4.4 buildable half).
+export * from './api-keys.js';

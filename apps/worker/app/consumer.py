@@ -4,13 +4,12 @@ import redis.asyncio as aioredis
 from app.config import settings
 from app.envelope import JobEnvelope
 from app.dispatch import dispatch
-from app.events import publish_event
 from app.jobs import get_pool, mark_processing, mark_complete, mark_failed
 
 log = logging.getLogger("worker.consumer")
 
 
-async def process_one(pool, raw: str, redis=None) -> None:
+async def process_one(pool, raw: str) -> None:
     try:
         env = JobEnvelope.model_validate_json(raw)
     except Exception:
@@ -20,17 +19,10 @@ async def process_one(pool, raw: str, redis=None) -> None:
     await mark_processing(pool, env.job_id)
     try:
         result = await dispatch(env.type, env.payload, env.job_id, env.workspace_id)
-        await mark_complete(pool, env.job_id, result)
-        if redis is not None:
-            # Real-time: tell the workspace's clients this job finished so they can refetch.
-            await publish_event(
-                redis,
-                env.workspace_id,
-                {"type": "job:complete", "jobId": env.job_id, "workspaceId": env.workspace_id},
-            )
+        await mark_complete(pool, env.job_id, env.workspace_id, result)
     except Exception as exc:  # one bad job never kills the loop
         log.exception("job %s failed", env.job_id)
-        await mark_failed(pool, env.job_id, str(exc))
+        await mark_failed(pool, env.job_id, env.workspace_id, str(exc))
 
 
 async def run_consumer(stop_event: asyncio.Event) -> None:
@@ -42,5 +34,5 @@ async def run_consumer(stop_event: asyncio.Event) -> None:
         if popped is None:
             continue
         _key, raw = popped
-        await process_one(pool, raw, redis)
+        await process_one(pool, raw)
     await redis.aclose()

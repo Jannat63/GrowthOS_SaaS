@@ -18,7 +18,8 @@ import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { ConnectionsSection } from "@/components/settings/ConnectionsSection";
 import { ActivitySection } from "@/components/settings/ActivitySection";
 import { BrandingSection } from "@/components/settings/BrandingSection";
-import { AutomationSection } from "@/components/settings/AutomationSection";
+import { BillingSection } from "@/components/settings/BillingSection";
+import { ApiKeysSection } from "@/components/settings/ApiKeysSection";
 
 const ROLE_VARIANT: Record<string, "default" | "muted" | "outline"> = {
   owner: "default",
@@ -73,9 +74,13 @@ export default function SettingsPage() {
         )}
       </Card>
 
+      <Suspense fallback={null}>
+        <BillingSection workspaceId={workspaceId} isAdmin={isAdmin} />
+      </Suspense>
+
       {isAdmin && <BrandingSection workspaceId={workspaceId} />}
 
-      {isAdmin && <AutomationSection workspaceId={workspaceId} />}
+      {isAdmin && <ApiKeysSection workspaceId={workspaceId} />}
 
       <Suspense fallback={null}>
         <ConnectionsSection workspaceId={workspaceId} />

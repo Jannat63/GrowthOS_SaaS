@@ -1,6 +1,6 @@
 {
-  "id": "547a7b7b-2fe7-4730-9872-7d19047813db",
-  "prevId": "360ddb37-03e5-4550-a151-bd4bcfa7d1c7",
+  "id": "63863a47-6b1f-4ac6-8d69-5d80c027589d",
+  "prevId": "cc16c563-41d8-4aa1-a1f0-70cc9e25a555",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -669,12 +669,6 @@
         },
         "white_label_config": {
           "name": "white_label_config",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "automation_config": {
-          "name": "automation_config",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
@@ -1447,8 +1441,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.automation_alerts": {
-      "name": "automation_alerts",
+    "public.subscriptions": {
+      "name": "subscriptions",
       "schema": "",
       "columns": {
         "id": {
@@ -1464,20 +1458,69 @@
           "primaryKey": false,
           "notNull": true
         },
-        "alert_type": {
-          "name": "alert_type",
+        "stripe_customer_id": {
+          "name": "stripe_customer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stripe_subscription_id": {
+          "name": "stripe_subscription_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plan": {
+          "name": "plan",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "signature": {
-          "name": "signature",
+        "status": {
+          "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "emitted_at": {
-          "name": "emitted_at",
+        "trial_ends_at": {
+          "name": "trial_ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trial_reminder_sent_at": {
+          "name": "trial_reminder_sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_period_start": {
+          "name": "current_period_start",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_period_end": {
+          "name": "current_period_end",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancel_at": {
+          "name": "cancel_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false,
@@ -1488,12 +1531,25 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "automation_alerts_ws_type_uidx": {
-          "name": "automation_alerts_ws_type_uidx",
+        "subscriptions_stripe_customer_id_unique": {
+          "name": "subscriptions_stripe_customer_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "workspace_id",
-            "alert_type"
+            "stripe_customer_id"
+          ]
+        },
+        "subscriptions_stripe_subscription_id_unique": {
+          "name": "subscriptions_stripe_subscription_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "stripe_subscription_id"
+          ]
+        },
+        "subscriptions_workspace_uidx": {
+          "name": "subscriptions_workspace_uidx",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id"
           ]
         }
       },
@@ -1501,8 +1557,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.scheduler_runs": {
-      "name": "scheduler_runs",
+    "public.usage_records": {
+      "name": "usage_records",
       "schema": "",
       "columns": {
         "id": {
@@ -1512,51 +1568,82 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp with time zone",
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metric": {
+          "name": "metric",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "default": 0
+        },
+        "period": {
+          "name": "period",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
           "default": "now()"
         },
-        "finished_at": {
-          "name": "finished_at",
+        "updated_at": {
+          "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": false
-        },
-        "refreshed_count": {
-          "name": "refreshed_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "alert_count": {
-          "name": "alert_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "error_count": {
-          "name": "error_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "details": {
-          "name": "details",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": false,
+          "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_usage_workspace_period": {
+          "name": "idx_usage_workspace_period",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "usage_records_workspace_metric_period_uidx": {
+          "name": "usage_records_workspace_metric_period_uidx",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id",
+            "metric",
+            "period"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

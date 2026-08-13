@@ -3,6 +3,7 @@ import { db, schema } from '@growthos/db'
 import type { ContentBriefRecord, RecommendationStatus, ScoredSearchTerm } from '@growthos/types'
 import { analyzeSearchTerms, generateContentBrief, paidToOrganicRecommendation } from '@growthos/logic'
 import { searchTerms } from '@growthos/logic/fixtures'
+import { publish } from './ws.js'
 
 // Scored search terms (seeded fixtures run through the canonical bridge engine).
 export function getScoredSearchTerms(): ScoredSearchTerm[] {
@@ -72,6 +73,7 @@ export async function ensurePaidToOrganic(workspaceId: string): Promise<void> {
       brief: generateContentBrief(term.term),
     })),
   )
+  void publish({ type: 'recommendation:new', workspaceId, payload: { count: flagged.length, source: 'paid_to_organic' } })
 }
 
 export async function getContentBriefs(workspaceId: string): Promise<ContentBriefRecord[]> {

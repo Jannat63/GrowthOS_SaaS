@@ -103,6 +103,11 @@ export function BrandingSection({ workspaceId }: { workspaceId: string | null })
             {save.isSuccess && !save.isPending && (
               <span className="text-sm text-success">Saved.</span>
             )}
+            {save.isError && (
+              <span className="text-sm text-destructive">
+                {save.error instanceof Error ? save.error.message : "Could not save branding."}
+              </span>
+            )}
           </div>
         </div>
       )}

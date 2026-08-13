@@ -12,7 +12,6 @@ import type {
   OnboardingStrategy,
   Role,
   WhiteLabelConfig,
-  AutomationConfig,
   WorkspaceMember,
 } from '@growthos/types'
 import { auth } from '../auth.js'
@@ -31,17 +30,18 @@ import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
 import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
 import { getKeywordRankings, getOrganicTraffic } from '../seo.js'
+import { generateSchemaMarkup } from '../schema-markup-lookup.js'
+import { getInternalLinkRecommendations } from '../internal-links.js'
 import { getCampaignInsights } from '../google-ads.js'
 import { getMetaCampaignInsights } from '../meta-ads.js'
 import { getAttribution } from '../attribution.js'
 import { getWeeklyReport } from '../intelligence.js'
-import { renderWeeklyReportPdf } from '../reports/weekly-pdf.js'
+import { generateReportPdf } from '../pdf-report-generate.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
-import { listSchedulerRuns } from '../scheduler/queries.js'
-
-// Default autonomous-loop config when a workspace has never customized it.
-const DEFAULT_AUTOMATION: AutomationConfig = { enabled: true, cadenceMs: 7 * 24 * 60 * 60 * 1000 }
+import { startTrial } from '../billing.js'
+import { assertFeatureEnabled } from '../plan-limits.js'
+import { createApiKey, listApiKeys, revokeApiKey } from '../api-keys.js'
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -112,6 +112,8 @@ export async function registerV1Routes(app: FastifyInstance) {
         body: { name: parsed.data.name, slug: parsed.data.slug },
         headers: fromNodeHeaders(request.headers),
       })
+      // Start the 14-day Growth trial (PRD 4.1). Best-effort — never blocks workspace creation.
+      if (workspace) void startTrial(workspace.id)
       reply.status(201)
       return { workspace }
     } catch {
@@ -462,6 +464,33 @@ export async function registerV1Routes(app: FastifyInstance) {
     return getOrganicTraffic(id)
   })
 
+  // Schema markup generator (SEO extras) — no DataForSEO needed, works off the page URL +
+  // workspace business info. `?page=` required; `?type=` optionally overrides the auto-detected
+  // schema type.
+  const schemaMarkupQuery = z.object({
+    page: z.string().min(1, 'A page URL is required (?page=/blog/your-post).'),
+    type: z.enum(['WebPage', 'Article', 'Product', 'CollectionPage', 'FAQPage', 'Organization']).optional(),
+  })
+  app.get('/api/v1/workspaces/:id/seo/schema-markup', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const query = schemaMarkupQuery.safeParse(request.query)
+    if (!query.success) {
+      throw new AppError('VALIDATION_ERROR', query.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    return generateSchemaMarkup(id, query.data.page, query.data.type)
+  })
+
+  // Internal link optimizer (SEO extras) — no crawled link graph needed, works off already-tracked
+  // keyword rankings + organic pages (see internal-links.ts for the "striking distance" heuristic).
+  app.get('/api/v1/workspaces/:id/seo/internal-links', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    return getInternalLinkRecommendations(id)
+  })
+
   // Organic-to-paid — top organic pages worth amplifying with Meta (+ generate recs/creative briefs).
   app.get('/api/v1/workspaces/:id/seo/top-pages', async (request) => {
     const user = await requireUser(request)
@@ -478,45 +507,6 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     return getWeeklyReport(id)
-  })
-
-  // White-labeled PDF export of the Weekly Intelligence Report (M3 P3.5 Slice C2). Renders the
-  // report to a PDF (react-pdf, no headless browser) and streams it as a download — branded with
-  // the workspace's white-label config when set. Guarded by membership (same as the report route).
-  // Follow-up: gate to Growth+ plans once billing (M5) lands.
-  app.get('/api/v1/workspaces/:id/reports/weekly.pdf', async (request, reply) => {
-    const user = await requireUser(request)
-    const { id } = request.params as { id: string }
-    await requireWorkspaceMember(user.id, id)
-
-    const [report, ws] = await Promise.all([
-      getWeeklyReport(id),
-      db
-        .select({ config: schema.workspaces.whiteLabelConfig })
-        .from(schema.workspaces)
-        .where(eq(schema.workspaces.id, id))
-        .then((r) => r[0]),
-    ])
-    const branding = (ws?.config as WhiteLabelConfig | null) ?? null
-    const pdf = await renderWeeklyReportPdf(report, branding)
-
-    void recordAudit(
-      {
-        workspaceId: id,
-        actorId: user.id,
-        action: 'report.exported',
-        entityType: 'workspace',
-        entityId: id,
-        metadata: { format: 'pdf', periodStart: report.weekStart },
-      },
-      request,
-    )
-
-    return reply
-      .header('Content-Type', 'application/pdf')
-      .header('Content-Disposition', `attachment; filename="weekly-intelligence-${report.weekStart}.pdf"`)
-      .header('Content-Length', pdf.length)
-      .send(pdf)
   })
 
   // Cross-channel attribution (M4 P4.1) — every model's per-channel credit over conversion paths.
@@ -601,6 +591,7 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id, 'admin')
+    await assertFeatureEnabled(id, 'whiteLabel')
     const body = z
       .object({
         agencyName: z.string().max(60).nullable().optional(),
@@ -629,59 +620,51 @@ export async function registerV1Routes(app: FastifyInstance) {
     return { config }
   })
 
-  // Autonomous automation loop config (scheduled intelligence). GET is any member; PATCH is admin+.
-  app.get('/api/v1/workspaces/:id/automation', async (request) => {
+  // White-labeled PDF report (M3 P3.5 Slice C2). Generated on demand and streamed straight back —
+  // nothing is persisted (no R2 credentials exist in this codebase; see pdf-report-generate.ts).
+  // Read access matches branding's: open down to `client`, the exact audience for a white-labeled
+  // report.
+  app.get('/api/v1/workspaces/:id/reports/pdf', async (request, reply) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
-    await requireWorkspaceMember(user.id, id, 'viewer')
-    const [ws] = await db
-      .select({ config: schema.workspaces.automationConfig })
-      .from(schema.workspaces)
-      .where(eq(schema.workspaces.id, id))
-    if (!ws) throw new AppError('WORKSPACE_NOT_FOUND', 'Workspace not found.')
-    return { config: (ws.config as AutomationConfig | null) ?? DEFAULT_AUTOMATION }
+    await requireWorkspaceMember(user.id, id, 'client')
+    const { buffer, filename } = await generateReportPdf(id)
+    reply.header('Content-Disposition', `attachment; filename="${filename}"`)
+    reply.type('application/pdf')
+    return reply.send(buffer)
   })
 
-  app.patch('/api/v1/workspaces/:id/automation', async (request) => {
+  // Public API keys (M4 P4.4). Creating one requires the `apiAccess` plan feature (Scale
+  // tier) — createApiKey itself throws PLAN_LIMIT_REACHED (402) for lower plans. Admin+ only,
+  // same sensitivity level as billing actions.
+  const createApiKeySchema = z.object({ name: z.string().min(1).max(100) })
+  app.post('/api/v1/workspaces/:id/api-keys', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id, 'admin')
-    const body = z
-      .object({
-        enabled: z.boolean().optional(),
-        // 1 hour .. 30 days — guards against a runaway (0) or absurd cadence.
-        cadenceMs: z.number().int().min(3_600_000).max(2_592_000_000).optional(),
-      })
-      .safeParse(request.body)
+    const body = createApiKeySchema.safeParse(request.body)
     if (!body.success) {
       throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
     }
-    const [existing] = await db
-      .select({ config: schema.workspaces.automationConfig })
-      .from(schema.workspaces)
-      .where(eq(schema.workspaces.id, id))
-    const current = (existing?.config as AutomationConfig | null) ?? DEFAULT_AUTOMATION
-    const config: AutomationConfig = {
-      enabled: body.data.enabled ?? current.enabled,
-      cadenceMs: body.data.cadenceMs ?? current.cadenceMs,
-    }
-    await db.update(schema.workspaces).set({ automationConfig: config }).where(eq(schema.workspaces.id, id))
-    void recordAudit(
-      { workspaceId: id, actorId: user.id, action: 'automation.updated', entityType: 'workspace', entityId: id },
-      request,
-    )
-    return { config }
+    const key = await createApiKey(id, body.data.name, user.id)
+    void recordAudit({ workspaceId: id, actorId: user.id, action: 'api_key.created', entityType: 'api_key', entityId: key.id }, request)
+    return key
   })
 
-  // Observability: recent scheduler ticks. Admin+ (operational data). Runs are global ticks, but
-  // membership-gating on the workspace keeps this behind the app's auth surface.
-  app.get('/api/v1/workspaces/:id/scheduler/runs', async (request) => {
+  app.get('/api/v1/workspaces/:id/api-keys', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id, 'admin')
-    const { limit } = request.query as { limit?: string }
-    const runs = await listSchedulerRuns(Math.min(Number(limit ?? 20) || 20, 100))
-    return { runs, total: runs.length }
+    return { keys: await listApiKeys(id) }
+  })
+
+  app.delete('/api/v1/workspaces/:id/api-keys/:keyId', async (request) => {
+    const user = await requireUser(request)
+    const { id, keyId } = request.params as { id: string; keyId: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    await revokeApiKey(id, keyId)
+    void recordAudit({ workspaceId: id, actorId: user.id, action: 'api_key.revoked', entityType: 'api_key', entityId: keyId }, request)
+    return { revoked: true }
   })
 
   // Completion gate — the single source of truth for "onboarding done".

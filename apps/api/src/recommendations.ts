@@ -6,13 +6,14 @@ import {
   scoreKeywords,
   analyzeSearchTerms,
   detectFatigueAll,
+  analyzeCampaigns,
   toRecommendation,
 } from '@growthos/logic'
-import { rawKeywords, searchTerms, creatives } from '@growthos/logic/fixtures'
+import { rawKeywords, searchTerms, creatives, adCampaigns, metaCampaigns } from '@growthos/logic/fixtures'
 import { ensurePaidToOrganic } from './search-terms.js'
 import { ensureOrganicToPaid } from './organic-to-paid.js'
 import { ensureFatigueAlerts } from './fatigue.js'
-import { publishEvent } from './ws/events.js'
+import { publish } from './ws.js'
 
 type Row = typeof schema.recommendations.$inferSelect
 
@@ -62,11 +63,13 @@ export async function ensureRecommendations(workspaceId: string): Promise<Recomm
     )
   if (existing.length > 0) return rowsToApi(await readOrdered(workspaceId))
 
-  const mapped = generateCrossChannelRecommendations(
-    scoreKeywords(rawKeywords),
-    analyzeSearchTerms(searchTerms),
-    detectFatigueAll(creatives),
-  ).map((r) => toRecommendation(r, workspaceId))
+  const mapped = generateCrossChannelRecommendations({
+    keywords: scoreKeywords(rawKeywords),
+    searchTerms: analyzeSearchTerms(searchTerms),
+    creatives: detectFatigueAll(creatives),
+    googleCampaigns: analyzeCampaigns(adCampaigns),
+    metaCampaigns: analyzeCampaigns(metaCampaigns),
+  }).map((r) => toRecommendation(r, workspaceId))
   if (mapped.length === 0) return []
 
   await db.insert(schema.recommendations).values(
@@ -86,26 +89,15 @@ export async function ensureRecommendations(workspaceId: string): Promise<Recomm
       rawData: m.rawData,
     })),
   )
+  void publish({ type: 'recommendation:new', workspaceId, payload: { count: mapped.length, source: 'cross_channel' } })
   return rowsToApi(await readOrdered(workspaceId))
 }
 
 // Unified queue (P2.7): ensure every recommendation type exists, then return all sorted by composite.
 export async function ensureAllRecommendations(workspaceId: string): Promise<Recommendation[]> {
-  const before = (await readOrdered(workspaceId)).length
   await ensureRecommendations(workspaceId)
   await ensurePaidToOrganic(workspaceId)
   await ensureOrganicToPaid(workspaceId)
   await ensureFatigueAlerts(workspaceId)
-  const rows = await readOrdered(workspaceId)
-  // Real-time: emit once, only when this call actually generated new rows (generation is
-  // idempotent, so repeat polls see before === rows.length and stay silent). fatigue.ts
-  // emits its own meta:fatigue_alert alongside this.
-  if (rows.length > before && rows[0]) {
-    void publishEvent(workspaceId, {
-      type: 'recommendation:new',
-      workspaceId,
-      recommendationId: rows[0].id,
-    })
-  }
-  return rowsToApi(rows)
+  return rowsToApi(await readOrdered(workspaceId))
 }

@@ -3,6 +3,7 @@ import { db, schema } from '@growthos/db'
 import type { TopOrganicPage } from '@growthos/types'
 import { scoreKeywords, generateCreativeBrief, organicToPaidRecommendation } from '@growthos/logic'
 import { rawKeywords } from '@growthos/logic/fixtures'
+import { publish } from './ws.js'
 
 // Top organic pages worth amplifying with paid: ranking (≤10) with meaningful demand (≥5000/mo).
 function topKeywords() {
@@ -71,4 +72,5 @@ export async function ensureOrganicToPaid(workspaceId: string): Promise<void> {
       brief: generateCreativeBrief(k.keyword),
     })),
   )
+  void publish({ type: 'recommendation:new', workspaceId, payload: { count: top.length, source: 'organic_to_paid' } })
 }

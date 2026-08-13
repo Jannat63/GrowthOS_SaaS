@@ -1,7 +1,5 @@
 "use client";
-import { useState } from "react";
-import { ArrowRight, Download, Lightbulb, Loader2, TrendingUp, Wallet } from "lucide-react";
-import { toast } from "sonner";
+import { ArrowRight, Lightbulb, TrendingUp, Wallet, FileDown } from "lucide-react";
 import { Card } from "@growthos/ui/components/card";
 import { Badge } from "@growthos/ui/components/badge";
 import { Button } from "@growthos/ui/components/button";
@@ -17,6 +15,7 @@ import {
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useReport } from "@/lib/hooks/useReport";
+import { useDownloadReportPdf } from "@/lib/hooks/useDownloadReportPdf";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 
 // Channel slugs (google_ads, meta_ads, …) → human labels. Falls back to Title Case.
@@ -43,33 +42,7 @@ export default function IntelligencePage() {
 
   const { data: report } = useReport(workspaceId);
   const r = report?.data;
-
-  const [downloading, setDownloading] = useState(false);
-  async function downloadPdf() {
-    if (!workspaceId) return;
-    setDownloading(true);
-    try {
-      const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-      const res = await fetch(
-        `${base}/api/v1/workspaces/${workspaceId}/reports/weekly.pdf`,
-        { credentials: "include" }
-      );
-      if (!res.ok) throw new Error(`Export failed (${res.status})`);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `weekly-intelligence-${r?.weekStart ?? "report"}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error("Could not export the report. Please try again.");
-    } finally {
-      setDownloading(false);
-    }
-  }
+  const downloadPdf = useDownloadReportPdf(workspaceId);
 
   return (
     <div className="animate-rise space-y-6">
@@ -83,21 +56,24 @@ export default function IntelligencePage() {
             {r ? ` of ${r.weekStart}` : ""}.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {report && <DataSourceBadge source={report.source} />}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={downloadPdf}
-            disabled={!r || downloading}
-          >
-            {downloading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            Export PDF
-          </Button>
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2">
+            {report && <DataSourceBadge source={report.source} />}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!workspaceId || downloadPdf.isPending}
+              onClick={() => downloadPdf.mutate()}
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              {downloadPdf.isPending ? "Generating…" : "Download PDF"}
+            </Button>
+          </div>
+          {downloadPdf.isError && (
+            <p className="text-xs text-destructive">
+              {downloadPdf.error instanceof Error ? downloadPdf.error.message : "Could not generate the PDF."}
+            </p>
+          )}
         </div>
       </div>
 
