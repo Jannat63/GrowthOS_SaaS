@@ -3,6 +3,7 @@ import { db, schema } from '@growthos/db'
 import { checkTrialsEndingSoon } from './billing.js'
 import { withRedisLock } from './scheduler/lock.js'
 import { runSchedulerTick } from './scheduler/intelligence-scheduler.js'
+import { failStuckJobs } from './jobs/reaper.js'
 
 /**
  * Lightweight in-process scheduler. Celery/Beat was explicitly deferred (DECISIONS.md D2) in
@@ -38,6 +39,8 @@ import { runSchedulerTick } from './scheduler/intelligence-scheduler.js'
 
 const TRIAL_LOCK_KEY = 'scheduler:trial-reminders:lock'
 const TRIAL_LOCK_TTL_MS = 5 * 60 * 1000
+const REAPER_LOCK_KEY = 'scheduler:stuck-jobs:lock'
+const REAPER_LOCK_TTL_MS = 2 * 60 * 1000
 
 /** All workspace IDs. Kept as the scheduler's view of "who exists" — used by tests and callers that need a plain list. */
 export async function listActiveWorkspaceIds(): Promise<string[]> {
@@ -70,6 +73,23 @@ export async function runIntelligenceRefresh(): Promise<void> {
   }
 }
 
+/**
+ * Fails jobs that have been in flight impossibly long. Runs under the same lock discipline as the
+ * other tasks — this writes to `background_jobs` and publishes `job:failed`, so N instances doing it
+ * concurrently would emit N events for the same job.
+ */
+export async function runStuckJobSweep(): Promise<void> {
+  try {
+    const ran = await withRedisLock(REAPER_LOCK_KEY, REAPER_LOCK_TTL_MS, async () => {
+      const { failed } = await failStuckJobs()
+      if (failed > 0) console.log(`[scheduler] stuck-job sweep: failed ${failed} abandoned job(s)`)
+    })
+    if (!ran) console.log('[scheduler] stuck-job sweep: skipped, another instance holds the lock')
+  } catch (err) {
+    console.error('[scheduler] stuck-job sweep failed', err)
+  }
+}
+
 /** Registers the cron jobs. Call once, at process boot (index.ts) — never from app.ts/tests. */
 export function startScheduler(): void {
   // Daily at 09:00 UTC — trial windows are measured in days, no need to check more often.
@@ -77,5 +97,10 @@ export function startScheduler(): void {
   // Hourly. The tick itself decides what's actually due, so this only sets the granularity at which
   // a workspace's own cadence (default: weekly) can be honoured.
   cron.schedule('0 * * * *', () => void runIntelligenceRefresh())
-  console.log('[scheduler] started — trial reminders daily @ 09:00 UTC, intelligence tick hourly')
+  // Every 15 minutes. A job abandoned by a dead worker otherwise leaves the client polling a
+  // spinner that will never resolve; a terminal state is strictly better than an eternal one.
+  cron.schedule('*/15 * * * *', () => void runStuckJobSweep())
+  console.log(
+    '[scheduler] started — trial reminders daily @ 09:00 UTC, intelligence tick hourly, stuck-job sweep every 15m',
+  )
 }

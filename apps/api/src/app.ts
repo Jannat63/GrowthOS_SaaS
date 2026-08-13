@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyError } from 'fastify'
+import { sql } from 'drizzle-orm'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
@@ -12,6 +13,35 @@ import { registerConnectionRoutes } from './routes/connections.js'
 import { registerBillingRoutes } from './routes/billing.js'
 import { registerPublicApiRoutes } from './routes/public-api.js'
 import { registerWsRoutes } from './routes/ws.js'
+
+interface HealthCheck {
+  name: string
+  status: 'ok' | 'error'
+  ms: number
+  error?: string
+}
+
+/**
+ * Runs one readiness probe with its own timeout and error boundary, so a single hanging dependency
+ * cannot hang the health endpoint itself — the one endpoint that must always answer.
+ */
+async function probe(name: string, fn: () => Promise<unknown>): Promise<HealthCheck> {
+  const started = Date.now()
+  try {
+    await Promise.race([
+      fn(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('probe timed out')), 3_000)),
+    ])
+    return { name, status: 'ok', ms: Date.now() - started }
+  } catch (err) {
+    return {
+      name,
+      status: 'error',
+      ms: Date.now() - started,
+      error: err instanceof Error ? err.message : String(err),
+    }
+  }
+}
 
 /**
  * Build the Fastify app. Kept separate from `listen` so it can be exercised
@@ -80,8 +110,44 @@ export function buildApp(): FastifyInstance {
     })
   })
 
+  // Liveness: is this process up and serving? Deliberately dependency-free, so a database blip
+  // never causes an orchestrator to kill an otherwise healthy process.
   app.get('/health', async () => {
     return { status: 'ok', service: 'api', time: new Date().toISOString() }
+  })
+
+  /**
+   * Readiness: can this process actually do its job?
+   *
+   * `/health` only ever proved the event loop was turning, so nothing in this system could
+   * distinguish "up" from "up but unable to reach its database". Each dependency is probed
+   * independently and reported by name, because "degraded" is only actionable if it says which
+   * part — and a 503 with a named culprit is what makes this worth pointing a monitor at.
+   */
+  app.get('/health/ready', async (_request, reply) => {
+    const checks = await Promise.all([
+      probe('database', async () => {
+        const { db } = await import('@growthos/db')
+        await db.execute(sql`select 1`)
+      }),
+      probe('redis', async () => {
+        const { getRedis } = await import('./jobs/client.js')
+        await getRedis().ping()
+      }),
+      probe('clickhouse', async () => {
+        const { getClickhouse } = await import('./analytics.js')
+        await getClickhouse().query({ query: 'SELECT 1', format: 'JSONEachRow' })
+      }),
+    ])
+
+    const failed = checks.filter((c) => c.status !== 'ok')
+    if (failed.length > 0) reply.status(503)
+    return {
+      status: failed.length === 0 ? 'ok' : 'degraded',
+      service: 'api',
+      time: new Date().toISOString(),
+      checks: Object.fromEntries(checks.map((c) => [c.name, c])),
+    }
   })
 
   // Versioned domain routes.
