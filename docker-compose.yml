@@ -32,7 +32,9 @@ services:
     image: redis:7-alpine
     container_name: growthos-redis
     ports:
-      - "6379:6379"   # native Redis protocol — job broker for Fastify (BullMQ) → worker (Celery)
+      - "6379:6379"   # native Redis protocol — job-bridge for Fastify → the Python worker, plus the
+                      # WebSocket relay and the scheduler's single-runner locks. (BullMQ/Celery were
+                      # the original plan; M2 P2.1 replaced both with a plain JSON envelope.)
     command: ["redis-server", "--appendonly", "yes"]   # persist to disk (AOF)
     volumes:
       - redis-data:/data
