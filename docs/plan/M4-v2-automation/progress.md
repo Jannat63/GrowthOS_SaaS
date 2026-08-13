@@ -1,8 +1,9 @@
 # M4 — Progress
 
-Status: [~]  ·  Updated: 2026-07-26  ·  **Started early** — P4.1 attribution slice, the Intelligence
-Engine rule-set expansion, and P4.4's buildable half (public API) are done; the rest of M4 remains
-gated on external providers/write-access or is a larger standalone effort (mobile app).
+Status: [~]  ·  Updated: 2026-08-13  ·  **Started early** — P4.1 attribution slice, the Intelligence
+Engine rule-set expansion, P4.4's buildable half (public API), and **P4.3a (the automation control
+plane)** are done; the rest of M4 remains gated on external providers/write-access or is a larger
+standalone effort (mobile app).
 
 Rolling-wave — phases expand to folders as reached.
 
@@ -11,7 +12,7 @@ Rolling-wave — phases expand to folders as reached.
 | P4.1 Cross-channel attribution | [~] | **Engine + comparison UI done** — 5 multi-touch models over conversion paths (`/attribution`). Real path data pending live channel conversions. CRM integrations (HubSpot/Salesforce) mentioned in this phase's original scope are still enum-only placeholders. |
 | Intelligence Engine rule-set expansion | [x] | Not a numbered blueprint phase — the roadmap names an aspirational "47 rules" with no enumerated spec anywhere. Expanded from 5 rules to 19 registry entries (20 distinct recommendation outputs) across all 6 channel-pair bridges. See log. |
 | P4.2 AI creative automation | [ ] | Outline. Gated on an image/LLM provider (D4 deferred). |
-| P4.3 Automated campaign management | [ ] | Outline. Gated on Ads/Meta write access. |
+| P4.3 Automated campaign management | [~] | **P4.3a control plane done 2026-08-13** — rules, pure planner, action ledger, executor with caps + reversibility gates, dry-run + real `content-queue` adapters, `/automation` approval queue, planning pass on the hourly tick. 32 tests. **P4.3b (live Google Ads / Meta adapters) blocked** on a developer token + App Review. Phase folder: `P4.3-automated-campaigns/`. |
 | P4.4 GEO tracking + public API | [~] | **Public API done** (see log) — GEO/AI-citation tracking still needs external access this codebase doesn't have. |
 | P4.5 Mobile app | [ ] | Outline. Different scale of effort — a standalone app package, not a slice of this one. |
 
@@ -89,6 +90,13 @@ FastifyRequest { workspaceId?: string } }`.
   that proves per-workspace error isolation using a *real* ClickHouse failure (unavailable in this
   sandbox) rather than a stubbed one — 3/3 seeded workspaces failed independently and the loop
   completed without throwing.
+- 2026-08-13 — **P4.3a shipped** — the automation control plane. Full writeup in
+  `P4.3-automated-campaigns/progress.md`; the phase was split at the credential line rather than
+  waiting on it, because the highest-risk feature in this product (mutating live campaigns
+  unattended) should have its planner, approval gate, caps and ledger exercised against real signals
+  for as long as credentials take to arrive. Bullet 4 of the ROADMAP's six — converting search terms
+  into the SEO content queue — is genuinely live via the `content-queue` adapter; the rest run
+  dry-run.
 - 2026-07-26 — **Intelligence Engine rule-set expansion** and **Public API** (P4.4 buildable half)
   built — see sections above. Full backend suite re-run clean after each (82, then 97 tests passed;
   same 5-6 pre-existing infra-only failures — ClickHouse, Redis, missing `OAUTH_STATE_SECRET` — seen

@@ -1,14 +1,14 @@
 # M5 — Progress
 
-Status: [x]  ·  Updated: 2026-07-22
+Status: [x]  ·  Updated: 2026-08-13
 
 Deferred (rolling-wave) — phases will be expanded to folders when a launch is scheduled.
 
 | Item | Status | Notes |
 |------|--------|-------|
 | P5.1 Billing core | [x] | `subscriptions` + `usage_records` (0009_billing_core.sql); Stripe checkout + webhook; 14-day Growth trial auto-starts on workspace creation. Settings → Billing section (plan cards, checkout, trial countdown). |
-| P5.2 Plan limits & metering | [x] | `plan-limits.ts` — `assertWithinLimit`/`recordUsage` (rolling-window counters) + `assertFeatureEnabled` (boolean gates) + `getUsageSummary`. Wired into the one real write endpoint it applies to today (white-label branding); see log for what's framework-ready vs. actually gated. |
-| P5.3 Customer portal & lifecycle emails | [x] | Stripe Customer Portal; Resend trial-converted + dunning emails wired to real webhook triggers; trial-ending-soon reminder built but not scheduler-wired (no scheduler exists yet — see log). |
+| P5.2 Plan limits & metering | [x] | `plan-limits.ts` — `assertWithinLimit`/`recordUsage` (rolling-window counters) + `assertFeatureEnabled` (boolean gates) + `getUsageSummary`. **Call sites wired 2026-08-13** — see the closing log entry; when this phase shipped only white-label branding was gated. |
+| P5.3 Customer portal & lifecycle emails | [x] | Stripe Customer Portal; Resend trial-converted + dunning emails wired to real webhook triggers. **The trial-ending-soon reminder is now scheduler-wired** (daily @ 09:00 UTC, under a Redis lock) — it wasn't when this phase shipped, because no scheduler existed. |
 | P5.4 Launch readiness | [x] | Security hardening (helmet, env validation, dependency audit + better-auth CVE fix), `/pricing` `/terms` `/privacy` pages, analytics scaffolding, `GO_LIVE_CHECKLIST.md`. All of M5 is now built — see the checklist for what's still required before actually launching. |
 
 ## Log
@@ -100,3 +100,19 @@ Deferred (rolling-wave) — phases will be expanded to folders when a launch is 
   27 routes compiled and prerendered), not just typecheck — temporarily bypassed the sandbox's
   Google Fonts network restriction to run it, then restored `layout.tsx` exactly. All of M5 is now
   built. M5 P5.1–P5.4 complete.
+- 2026-08-13 — **Two P5 deferrals closed out from later work**, recorded here so this milestone's own
+  notes stop contradicting the code.
+  **P5.2's missing call sites.** The phase shipped with metering wired into exactly one endpoint
+  (white-label branding), because the only other candidates were idempotent "ensure" helpers invoked
+  from *read* routes — and 402-ing someone out of their own dashboard is worse than not metering.
+  That reasoning still holds, so the fix wasn't to gate the read: `ensureGenerated` now meters but
+  skips the first batch entirely (`before === 0`). A brand-new workspace generates ~20
+  recommendations during onboarding against a Starter cap of 5, so metering it would have locked
+  every new Starter customer out on day one — which is exactly what the API test suite caught.
+  Workspace creation now enforces the per-plan `workspaces` cap via `assertCanCreateWorkspace`, and
+  `getRemainingAllowance` was added so the UI can show headroom without provoking a 402.
+  `trackedKeywords` and `teamMembers` remain unmetered — still no write endpoint for either.
+  **P5.3's unscheduled reminder.** `checkTrialsEndingSoon()` was built, tested, and called by
+  nothing. The M4 scheduler (`node-cron`, in-process) now runs it daily at 09:00 UTC under a Redis
+  lock, so N API instances send one reminder rather than N. `GO_LIVE_CHECKLIST.md`'s "scheduler
+  infra" line is stale in the same way — there is no separate deployable to provision.
