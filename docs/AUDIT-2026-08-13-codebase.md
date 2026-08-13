@@ -18,12 +18,12 @@ code, not inferred from docs.
 | 3 | 4s timeout below the real latency floor | ✅ fixed |
 | 4 | Worker loses jobs on crash | ✅ fixed |
 | 5 | Nothing detects a stuck job | ✅ fixed |
-| 6 | Automation acts on global fixtures | 🟡 **contained, not cured** — `refresh_creative` is gated; `getFatigueResults()` / `getScoredSearchTerms()` still take no `workspaceId` |
+| 6 | Automation acts on global fixtures | ✅ fixed for fatigue — now reads per-workspace `creative_performance`, and `refresh_creative` is un-gated. `getScoredSearchTerms()` is still fixture-derived, deliberately: `queue_content` is additive, internal and idempotent, so it carries none of the risk |
 | 7 | Security-critical secrets unvalidated at boot | ✅ fixed |
 | 8 | OAuth callback swallows failures unlogged | ✅ fixed |
 | 9 | Test suite unreliable | ❌ attempted, reverted — see the note below |
 | 10 | No error monitoring or uptime checks | 🟡 `/health/ready` added; no Sentry, and nothing polls it |
-| 11 | Background work logs via `console.*` | ❌ 19 occurrences remain |
+| 11 | Background work logs via `console.*` | ✅ fixed — shared pino logger; zero `console.*` left outside `env.ts`'s pre-boot banner |
 | 12 | Swallowed `catch {}` blocks | ✅ fixed — all 7, one of which hid a real bug |
 | 13 | `README.md` replaced by an unrelated commit | ❌ needs a human |
 | 14 | Seeded data presented as real | ❌ product decision, not a code fix |
