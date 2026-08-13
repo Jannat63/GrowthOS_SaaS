@@ -4,6 +4,9 @@ import { db, schema } from '@growthos/db'
 import type { Plan, Subscription, SubscriptionStatus } from '@growthos/types'
 import { AppError } from './errors.js'
 import { getWorkspaceOwnerEmail, sendPaymentFailedEmail, sendTrialConvertedEmail, sendTrialEndingSoonEmail } from './emails.js'
+import { moduleLogger } from './logger.js'
+
+const log = moduleLogger('billing')
 
 /**
  * Stripe billing (M5 P5.1): checkout, webhook sync, and the trial→paid lifecycle. Reuses
@@ -101,7 +104,7 @@ export async function startTrial(workspaceId: string): Promise<void> {
     // no row exists. But this failing silently means a customer who should be on a 14-day Growth
     // trial is quietly treated as Starter, which they will experience as features mysteriously
     // missing. That needs to be visible to an operator, even though it is not worth failing on.
-    console.error(`[billing] startTrial failed for workspace ${workspaceId}`, err)
+    log.error({ err }, `startTrial failed for workspace ${workspaceId}`)
   }
 }
 
@@ -294,7 +297,7 @@ export async function handleWebhookEvent(rawBody: Buffer, signature: string | un
     // The response stays deliberately vague — never tell an unauthenticated caller why their
     // signature was rejected. The log is not vague: a run of these is either a misconfigured
     // webhook secret or somebody probing the endpoint, and both need to be visible.
-    console.error('[billing] rejected a webhook with an invalid signature', err)
+    log.error({ err }, 'rejected a webhook with an invalid signature')
     throw new AppError('VALIDATION_ERROR', 'Invalid Stripe webhook signature.')
   }
 

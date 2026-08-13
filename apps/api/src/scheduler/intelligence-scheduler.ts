@@ -7,6 +7,9 @@ import { selectDueWorkspaces } from './schedule.js'
 import { emitIfChanged } from './alerts.js'
 import { listWorkspacesWithLastRun, recordSchedulerRun } from './queries.js'
 import { runAutomationForWorkspace } from '../automation/actions.js'
+import { moduleLogger } from '../logger.js'
+
+const log = moduleLogger('scheduler')
 
 /**
  * The autonomous intelligence tick: one guarded pass that refreshes every workspace whose report is
@@ -112,7 +115,7 @@ export async function runSchedulerTick(now: Date = new Date()): Promise<number> 
         refreshedIds.push(workspaceId)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        console.error(`[scheduler] refresh failed for workspace ${workspaceId}:`, err)
+        log.error({ err }, `refresh failed for workspace ${workspaceId}:`)
         errors.push({ workspaceId, message })
       }
 
@@ -124,7 +127,7 @@ export async function runSchedulerTick(now: Date = new Date()): Promise<number> 
         automationProposed += outcome.proposed
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        console.error(`[scheduler] automation planning failed for workspace ${workspaceId}:`, err)
+        log.error({ err }, `automation planning failed for workspace ${workspaceId}:`)
         errors.push({ workspaceId, message })
       }
     }

@@ -18,6 +18,9 @@ import { getMetaCampaignInsights } from '../meta-ads.js'
 import { getFatigueResults } from '../fatigue.js'
 import { executeAction } from './executor.js'
 import type { ActionTargetShape, StoredAction } from './types.js'
+import { moduleLogger } from '../logger.js'
+
+const log = moduleLogger('automation')
 
 /**
  * The action queue: proposing, listing, and deciding on automation actions.
@@ -194,7 +197,7 @@ export async function proposeActions(
       // A policy refusal on one auto action must not abandon the batch; the row keeps its
       // `approved` status and surfaces in the queue for a human.
       failed++
-      console.error(`[automation] auto-execute failed for action ${row.id}`, err)
+      log.error({ err }, `auto-execute failed for action ${row.id}`)
     }
   }
 

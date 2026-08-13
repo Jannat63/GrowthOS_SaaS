@@ -1,7 +1,20 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
-import { listActiveWorkspaceIds, runIntelligenceRefresh, runTrialReminders } from './scheduler.js'
+
+// Background work logs through the shared pino logger, not console — so the assertions about what a
+// scheduled task reported have to watch that instead. Stubbed at the module boundary so the real
+// logger never writes during the run.
+const info = vi.fn()
+const error = vi.fn()
+vi.mock('./logger.js', () => ({
+  logger: { info, error, warn: vi.fn(), child: () => ({ info, error, warn: vi.fn() }) },
+  moduleLogger: () => ({ info, error, warn: vi.fn() }),
+}))
+
+const { listActiveWorkspaceIds, runIntelligenceRefresh, runTrialReminders } = await import(
+  './scheduler.js'
+)
 
 // Integration: requires Neon + Redis (dev stack up) — Redis because both scheduled tasks now run
 // under a lock so multiple API instances can't double-run them. runIntelligenceRefresh's resilience
@@ -23,6 +36,8 @@ describe('scheduler', () => {
   })
 
   beforeEach(async () => {
+    info.mockReset()
+    error.mockReset()
     for (const id of [wsA, wsB, wsC]) {
       await db
         .insert(schema.workspaces)
@@ -47,39 +62,28 @@ describe('scheduler', () => {
 
   describe('runTrialReminders', () => {
     it('never throws, whether it wins the lock, loses it, or cannot reach Redis at all', async () => {
-      const log = vi.spyOn(console, 'log').mockImplementation(() => {})
-      const err = vi.spyOn(console, 'error').mockImplementation(() => {})
-
       await expect(runTrialReminders()).resolves.toBeUndefined()
-      // Whatever happened, it accounted for itself on one channel or the other.
-      expect(log.mock.calls.length + err.mock.calls.length).toBeGreaterThan(0)
-
-      log.mockRestore()
-      err.mockRestore()
+      // Whatever happened, it accounted for itself on one level or the other rather than passing
+      // silently — these run unattended, so a silent outcome is indistinguishable from not running.
+      expect(info.mock.calls.length + error.mock.calls.length).toBeGreaterThan(0)
     })
   })
 
   describe('runIntelligenceRefresh', () => {
     it('never throws even when every workspace fails — one bad workspace never kills the loop', async () => {
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-
       await expect(runIntelligenceRefresh()).resolves.toBeUndefined()
 
       // If the tick actually ran (Redis available), every seeded workspace should have failed
       // independently against the unavailable ClickHouse — proof the loop kept going past the
       // first failure rather than aborting. If the lock couldn't be taken, there is nothing to
       // assert beyond "it didn't throw", which the line above already covers.
-      const perWorkspaceFailures = errorSpy.mock.calls.filter((call) =>
-        [wsA, wsB, wsC].some((id) => String(call[0]).includes(id)),
+      const perWorkspaceFailures = error.mock.calls.filter((call) =>
+        [wsA, wsB, wsC].some((id) => JSON.stringify(call).includes(id)),
       )
       if (perWorkspaceFailures.length > 0) {
         expect(perWorkspaceFailures.length).toBe(3)
-        expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('intelligence refresh'))
+        expect(info).toHaveBeenCalledWith(expect.stringContaining('intelligence refresh'))
       }
-
-      errorSpy.mockRestore()
-      logSpy.mockRestore()
     })
   })
 })

@@ -1,4 +1,7 @@
 import { getRedis } from '../jobs/client.js'
+import { moduleLogger } from '../logger.js'
+
+const log = moduleLogger('scheduler')
 
 /**
  * Run `fn` only if we win a short-lived Redis lock — so with N API instances exactly one runs a
@@ -39,7 +42,7 @@ export async function withRedisLock(
       ),
     ])
   } catch (err) {
-    console.error(`[scheduler] could not acquire lock ${key} — skipping this run`, err)
+    log.error({ err }, `could not acquire lock ${key} — skipping this run`)
     return false
   }
 

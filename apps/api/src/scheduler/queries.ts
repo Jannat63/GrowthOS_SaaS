@@ -2,6 +2,9 @@ import { desc, sql } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import type { AutomationConfig, SchedulerRun } from '@growthos/types'
 import type { WorkspaceRun } from './schedule.js'
+import { moduleLogger } from '../logger.js'
+
+const log = moduleLogger('scheduler')
 
 /**
  * Every workspace with the timestamp of its most recent intelligence report (null = never run) and
@@ -54,7 +57,7 @@ export async function recordSchedulerRun(m: RunMetrics): Promise<void> {
       details: m.details,
     })
   } catch (err) {
-    console.error('[scheduler] failed to record run metrics:', err)
+    log.error({ err }, 'failed to record run metrics:')
   }
 }
 

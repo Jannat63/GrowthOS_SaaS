@@ -2,6 +2,9 @@ import type { FastifyRequest } from 'fastify'
 import { desc, eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import type { AuditLogEntry } from '@growthos/types'
+import { moduleLogger } from './logger.js'
+
+const log = moduleLogger('audit')
 
 export interface AuditInput {
   workspaceId: string
@@ -35,7 +38,7 @@ export async function recordAudit(input: AuditInput, request?: FastifyRequest): 
     // exists to make impossible. Logged through the request's own logger when there is one.
     const message = 'audit write failed'
     if (request) request.log.error({ err, action: input.action }, message)
-    else console.error(`[audit] ${message}`, err)
+    else log.error({ err }, `${message}`)
   }
 }
 

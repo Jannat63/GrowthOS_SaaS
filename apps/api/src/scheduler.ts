@@ -4,6 +4,9 @@ import { checkTrialsEndingSoon } from './billing.js'
 import { withRedisLock } from './scheduler/lock.js'
 import { runSchedulerTick } from './scheduler/intelligence-scheduler.js'
 import { failStuckJobs } from './jobs/reaper.js'
+import { moduleLogger } from './logger.js'
+
+const log = moduleLogger('scheduler')
 
 /**
  * Lightweight in-process scheduler. Celery/Beat was explicitly deferred (DECISIONS.md D2) in
@@ -52,11 +55,11 @@ export async function runTrialReminders(): Promise<void> {
   try {
     const ran = await withRedisLock(TRIAL_LOCK_KEY, TRIAL_LOCK_TTL_MS, async () => {
       const { remindersSent } = await checkTrialsEndingSoon()
-      console.log(`[scheduler] trial reminders: sent ${remindersSent}`)
+      log.info(`trial reminders: sent ${remindersSent}`)
     })
-    if (!ran) console.log('[scheduler] trial reminders: skipped, another instance holds the lock')
+    if (!ran) log.info('trial reminders: skipped, another instance holds the lock')
   } catch (err) {
-    console.error('[scheduler] trial reminders failed', err)
+    log.error({ err }, 'trial reminders failed')
   }
 }
 
@@ -67,9 +70,9 @@ export async function runTrialReminders(): Promise<void> {
 export async function runIntelligenceRefresh(): Promise<void> {
   try {
     const refreshed = await runSchedulerTick()
-    console.log(`[scheduler] intelligence refresh: ${refreshed} workspace(s) refreshed`)
+    log.info(`intelligence refresh: ${refreshed} workspace(s) refreshed`)
   } catch (err) {
-    console.error('[scheduler] intelligence refresh failed', err)
+    log.error({ err }, 'intelligence refresh failed')
   }
 }
 
@@ -82,11 +85,11 @@ export async function runStuckJobSweep(): Promise<void> {
   try {
     const ran = await withRedisLock(REAPER_LOCK_KEY, REAPER_LOCK_TTL_MS, async () => {
       const { failed } = await failStuckJobs()
-      if (failed > 0) console.log(`[scheduler] stuck-job sweep: failed ${failed} abandoned job(s)`)
+      if (failed > 0) log.info(`stuck-job sweep: failed ${failed} abandoned job(s)`)
     })
-    if (!ran) console.log('[scheduler] stuck-job sweep: skipped, another instance holds the lock')
+    if (!ran) log.info('stuck-job sweep: skipped, another instance holds the lock')
   } catch (err) {
-    console.error('[scheduler] stuck-job sweep failed', err)
+    log.error({ err }, 'stuck-job sweep failed')
   }
 }
 
@@ -100,7 +103,7 @@ export function startScheduler(): void {
   // Every 15 minutes. A job abandoned by a dead worker otherwise leaves the client polling a
   // spinner that will never resolve; a terminal state is strictly better than an eternal one.
   cron.schedule('*/15 * * * *', () => void runStuckJobSweep())
-  console.log(
-    '[scheduler] started — trial reminders daily @ 09:00 UTC, intelligence tick hourly, stuck-job sweep every 15m',
+  log.info(
+    'started — trial reminders daily @ 09:00 UTC, intelligence tick hourly, stuck-job sweep every 15m',
   )
 }

@@ -8,6 +8,7 @@ import swaggerUi from '@fastify/swagger-ui'
 import { fromNodeHeaders } from 'better-auth/node'
 import { auth } from './auth.js'
 import { AppError } from './errors.js'
+import { logger } from './logger.js'
 import { registerV1Routes } from './routes/v1.js'
 import { registerConnectionRoutes } from './routes/connections.js'
 import { registerBillingRoutes } from './routes/billing.js'
@@ -47,8 +48,14 @@ async function probe(name: string, fn: () => Promise<unknown>): Promise<HealthCh
  * Build the Fastify app. Kept separate from `listen` so it can be exercised
  * with `app.inject()` in tests without opening a port.
  */
-export function buildApp(): FastifyInstance {
-  const app = Fastify({ logger: true })
+// Return type inferred rather than annotated as FastifyInstance: supplying our own pino instance
+// specialises the logger type parameter, and pinning it to the default would be a lie about what
+// `app.log` actually is. Callers use `ReturnType<typeof buildApp>`.
+export function buildApp() {
+  // Share the root logger rather than letting Fastify build its own, so request logs and the
+  // background work in scheduler/ws/automation land in one stream at one level. Fastify v5 takes a
+  // pre-built logger as `loggerInstance`; passing it as `logger` type-infers an HTTP/2 server.
+  const app = Fastify({ loggerInstance: logger })
 
   app.register(cors, {
     origin: process.env.WEB_ORIGIN ?? 'http://localhost:3000',
