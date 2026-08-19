@@ -2,6 +2,9 @@ import type { FastifyRequest } from 'fastify'
 import { desc, eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import type { AuditLogEntry } from '@growthos/types'
+import { moduleLogger } from './logger.js'
+
+const log = moduleLogger('audit')
 
 export interface AuditInput {
   workspaceId: string
@@ -28,8 +31,14 @@ export async function recordAudit(input: AuditInput, request?: FastifyRequest): 
       ip: request?.ip ?? null,
       userAgent: request?.headers['user-agent'] ?? null,
     })
-  } catch {
-    // Auditing is non-critical — never surface a failure into the caller's path.
+  } catch (err) {
+    // Never surface an audit failure into the caller's path — recording that something happened
+    // must not be able to stop it happening. But silence is wrong for a compliance feature: a
+    // workspace's activity history quietly developing holes is exactly the failure an audit log
+    // exists to make impossible. Logged through the request's own logger when there is one.
+    const message = 'audit write failed'
+    if (request) request.log.error({ err, action: input.action }, message)
+    else log.error({ err }, `${message}`)
   }
 }
 

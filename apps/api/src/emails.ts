@@ -2,6 +2,9 @@ import { Resend } from 'resend'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import type { Plan } from '@growthos/types'
+import { moduleLogger } from './logger.js'
+
+const log = moduleLogger('emails')
 
 /**
  * Lifecycle emails (M5 P5.3): trial-ending, payment-failed (dunning), and trial-converted
@@ -48,7 +51,7 @@ async function send(to: string, subject: string, html: string): Promise<void> {
   try {
     await resend.emails.send({ from: fromAddress(), to, subject, html })
   } catch (err) {
-    console.error('[emails] Resend send failed', { to, subject, err })
+    log.error({ err, to, subject }, 'Resend send failed')
   }
 }
 

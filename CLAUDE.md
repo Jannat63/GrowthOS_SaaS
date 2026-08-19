@@ -37,7 +37,7 @@ root (live). Reusing legacy logic means porting/copying it into the new structur
    - **D4** **Claude/Anthropic API deferred.** Content briefs, recommendation text, and reports use
      deterministic/template logic. Claude is optional behind a flag (`ANTHROPIC_API_KEY`); it must fall back cleanly.
    - **D5** Frontend is **rebuilt fresh** on the blueprint stack (Next 15 / React 19 / Tailwind v4 /
-     shadcn), in slices — *not* carried forward (this reverses the original D5). Tested `lib/logic`
+     shadcn), in slices — *not* carried forward (this reverses the original D5). Tested `@growthos/logic`
      engines are ported unchanged; the backend auth in `apps/api` is kept. `/legacy` stays as reference.
    - **D6** **shadcn/ui is the component layer, used maximally.** New UI is shadcn-first; shared components go in `packages/ui`.
 3. **`docs/plan/`** — the living **Milestone → Phase → Subphase** tracker with a `progress.md` at every level.
@@ -54,13 +54,15 @@ root (live). Reusing legacy logic means porting/copying it into the new structur
   skeleton shipped (P1.3)** in `src/routes/v1.ts`: `GET /api/v1/auth/me`, `POST/GET /workspaces`,
   `GET /workspaces/:id/connections`, behind the `requireWorkspaceMember(role)` guard (`src/guards.ts`) + typed
   error envelope (`src/errors.ts`). `app.ts` = routes/plugins (inject-able); `index.ts` = the `listen`
-  entrypoint. Dev runs via `tsx watch --env-file=.env`. **No `apps/worker` yet** (that's M2 P2.1).
+  entrypoint. Dev runs via `tsx watch --env-file=.env`. The `/api/v1` surface has since grown well past the
+  skeleton (SEO, Google/Meta Ads, intelligence, attribution, recommendations, audit, collaboration, branding
+  — see `src/routes/v1.ts`).
 - `apps/web` — **rebuilt fresh** on Next 15 / React 19 / **Tailwind v4** / shadcn (the old carried-forward
   app was reset; `/legacy/apps/web` keeps the reference). **M1 complete (Slices 1 + 2):** design system (theme
   tokens in `styles/globals.css`), landing page (`app/(marketing)`), full auth + onboarding (`app/(auth)`)
   wired to Better Auth via `lib/auth/client.ts`, and the **dashboard shell + Growth Hub** (`app/(dashboard)`)
   with the **live→mock data layer rebuilt (P1.4b)** — `lib/api/client.ts` points at `/api/v1`, `lib/hooks`
-  fall back through `liveOrMock` to `lib/logic` over `lib/mock-data`, surfaced by `DataSourceBadge`. Remaining
+  fall back through `liveOrMock` to `@growthos/logic` over `@growthos/logic/fixtures`, surfaced by `DataSourceBadge`. Remaining
   dashboard modules are later M2 slices.
 - `packages/db` — Drizzle + Neon; Better Auth tables + tenancy (`workspaces`, `workspace_members`,
   `platform_connections`). Migrations in `packages/db/drizzle`.
@@ -68,11 +70,16 @@ root (live). Reusing legacy logic means porting/copying it into the new structur
   table, tabs, sonner, label), consumed via `transpilePackages`.
 - `packages/types` — `@growthos/types`, shared request/response + domain types across `apps/api` and `apps/web`.
 - `packages/config` — shared TypeScript base config only.
-- **Not created yet:** `apps/worker` (Python/Celery — M2 P2.1). Check `docs/plan/` before assuming.
+- `apps/worker` — **exists (M2 P2.1 done).** Plain **Python** worker (not Celery) driven by a Redis job-bridge
+  (JSON envelope): `app/consumer.py`, `app/dispatch.py`, `app/envelope.py`, handlers in `app/handlers/`,
+  `app/strategy.py`, and `seeds/clickhouse_seed.py`. Pytest suite in `tests/`. Local Redis + ClickHouse via
+  `docker-compose.yml`. Check `docs/plan/` for current phase status before assuming anything else.
 
-The canonical business logic lives in **`apps/web/lib/logic/*`** (6 pure, tested TS engines: `seo-scoring`,
-`search-terms-bridge`, `creative-fatigue`, `cross-channel-engine`, `blended-mer`, `goal-simulator`). The same
-logic is duplicated as ports inside `/legacy` services — treat the `apps/web/lib/logic` copies as canonical.
+The canonical business logic lives in **`packages/logic/src/*`** (the `@growthos/logic` package — pure, tested
+TS engines in `engines/`: `seo-scoring`, `search-terms-bridge`, `creative-fatigue`, `cross-channel-engine`,
+`blended-mer`, `goal-simulator`, `google-ads-advisor`, `meta-ads-advisor`, `attribution`; plus top-level
+brief/recommendation/intelligence helpers). Consumed by both `apps/api` and `apps/web` via `workspace:*`. The
+same logic is duplicated as ports inside `/legacy` services — treat the `@growthos/logic` copies as canonical.
 
 ## Commands
 
@@ -92,12 +99,16 @@ pnpm --filter @growthos/web dev    # Next.js only       (port 3000)
 pnpm --filter @growthos/web build  # next build (verifies all pages compile)
 ```
 
-Tests (web uses **vitest**):
+Tests use **vitest**. The engine unit suite lives in `@growthos/logic`; `apps/api` has route/integration
+tests (they need local Redis + ClickHouse via Docker, and Neon via `apps/api/.env`); `apps/web` keeps a small
+unit suite (e.g. `liveOrMock`):
 
 ```bash
-pnpm --filter @growthos/web test                                  # all web unit tests
-pnpm --filter @growthos/web exec vitest run lib/logic/blended-mer.test.ts   # a single test file
-pnpm --filter @growthos/web exec vitest run -t "fatigue"          # tests matching a name
+pnpm --filter @growthos/logic test                                # all engine unit tests (pure, no infra)
+pnpm --filter @growthos/logic exec vitest run src/engines/blended-mer.test.ts   # a single test file
+pnpm --filter @growthos/logic exec vitest run -t "fatigue"        # tests matching a name
+pnpm --filter @growthos/api test                                  # api route/integration tests (needs infra)
+pnpm --filter @growthos/web test                                  # web unit tests
 ```
 
 To exercise an `apps/api` route without opening a port, build then use Fastify's inject:
@@ -134,9 +145,10 @@ frontend and legacy services already assume:
 - **Async work:** long operations return `202 { jobId, statusUrl }`; the client polls
   `GET /workspaces/:id/jobs/:jobId` or listens for the `job:complete` WebSocket event. List endpoints paginate
   via `limit`/`offset` and return a `total`.
-- **Fastify never calls AI or third-party marketing APIs directly.** It enqueues jobs (BullMQ/Redis) that the
-  Python **Celery worker** (`apps/worker`) consumes; the worker writes results to Neon and pushes updates over
-  WebSocket. TypeScript owns request/response; Python owns data/AI/crawling work.
+- **Fastify never calls AI or third-party marketing APIs directly.** It enqueues jobs over a **Redis job-bridge**
+  (JSON envelope) that the **plain Python worker** (`apps/worker`, *not* Celery) consumes; the worker writes
+  results to Neon and pushes updates over WebSocket. TypeScript owns request/response; Python owns data/AI/crawling
+  work. (The blueprint's original BullMQ/Celery choice was simplified to this bridge in M2 P2.1.)
 - Validate all inputs with **zod** (Fastify) / **Pydantic** (worker).
 - Better Auth and Drizzle move fast — check their current docs via context7 when wiring them, don't rely on memory.
 
@@ -145,7 +157,7 @@ frontend and legacy services already assume:
 - **State:** TanStack Query for server state, Zustand for client state — both wired in
   `apps/web/components/Providers.tsx`.
 - **Data-fetching pattern (preserve it):** each feature hook in `lib/hooks/*` calls the live API and, on failure,
-  runs the matching `lib/logic` engine over `lib/mock-data` locally, returning `{ data, source: "live" | "mock" }`.
+  runs the matching `@growthos/logic` engine over `@growthos/logic/fixtures` locally, returning `{ data, source: "live" | "mock" }`.
   `components/ui/DataSourceBadge` surfaces which was used. When re-pointing to `apps/api`, keep this graceful
   live→mock fallback — it's what lets the app render without a backend.
 - **Routes** are grouped: `app/(auth)` (welcome, sign-in/up, onboarding steps) and `app/(dashboard)` (the

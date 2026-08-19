@@ -103,8 +103,14 @@ export async function resolveApiKey(plaintext: string): Promise<{ workspaceId: s
 
   try {
     await assertFeatureEnabled(row.workspaceId, 'apiAccess')
-  } catch {
-    return null // plan no longer includes API access
+  } catch (err) {
+    // A plan that no longer includes API access means this key is genuinely no longer valid — that
+    // is the designed path. Anything else is not: this used to swallow every error, so a transient
+    // database failure inside `getCurrentSubscription` would silently declare a paying customer's
+    // key invalid and take their integration down, with nothing logged to explain it. A real
+    // failure must surface as a 500, not as "your key is wrong".
+    if (err instanceof AppError && err.code === 'PLAN_LIMIT_REACHED') return null
+    throw err
   }
 
   db.update(schema.apiKeys)

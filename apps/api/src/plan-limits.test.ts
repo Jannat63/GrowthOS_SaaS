@@ -2,7 +2,15 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import { startTrial } from './billing.js'
-import { assertFeatureEnabled, assertWithinLimit, getUsage, getUsageSummary, recordUsage } from './plan-limits.js'
+import {
+  assertCanCreateWorkspace,
+  assertFeatureEnabled,
+  assertWithinLimit,
+  getRemainingAllowance,
+  getUsage,
+  getUsageSummary,
+  recordUsage,
+} from './plan-limits.js'
 
 // Integration: requires Neon (dev stack up) — same as billing.test.ts.
 describe('plan-limits', () => {
@@ -49,6 +57,73 @@ describe('plan-limits', () => {
 
     it('allows a Growth-plan workspace through', async () => {
       await expect(assertFeatureEnabled(growthWs, 'whiteLabel')).resolves.toBeUndefined()
+    })
+  })
+
+  describe('getRemainingAllowance', () => {
+    it('reports Infinity for an unlimited plan, so callers can skip metering entirely', async () => {
+      expect(await getRemainingAllowance(growthWs, 'recommendations_generated')).toBe(Infinity)
+    })
+
+    it('floors at 0 rather than going negative once a capped plan is over its limit', async () => {
+      // starterWs sits at 5/5 from the assertWithinLimit test above; push it past the cap.
+      await recordUsage(starterWs, 'recommendations_generated', 3)
+      expect(await getRemainingAllowance(starterWs, 'recommendations_generated')).toBe(0)
+    })
+  })
+
+  describe('assertCanCreateWorkspace', () => {
+    const userId = 'test-planlimit-user'
+    const firstWs = 'test-planlimit-owned-1'
+    const secondWs = 'test-planlimit-owned-2'
+
+    const own = async (workspaceId: string, plan: string) => {
+      await db
+        .insert(schema.workspaces)
+        .values({ id: workspaceId, name: workspaceId, slug: workspaceId, plan, createdAt: new Date() })
+        .onConflictDoNothing()
+      await db
+        .insert(schema.workspace_members)
+        .values({
+          id: `${workspaceId}-member`,
+          organizationId: workspaceId,
+          userId,
+          role: 'owner',
+          createdAt: new Date(),
+        })
+        .onConflictDoNothing()
+    }
+
+    afterAll(async () => {
+      // workspace_members cascades from workspaces, which cascades from nothing — delete both, then the user.
+      for (const id of [firstWs, secondWs]) {
+        await db.delete(schema.workspaces).where(eq(schema.workspaces.id, id))
+      }
+      await db.delete(schema.user).where(eq(schema.user.id, userId))
+    })
+
+    it('allows a user who owns nothing to create their first workspace', async () => {
+      await db
+        .insert(schema.user)
+        .values({
+          id: userId,
+          name: 'Plan Limit User',
+          email: `${userId}@example.com`,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .onConflictDoNothing()
+      await expect(assertCanCreateWorkspace(userId)).resolves.toBeUndefined()
+    })
+
+    it("blocks a second workspace once the user's only plan is starter (limit 1)", async () => {
+      await own(firstWs, 'starter')
+      await expect(assertCanCreateWorkspace(userId)).rejects.toThrow(/plan includes 1 workspace/)
+    })
+
+    it('lets the most generous owned plan govern — a growth workspace lifts the cap to 5', async () => {
+      await own(secondWs, 'growth')
+      await expect(assertCanCreateWorkspace(userId)).resolves.toBeUndefined()
     })
   })
 

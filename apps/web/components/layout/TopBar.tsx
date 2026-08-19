@@ -15,6 +15,7 @@ import { signOut } from "@/lib/auth/client";
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationCenter } from "@/components/layout/NotificationCenter";
 
@@ -82,7 +83,7 @@ export function TopBar() {
 
       {/* Right side */}
       <div className="flex items-center gap-2.5">
-        <DataSourceBadge source={data?.source ?? "mock"} />
+        <DataSourceBadge source={data?.source ?? "mock"} platform={MODULE_PLATFORMS.crossChannel} />
         <NotificationCenter workspaceId={active?.workspaceId ?? null} />
         <ThemeToggle />
         <DropdownMenu>

@@ -1,23 +1,27 @@
-import type { ChannelKey } from "@/components/dashboard/channels";
+import type { GrowthHubResponse } from "@growthos/types";
 
-/** Blended-MER inputs (revenue / Google + Meta spend) — fed to the blended-mer engine. */
-export const merInput = {
-  totalRevenue: 48290,
-  googleAdsSpend: 6200,
-  metaAdsSpend: 4980,
-};
-
-/** Headline KPIs for the Growth Hub (mock until M2 analytics endpoints ship). */
-export const kpiMock: { label: string; value: string; deltaPct: number }[] = [
-  { label: "Total revenue", value: "$48,290", deltaPct: 18.6 },
-  { label: "Ad spend", value: "$11,180", deltaPct: 6.2 },
-  { label: "Organic clicks", value: "128K", deltaPct: 15.6 },
-  { label: "Conversions", value: "6,142", deltaPct: 24.5 },
-];
-
-/** One live-feeling headline metric per channel node on the loop masthead. */
-export const channelMetricMock: Record<ChannelKey, string> = {
-  seo: "+18% organic clicks",
-  google: "1,842 conversions",
-  meta: "2,116 conversions",
+/**
+ * Offline fallback for the Growth Hub, in the exact shape the API returns — so `liveOrMock` swaps
+ * one for the other with no branching downstream and the formatting/delta code is exercised
+ * identically either way. Numbers are the same order of magnitude as a seeded workspace.
+ */
+export const growthHubMock: GrowthHubResponse = {
+  windowDays: 30,
+  metrics: {
+    revenue: { current: 48290, previous: 40720 },
+    googleSpend: { current: 6200, previous: 5840 },
+    metaSpend: { current: 4980, previous: 4690 },
+    organicClicks: { current: 128400, previous: 111000 },
+    conversions: { current: 6142, previous: 4933 },
+  },
+  channels: {
+    seo: { organicClicks: 128400 },
+    google: { conversions: 1842 },
+    meta: { conversions: 2116 },
+  },
+  baseline: {
+    currentConversionRate: 0.0246,
+    currentAOV: 78.6,
+    currentSessions: 249_600,
+  },
 };

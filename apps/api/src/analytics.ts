@@ -12,7 +12,9 @@ export function getClickhouse(): ClickHouseClient {
 }
 
 // Blended-revenue stand-in until real Shopify data (M3): ad-attributed value scaled up for organic.
-const REVENUE_FACTOR = 2.2
+// Exported so every surface that reports "revenue" (MER dashboard, Growth Hub) derives it the same
+// way — two copies of this constant would let /analytics and the hub quietly disagree.
+export const REVENUE_FACTOR = 2.2
 
 function seedRows(workspaceId: string) {
   const base = new Date('2026-06-18T00:00:00Z')
@@ -93,6 +95,8 @@ export async function getMerTrend(workspaceId: string, days: number): Promise<Me
   const recent = avg(merValues.slice(-7))
   const prior = avg(merValues.slice(-14, -7))
   const changePercent = prior > 0 ? ((recent - prior) / prior) * 100 : 0
+  // Anomaly detection is read-only here; the autonomous scheduler owns mer_alert emission (with
+  // persistent dedupe) so a dashboard load never toasts. See apps/api/src/scheduler.
   const anomaly = { detected: Math.abs(changePercent) > 15, changePercent: Math.round(changePercent * 10) / 10 }
 
   return {

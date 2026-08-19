@@ -30,7 +30,7 @@ export function ApiKeysSection({ workspaceId }: { workspaceId: string | null }) 
     setTimeout(() => setCopied(false), 1500);
   }
 
-  const keys = data?.keys.filter((k) => !k.revokedAt) ?? [];
+  const keys = data?.data.filter((k) => !k.revokedAt) ?? [];
 
   return (
     <Card className="p-6">

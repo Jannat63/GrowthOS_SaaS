@@ -19,6 +19,7 @@ import { useRecommendations } from "@/lib/hooks/useRecommendations";
 import { useContentBriefs } from "@/lib/hooks/useContentBriefs";
 import { useRecommendationActions } from "@/lib/hooks/useRecommendationActions";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 
 const TERM_TAG: Record<string, { label: string; variant: "default" | "muted" | "outline" }> = {
   "paid-proven-organic-needed": { label: "Content opportunity", variant: "default" },
@@ -53,7 +54,7 @@ export default function ContentPipelinePage() {
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <h2 className="font-display text-lg font-semibold tracking-tight">Search terms</h2>
-          {terms && <DataSourceBadge source={terms.source} />}
+          {terms && <DataSourceBadge source={terms.source} platform={MODULE_PLATFORMS.paidToOrganic} />}
         </div>
         <Card className="p-0">
           {terms ? (

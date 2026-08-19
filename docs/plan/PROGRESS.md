@@ -1,19 +1,40 @@
 # GrowthOS — Master Progress Dashboard
 
+> **Where we are: M4 — V2: Automation & Scale · P4.3 Automated Campaign Management.**
+> P4.3a (the control plane) is done; P4.3b (live Google Ads / Meta adapters) is blocked on external
+> credentials. Everything else still open in M3/M4 is likewise externally gated — the un-gated
+> backlog is in `docs/AUDIT-2026-08-13-codebase.md`.
+
 Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 COMPLETE** (seeded Insight Loop MVP,
 P2.1–P2.8); **M3 IN PROGRESS** — every channel module now has a live UI (P3.0 OAuth built, live pending
 Google creds; P3.1 SEO, P3.2 Google Ads, P3.3 Meta advisors, P3.4 Intelligence V1, P3.5 agency ALL
-done — remaining M3 work is external-gated). **M4 started early** — P4.1 cross-channel attribution,
-the Intelligence Engine rule-set expansion (5→19 rules across all 6 bridges), a lightweight scheduler
-(`node-cron`, wires trial reminders + intelligence refresh), P4.4's public API (Bearer-key
-authenticated, OpenAPI docs), and real-time WebSocket transport (resolves a deferral independently
-named in P2.5/P2.6/P2.7/P3.4 — see P2.7's progress.md) are all done.
+done — remaining M3 work is external-gated). **M4 started early and is where work is now** — P4.1
+cross-channel attribution, the Intelligence Engine rule-set expansion (5→19 rules across all 6
+bridges), a lightweight scheduler (`node-cron`, wires trial reminders + the intelligence tick +
+a stuck-job sweep), P4.4's public API (Bearer-key authenticated, OpenAPI docs), real-time WebSocket
+transport (resolves a deferral independently named in P2.5/P2.6/P2.7/P3.4 — see P2.7's progress.md),
+and **P4.3a's automation control plane** are all done.
 **M5 COMPLETE** — P5.1 Billing core, P5.2 Plan limits & metering, P5.3 Customer portal &
 lifecycle emails, and P5.4 Launch readiness all done. See
 docs/plan/M5-launch-monetization/GO_LIVE_CHECKLIST.md for what's still required before actually
-launching (live credentials, legal review, scheduler infra — none of that is code work).
+launching (live credentials, legal review — none of that is code work). The checklist's "scheduler
+infra" item is resolved: `node-cron` runs in-process in `apps/api`, no separate deployable.
 M2 replanned 2026-07-12: seeded-data vertical slices, **no billing** (→ new **M5**), **real OAuth → M3 P3.0**.
-·  Updated: 2026-07-22
+
+**2026-08-13 — `main` merged into `shihab-restructure`.** Conflicts were resolved by taking main's
+side throughout, which kept main's implementation of every overlapping subsystem (WebSockets, PDF
+export, scheduler) and disconnected this branch's. One feature — the autonomous scheduled
+intelligence loop — was dropped entirely and has been restored; four orphaned duplicate
+implementations were deleted, and several defects found in the merged code were fixed. Full list,
+including what was deliberately deferred: **`docs/AUDIT-2026-08-13-post-merge.md`**.
+
+**2026-08-13 — whole-codebase audit**, separate from the merge damage: 14 findings, 10 fixed. The
+four still open are tracked in **`docs/AUDIT-2026-08-13-codebase.md`** — API test-suite reliability
+(#9, blocked on a pnpm/`drizzle-orm` duplication, not on the database), the rest of monitoring (#10,
+`/health/ready` exists but nothing polls it and there's no Sentry), `README.md` (#13), and seeded
+data being presented as real throughout the UI (#14, a product decision). Those four are the real
+un-gated backlog — most of what's left in M3/M4 needs external credentials.
+·  Updated: 2026-08-13
 
 Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked (note blocker)
 
@@ -68,7 +89,7 @@ approvals mature → then P3.2/P3.3.
 | P3.1 | SEO module | [~] | **Rank-tracker + organic-traffic slices done 2026-07-18** — GSC-fed keyword positions + per-page traffic from ClickHouse (`apps/api/src/seo.ts`), `/seo` tabs (rankings sparkline + clicks chart). DataForSEO features (research/audit/clustering) gated on paid key. |
 | P3.2 | Google Ads module | [~] | **Advisor + RSA + budget planner done 2026-07-18** — `@growthos/logic` google-ads-advisor (wasted-spend, classification, RSA, target-CPA/ROAS, budget allocator; 8 tests) + `/google-ads` page. Live fetch/push + Quality Score gated on the dev token. |
 | P3.3 | Meta Ads module | [~] | **Advisor + funnel/copy slice done 2026-07-18** — `@growthos/logic` meta-ads-advisor (funnel split, ad-copy + UGC generators; 4 tests) + `/meta-ads` page; fatigue done in M2. Live sync/publish + CAPI/EMQ gated on App Review. |
-| P3.4 | Intelligence Engine V1 | [x] | **V1 done 2026-07-18.** Weekly report + budget-reallocation engine; `intelligence_reports` table; `GET /intelligence/report`; `/intelligence` page. Scheduled loop + WS + 47-rule set deferred. |
+| P3.4 | Intelligence Engine V1 | [x] | **V1 done 2026-07-18.** Weekly report + budget-reallocation engine; `intelligence_reports` table; `GET /intelligence/report`; `/intelligence` page. **Real-time WS delivery + the autonomous scheduled loop are both live** — the loop landed 2026-07-23, was dropped by the 2026-08-13 main merge, and was restored 2026-08-13 (see `docs/AUDIT-2026-08-13-post-merge.md`): Redis-lock single-runner, per-workspace cadence/enable (`automation_config`), persistent-dedupe alerting (`automation_alerts` → mer/fatigue re-fire only on change), observability (`scheduler_runs` + Settings activity), `intelligence:report_ready` WS event. |
 | P3.5 | Agency features | [x] | **All slices done** (C2 completed 2026-07-25) — A: collaboration (`recommendation_comments` + `assigned_to`/`due_date`, `/recommendations` queue); B: `audit_logs` + write-hooks + Settings activity; C1: white-label branding (`white_label_config`, agency name/logo/accent on shell); C2: white-labeled PDF export (Puppeteer, renders the same `WeeklyReport` the Intelligence page shows, streamed on demand — no R2 upload, see P3.5 progress.md for why). 5 API tests + self-audit authz hardening + 6 more for the PDF template. |
 
 Gate: 500 users / MRR >$50K / agency tier.
@@ -79,11 +100,11 @@ Gate: 500 users / MRR >$50K / agency tier.
 |-------|------|--------|-------|
 | P4.1 | Cross-channel attribution | [~] | **Engine + comparison UI done 2026-07-18** — `@growthos/logic` attribution (last/first-click, linear, time-decay, position-based; 9 tests) over a `conversion_paths` ClickHouse table; `/attribution` model-comparison page. Real paths pending live conversions. |
 | — | Intelligence Engine rule-set expansion | [x] | **Done 2026-07-26** — `cross-channel-engine.ts` rewritten as a rule registry, 5→19 rules (20 recommendation outputs) across all 6 channel-pair bridges (added `GoogleAds→Meta`, `Meta→GoogleAds`, plus a blended-MER cross-cutting rule). 37 tests. Not a numbered blueprint phase — see `docs/plan/M4-v2-automation/progress.md` for why "47" was never a real spec. |
-| — | Scheduler | [x] | **Done 2026-07-26** — `apps/api/src/scheduler.ts`, lightweight `node-cron` in-process (Celery/Beat stays deferred per D2). Wires `checkTrialsEndingSoon` (daily) + per-workspace `getWeeklyReport` refresh (4h). Deliberately does NOT wire fatigue alerts — see progress.md for why re-running that specific function is a guaranteed no-op today. 3 tests. |
+| — | Scheduler | [x] | **Done 2026-07-26, consolidated 2026-08-13** — `apps/api/src/scheduler.ts`, lightweight `node-cron` in-process (Celery/Beat stays deferred per D2). Two locked tasks: `checkTrialsEndingSoon` (daily, claim-before-send) + the autonomous intelligence tick (hourly, `scheduler/`). The merge briefly left two rival schedulers; the unguarded 4h refresh + re-firing MER anomaly check were folded into the deduped tick — see `docs/AUDIT-2026-08-13-post-merge.md` #1/#8/#10. Deliberately does NOT wire `ensureFatigueAlerts` — see progress.md for why re-running that specific function is a guaranteed no-op today. |
 | — | Real-time WebSocket transport | [x] | **Done 2026-07-27** — resolves a deferral independently named across P2.5/P2.6/P2.7/P3.4. `ws.ts` (in-process rooms + Redis relay) + `routes/ws.ts` (cookie-session auth via `preHandler`, before the upgrade completes) + a real Python-worker→Redis→API relay for `job:complete`/`job:failed`. All 5 named events wired to real trigger points. 9 tests (6 pure logic + 3 real server/real `ws` client). Caught and fixed a real hang-forever bug in `publish()` when Redis is down. Full writeup in P2.7's progress.md. |
 | P4.4 | Public API (buildable half) | [~] | **Done 2026-07-26** — `api_keys` table (SHA-256 hash only), Bearer-authenticated `/api/public/v1/*` routes, OpenAPI spec + docs UI via `@fastify/swagger`, Settings → API Keys UI. Verified with a real signup→upgrade→create-key→call-public-API→revoke run. GEO/AI-citation tracking (this phase's other half) still needs external access this codebase doesn't have. 15 tests. |
 | P4.2 | AI creative automation | [ ] | Outline — expand to folder when reached. |
-| P4.3 | Automated campaign management | [ ] | Outline — expand to folder when reached. |
+| P4.3 | Automated campaign management | [~] | **← current phase. P4.3a done 2026-08-13.** Backbone (autonomous scheduler, Redis-lock single-runner, per-workspace cadence, persistent-dedupe alerting, `scheduler_runs`) landed 2026-07-23 and was restored after the merge. On top of it, the **control plane**: `automation_rules` + `automation_actions`, a pure planner in `@growthos/logic`, an executor enforcing caps + reversibility, dry-run and real `content-queue` adapters, 6 routes, and the `/automation` approval queue. 32 tests. **P4.3b — live Google Ads / Meta adapters — blocked** on a developer token + App Review (and on having ad-account data to test against). See `M4-v2-automation/P4.3-automated-campaigns/`. |
 | P4.4 | GEO tracking + public API | [ ] | Outline — expand to folder when reached. |
 | P4.5 | Mobile app | [ ] | Outline — expand to folder when reached. |
 
@@ -96,10 +117,10 @@ when a launch is scheduled.
 
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
-| P5.1 | Billing core | [ ] | `subscriptions` + `usage_records`; Stripe checkout + webhook; trial→paid. |
-| P5.2 | Plan limits & metering | [ ] | Metering + `PLAN_LIMIT_REACHED` (402) + upgrade prompts. |
-| P5.3 | Customer portal & lifecycle emails | [ ] | Stripe portal; Resend trial/dunning emails. |
-| P5.4 | Launch readiness | [ ] | Final hardening, legal/pricing, analytics, go-live checklist. |
+| P5.1 | Billing core | [x] | **Done 2026-07-21.** `subscriptions` + `usage_records` (0009); Stripe checkout + webhook; 14-day Growth trial auto-starts on workspace creation; Settings → Billing. |
+| P5.2 | Plan limits & metering | [x] | **Done 2026-07-22.** `plan-limits.ts` — rolling-window counters, boolean feature gates, `getUsageSummary`. Call sites wired 2026-08-13: recommendation generation now meters (the onboarding batch deliberately unmetered — see `AUDIT-2026-08-13-codebase.md`), and workspace creation enforces the per-plan cap. |
+| P5.3 | Customer portal & lifecycle emails | [x] | **Done 2026-07-22.** Stripe Customer Portal; Resend trial-converted + dunning emails on real webhook triggers. `checkTrialsEndingSoon` is now scheduler-wired (daily @ 09:00 UTC, under a Redis lock) — it wasn't when this phase shipped, because no scheduler existed yet. |
+| P5.4 | Launch readiness | [x] | **Done 2026-07-22.** helmet + boot-time env validation (extended 2026-08-13 to require the OAuth secrets), dependency audit + a real better-auth CVE fix, `/pricing` `/terms` `/privacy`, PostHog analytics, `GO_LIVE_CHECKLIST.md`. |
 
 ## Known blockers
 

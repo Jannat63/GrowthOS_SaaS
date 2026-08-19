@@ -1,9 +1,10 @@
-import { and, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import type { ContentBriefRecord, RecommendationStatus, ScoredSearchTerm } from '@growthos/types'
 import { analyzeSearchTerms, generateContentBrief, paidToOrganicRecommendation } from '@growthos/logic'
 import { searchTerms } from '@growthos/logic/fixtures'
 import { publish } from './ws.js'
+import type { Page, Paged } from './pagination.js'
 
 // Scored search terms (seeded fixtures run through the canonical bridge engine).
 export function getScoredSearchTerms(): ScoredSearchTerm[] {
@@ -76,19 +77,26 @@ export async function ensurePaidToOrganic(workspaceId: string): Promise<void> {
   void publish({ type: 'recommendation:new', workspaceId, payload: { count: flagged.length, source: 'paid_to_organic' } })
 }
 
-export async function getContentBriefs(workspaceId: string): Promise<ContentBriefRecord[]> {
-  const rows = await db
-    .select()
-    .from(schema.contentBriefs)
-    .where(eq(schema.contentBriefs.workspaceId, workspaceId))
-  return rows.map((r) => ({
-    id: r.id,
-    workspaceId: r.workspaceId,
-    recommendationId: r.recommendationId,
-    keyword: r.keyword,
-    status: r.status,
-    brief: r.brief as ContentBriefRecord['brief'],
-  }))
+export async function getContentBriefs(
+  workspaceId: string,
+  page: Page,
+): Promise<Paged<ContentBriefRecord>> {
+  const where = eq(schema.contentBriefs.workspaceId, workspaceId)
+  const [rows, [totalRow]] = await Promise.all([
+    db.select().from(schema.contentBriefs).where(where).limit(page.limit).offset(page.offset),
+    db.select({ n: count() }).from(schema.contentBriefs).where(where),
+  ])
+  return {
+    data: rows.map((r) => ({
+      id: r.id,
+      workspaceId: r.workspaceId,
+      recommendationId: r.recommendationId,
+      keyword: r.keyword,
+      status: r.status,
+      brief: r.brief as ContentBriefRecord['brief'],
+    })),
+    total: totalRow?.n ?? 0,
+  }
 }
 
 // Act / dismiss / snooze a recommendation. Guards that the row belongs to the workspace.

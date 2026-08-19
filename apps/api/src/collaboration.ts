@@ -1,6 +1,7 @@
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, count, eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import type { RecommendationComment } from '@growthos/types'
+import type { Page, Paged } from './pagination.js'
 
 // Confirm a recommendation belongs to the workspace before any collaboration write/read —
 // workspace isolation is enforced at the app layer (no FK; see tenancy.ts).
@@ -21,30 +22,40 @@ async function recInWorkspace(workspaceId: string, recId: string): Promise<boole
 export async function listComments(
   workspaceId: string,
   recId: string,
-): Promise<RecommendationComment[] | null> {
+  page: Page,
+): Promise<Paged<RecommendationComment> | null> {
   if (!(await recInWorkspace(workspaceId, recId))) return null
-  const rows = await db
-    .select({
-      id: schema.recommendationComments.id,
-      recommendationId: schema.recommendationComments.recommendationId,
-      authorId: schema.recommendationComments.authorId,
-      authorName: schema.user.name,
-      body: schema.recommendationComments.body,
-      createdAt: schema.recommendationComments.createdAt,
-    })
-    .from(schema.recommendationComments)
-    // LEFT join: keep the comment even if the author's user row was removed.
-    .leftJoin(schema.user, eq(schema.recommendationComments.authorId, schema.user.id))
-    .where(eq(schema.recommendationComments.recommendationId, recId))
-    .orderBy(asc(schema.recommendationComments.createdAt))
-  return rows.map((r) => ({
-    id: r.id,
-    recommendationId: r.recommendationId,
-    authorId: r.authorId,
-    authorName: r.authorName ?? null,
-    body: r.body,
-    createdAt: (r.createdAt ?? new Date()).toISOString(),
-  }))
+  const where = eq(schema.recommendationComments.recommendationId, recId)
+  const [rows, [totalRow]] = await Promise.all([
+    db
+      .select({
+        id: schema.recommendationComments.id,
+        recommendationId: schema.recommendationComments.recommendationId,
+        authorId: schema.recommendationComments.authorId,
+        authorName: schema.user.name,
+        body: schema.recommendationComments.body,
+        createdAt: schema.recommendationComments.createdAt,
+      })
+      .from(schema.recommendationComments)
+      // LEFT join: keep the comment even if the author's user row was removed.
+      .leftJoin(schema.user, eq(schema.recommendationComments.authorId, schema.user.id))
+      .where(where)
+      .orderBy(asc(schema.recommendationComments.createdAt))
+      .limit(page.limit)
+      .offset(page.offset),
+    db.select({ n: count() }).from(schema.recommendationComments).where(where),
+  ])
+  return {
+    data: rows.map((r) => ({
+      id: r.id,
+      recommendationId: r.recommendationId,
+      authorId: r.authorId,
+      authorName: r.authorName ?? null,
+      body: r.body,
+      createdAt: (r.createdAt ?? new Date()).toISOString(),
+    })),
+    total: totalRow?.n ?? 0,
+  }
 }
 
 /** Add a comment to a recommendation's thread. Returns null if the rec isn't in the workspace. */

@@ -12,6 +12,7 @@ import type {
   OnboardingStrategy,
   Role,
   WhiteLabelConfig,
+  AutomationConfig,
   WorkspaceMember,
 } from '@growthos/types'
 import { auth } from '../auth.js'
@@ -19,7 +20,8 @@ import { AppError } from '../errors.js'
 import { requireUser } from '../auth-context.js'
 import { requireWorkspaceMember } from '../guards.js'
 import { enqueue } from '../jobs/enqueue.js'
-import { ensureAllRecommendations } from '../recommendations.js'
+import { listRecommendations } from '../recommendations.js'
+import { parsePage } from '../pagination.js'
 import {
   ensurePaidToOrganic,
   getScoredSearchTerms,
@@ -35,13 +37,20 @@ import { getInternalLinkRecommendations } from '../internal-links.js'
 import { getCampaignInsights } from '../google-ads.js'
 import { getMetaCampaignInsights } from '../meta-ads.js'
 import { getAttribution } from '../attribution.js'
+import { getGrowthHub } from '../growth-hub.js'
 import { getWeeklyReport } from '../intelligence.js'
 import { generateReportPdf } from '../pdf-report-generate.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
 import { startTrial } from '../billing.js'
-import { assertFeatureEnabled } from '../plan-limits.js'
+import { assertFeatureEnabled, assertCanCreateWorkspace } from '../plan-limits.js'
 import { createApiKey, listApiKeys, revokeApiKey } from '../api-keys.js'
+import { listSchedulerRuns } from '../scheduler/queries.js'
+import { listRules, upsertRule, deleteRule } from '../automation/rules.js'
+import { listActions, approveAction, rejectAction } from '../automation/actions.js'
+
+// Default autonomous-loop config when a workspace has never customized it.
+const DEFAULT_AUTOMATION: AutomationConfig = { enabled: true, cadenceMs: 7 * 24 * 60 * 60 * 1000 }
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required.').max(100),
@@ -102,11 +111,14 @@ export async function registerV1Routes(app: FastifyInstance) {
 
   // Create a workspace (delegates to Better Auth's organization plugin — single source of truth).
   app.post('/api/v1/workspaces', async (request, reply) => {
-    await requireUser(request)
+    const user = await requireUser(request)
     const parsed = createWorkspaceSchema.safeParse(request.body)
     if (!parsed.success) {
       throw new AppError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid input.')
     }
+    // Plan gate (M5 P5.2). Deliberately outside the try below — that catch turns everything into
+    // "the slug may already be taken", which would mask a 402 as a validation error.
+    await assertCanCreateWorkspace(user.id)
     try {
       const workspace = await auth.api.createOrganization({
         body: { name: parsed.data.name, slug: parsed.data.slug },
@@ -116,7 +128,12 @@ export async function registerV1Routes(app: FastifyInstance) {
       if (workspace) void startTrial(workspace.id)
       reply.status(201)
       return { workspace }
-    } catch {
+    } catch (err) {
+      // A duplicate slug is the overwhelmingly common cause, so that stays the user-facing message
+      // — but log the real error rather than discarding it: an outage here used to be reported to
+      // the user as a validation problem with no operator trace at all
+      // (docs/AUDIT-2026-08-13-post-merge.md #12).
+      request.log.error({ err }, 'createOrganization failed')
       throw new AppError(
         'VALIDATION_ERROR',
         'Could not create the workspace — the URL slug may already be taken.',
@@ -215,6 +232,7 @@ export async function registerV1Routes(app: FastifyInstance) {
           inArray(schema.backgroundJobs.status, ['queued', 'processing']),
         ),
       )
+      .limit(1)
 
     reply.status(202)
     if (inflight) {
@@ -268,12 +286,12 @@ export async function registerV1Routes(app: FastifyInstance) {
   )
 
   // Backend-owned recommendations — generated once from the canonical engine, then persisted.
+  // Paginated: this set grows without bound per workspace (see pagination.ts on the default).
   app.get('/api/v1/workspaces/:id/recommendations', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    const data = await ensureAllRecommendations(id)
-    return { data, total: data.length }
+    return listRecommendations(id, parsePage(request.query))
   })
 
   // Act / dismiss / snooze a recommendation.
@@ -316,11 +334,11 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id, recId } = request.params as { id: string; recId: string }
     await requireWorkspaceMember(user.id, id)
-    const data = await listComments(id, recId)
-    if (data === null) {
+    const result = await listComments(id, recId, parsePage(request.query))
+    if (result === null) {
       throw new AppError('WORKSPACE_NOT_FOUND', 'Recommendation not found in this workspace.')
     }
-    return { data, total: data.length }
+    return result
   })
 
   app.post('/api/v1/workspaces/:id/recommendations/:recId/comments', async (request, reply) => {
@@ -407,14 +425,8 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id, 'admin')
-    const q = z
-      .object({
-        limit: z.coerce.number().int().positive().max(100).optional(),
-        offset: z.coerce.number().int().nonnegative().optional(),
-      })
-      .safeParse(request.query)
-    const limit = q.success ? (q.data.limit ?? 20) : 20
-    const offset = q.success ? (q.data.offset ?? 0) : 0
+    // Default 20 rather than the shared default: this is a scrollback log, not a screen's worth of data.
+    const { limit, offset } = parsePage(request.query, 20)
     return getAuditLogs(id, limit, offset)
   })
 
@@ -517,6 +529,19 @@ export async function registerV1Routes(app: FastifyInstance) {
     return getAttribution(id)
   })
 
+  // Growth Hub headline metrics — revenue/spend/organic/conversions for the current window vs the
+  // preceding one, plus the Goal Simulator's baseline. Windows are measured from the latest date in
+  // the data, not today (see growth-hub.ts).
+  app.get('/api/v1/workspaces/:id/analytics/growth-hub', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const q = z
+      .object({ days: z.coerce.number().int().positive().max(90).optional() })
+      .safeParse(request.query)
+    return getGrowthHub(id, q.success ? (q.data.days ?? 30) : 30)
+  })
+
   // Blended MER — trend + channel breakdown from ClickHouse ad_performance (seeded per workspace).
   app.get('/api/v1/workspaces/:id/analytics/mer', async (request) => {
     const user = await requireUser(request)
@@ -534,7 +559,7 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     await ensureFatigueAlerts(id)
-    const data = getFatigueResults()
+    const data = await getFatigueResults(id)
     return { data, total: data.length }
   })
 
@@ -543,8 +568,7 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    const data = await getContentBriefs(id)
-    return { data, total: data.length }
+    return getContentBriefs(id, parsePage(request.query))
   })
 
   // Workspace members + roles (P2.8 settings) — guarded by membership.
@@ -655,7 +679,9 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id, 'admin')
-    return { keys: await listApiKeys(id) }
+    // `{ data, total }` like every other list endpoint — this returned `{ keys }` alone.
+    const data = await listApiKeys(id)
+    return { data, total: data.length }
   })
 
   app.delete('/api/v1/workspaces/:id/api-keys/:keyId', async (request) => {
@@ -665,6 +691,184 @@ export async function registerV1Routes(app: FastifyInstance) {
     await revokeApiKey(id, keyId)
     void recordAudit({ workspaceId: id, actorId: user.id, action: 'api_key.revoked', entityType: 'api_key', entityId: keyId }, request)
     return { revoked: true }
+  })
+
+  // Autonomous automation loop config (scheduled intelligence). GET is any member; PATCH is admin+.
+  // Restored after the 2026-08-13 main merge dropped it — see docs/AUDIT-2026-08-13-post-merge.md #1.
+  app.get('/api/v1/workspaces/:id/automation', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'viewer')
+    const [ws] = await db
+      .select({ config: schema.workspaces.automationConfig })
+      .from(schema.workspaces)
+      .where(eq(schema.workspaces.id, id))
+    if (!ws) throw new AppError('WORKSPACE_NOT_FOUND', 'Workspace not found.')
+    return { config: (ws.config as AutomationConfig | null) ?? DEFAULT_AUTOMATION }
+  })
+
+  app.patch('/api/v1/workspaces/:id/automation', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const body = z
+      .object({
+        enabled: z.boolean().optional(),
+        // 1 hour .. 30 days — guards against a runaway (0) or absurd cadence.
+        cadenceMs: z.number().int().min(3_600_000).max(2_592_000_000).optional(),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    const [existing] = await db
+      .select({ config: schema.workspaces.automationConfig })
+      .from(schema.workspaces)
+      .where(eq(schema.workspaces.id, id))
+    const current = (existing?.config as AutomationConfig | null) ?? DEFAULT_AUTOMATION
+    const config: AutomationConfig = {
+      enabled: body.data.enabled ?? current.enabled,
+      cadenceMs: body.data.cadenceMs ?? current.cadenceMs,
+    }
+    await db.update(schema.workspaces).set({ automationConfig: config }).where(eq(schema.workspaces.id, id))
+    void recordAudit(
+      { workspaceId: id, actorId: user.id, action: 'automation.updated', entityType: 'workspace', entityId: id },
+      request,
+    )
+    return { config }
+  })
+
+  // ── Automated campaign management (M4 · P4.3a) ─────────────────────────────────────────────
+  // Rules are read by any member (seeing what's automated is not privileged) but written only by
+  // admin+, and every write is audited: these decide whether the platform may spend money on its own.
+  const ACTION_TYPES = ['pause_campaign', 'adjust_budget', 'refresh_creative', 'queue_content'] as const
+  const ruleSchema = z.object({
+    actionType: z.enum(ACTION_TYPES),
+    enabled: z.boolean().optional(),
+    mode: z.enum(['suggest', 'auto']).optional(),
+    threshold: z
+      .object({
+        minWastedSpend: z.number().nonnegative().optional(),
+        minRoas: z.number().nonnegative().optional(),
+        budgetIncreasePercent: z.number().min(0).max(100).optional(),
+        minConversions: z.number().int().nonnegative().optional(),
+      })
+      .nullable()
+      .optional(),
+    caps: z
+      .object({
+        // Hard ceiling on the ceiling: no rule may authorise more than a 50% single move, whatever
+        // the operator types. A runaway budget change is the worst outcome this feature can produce.
+        maxChangePercent: z.number().min(0).max(50).optional(),
+        maxActionsPerDay: z.number().int().positive().max(100).optional(),
+        minDailyBudget: z.number().nonnegative().optional(),
+      })
+      .nullable()
+      .optional(),
+  })
+
+  app.get('/api/v1/workspaces/:id/automation/rules', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const data = await listRules(id)
+    return { data, total: data.length }
+  })
+
+  // PATCH, not PUT: upsertRule overwrites only the fields supplied, so flipping `enabled` must not
+  // wipe thresholds and caps someone tuned earlier. The verb matches the semantics.
+  app.patch('/api/v1/workspaces/:id/automation/rules', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const body = ruleSchema.safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    const rule = await upsertRule(id, body.data)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'automation.rule_updated',
+        entityType: 'automation_rule',
+        entityId: rule.id,
+        metadata: { actionType: rule.actionType, mode: rule.mode, enabled: rule.enabled },
+      },
+      request,
+    )
+    return rule
+  })
+
+  app.delete('/api/v1/workspaces/:id/automation/rules/:actionType', async (request) => {
+    const user = await requireUser(request)
+    const { id, actionType } = request.params as { id: string; actionType: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    if (!(await deleteRule(id, actionType))) {
+      throw new AppError('NOT_FOUND', 'No such automation rule in this workspace.')
+    }
+    void recordAudit(
+      { workspaceId: id, actorId: user.id, action: 'automation.rule_deleted', entityType: 'automation_rule', metadata: { actionType } },
+      request,
+    )
+    return { deleted: true }
+  })
+
+  // The approval queue. Readable by any member — an automated change to someone's campaigns should
+  // be visible to everyone who can see the campaigns.
+  app.get('/api/v1/workspaces/:id/automation/actions', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const q = z
+      .object({ status: z.enum(['proposed', 'approved', 'executed', 'failed', 'rejected', 'expired']).optional() })
+      .safeParse(request.query)
+    return listActions(id, parsePage(request.query), q.success ? q.data.status : undefined)
+  })
+
+  // Approving runs the action. Admin+ — this is the human gate on real spend.
+  app.post('/api/v1/workspaces/:id/automation/actions/:actionId/approve', async (request) => {
+    const user = await requireUser(request)
+    const { id, actionId } = request.params as { id: string; actionId: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const action = await approveAction(id, actionId, user.id)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'automation.action_approved',
+        entityType: 'automation_action',
+        entityId: actionId,
+        metadata: { actionType: action.actionType, status: action.status },
+      },
+      request,
+    )
+    return action
+  })
+
+  app.post('/api/v1/workspaces/:id/automation/actions/:actionId/reject', async (request) => {
+    const user = await requireUser(request)
+    const { id, actionId } = request.params as { id: string; actionId: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const action = await rejectAction(id, actionId, user.id)
+    void recordAudit(
+      { workspaceId: id, actorId: user.id, action: 'automation.action_rejected', entityType: 'automation_action', entityId: actionId },
+      request,
+    )
+    return action
+  })
+
+  // Observability: recent scheduler ticks. Admin+ (operational data). Runs are global ticks, but
+  // membership-gating on the workspace keeps this behind the app's auth surface.
+  app.get('/api/v1/workspaces/:id/scheduler/runs', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const q = z
+      .object({ limit: z.coerce.number().int().positive().max(100).optional() })
+      .safeParse(request.query)
+    const runs = await listSchedulerRuns(q.success ? (q.data.limit ?? 20) : 20)
+    return { runs, total: runs.length }
   })
 
   // Completion gate — the single source of truth for "onboarding done".

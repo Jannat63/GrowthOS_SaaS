@@ -6,6 +6,7 @@ import { Badge } from "@growthos/ui/components/badge";
 import { cn } from "@/lib/utils/cn";
 import { CHANNELS, channelToKey, type ChannelKey } from "./channels";
 import { DataSourceBadge } from "./DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 
 const IMPACT_VARIANT = {
   High: "default",
@@ -49,7 +50,7 @@ export function RecommendationQueue({
           </h3>
           <Badge variant="muted">{recommendations.length}</Badge>
         </div>
-        <DataSourceBadge source={source} />
+        <DataSourceBadge source={source} platform={MODULE_PLATFORMS.crossChannel} />
       </div>
 
       {recommendations.length === 0 ? (

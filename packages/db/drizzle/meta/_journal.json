@@ -85,6 +85,27 @@
       "when": 1785049004419,
       "tag": "0011_api_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786579200000,
+      "tag": "0012_automation_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786579200001,
+      "tag": "0013_automation_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786594058224,
+      "tag": "0014_awesome_jack_flag",
+      "breakpoints": true
     }
   ]
 }

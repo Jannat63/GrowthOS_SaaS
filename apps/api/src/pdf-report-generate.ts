@@ -5,6 +5,9 @@ import type { WhiteLabelConfig } from '@growthos/types'
 import { AppError } from './errors.js'
 import { getWeeklyReport } from './intelligence.js'
 import { renderReportHtml } from './pdf-report.js'
+import { moduleLogger } from './logger.js'
+
+const log = moduleLogger('pdf')
 
 /**
  * Drives Puppeteer to turn the pure HTML template (pdf-report.ts) into an actual PDF buffer. Kept
@@ -56,9 +59,14 @@ export async function generateReportPdf(workspaceId: string): Promise<GeneratedR
   let browser: Browser
   try {
     browser = await getBrowser()
-  } catch {
+  } catch (err) {
     // No Chromium available in this environment — same "gated integration, never crashes the
     // app" pattern as Stripe/Resend, rather than a raw 500 with a Puppeteer stack trace.
+    //
+    // The user-facing message assumes Chromium is simply absent, which is the common case; the
+    // cause is logged because a browser that IS installed and failing for some other reason would
+    // otherwise be indistinguishable from one that was never there.
+    log.error({ err }, 'could not launch a browser')
     throw new AppError(
       'INTEGRATION_NOT_CONNECTED',
       'PDF rendering is unavailable in this environment (Puppeteer/Chromium not installed).',

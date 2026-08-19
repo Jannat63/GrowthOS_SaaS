@@ -20,6 +20,7 @@ import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useMer } from "@/lib/hooks/useMer";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 
 const RANGES = [30, 60, 90] as const;
 
@@ -62,7 +63,7 @@ export default function AnalyticsPage() {
             <Card className="p-6">
               <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 <TrendingUp className="h-3.5 w-3.5" /> Blended MER
-                <DataSourceBadge source={mer.source} />
+                <DataSourceBadge source={mer.source} platform={MODULE_PLATFORMS.blendedMer} />
               </div>
               <p className="mt-2 font-display text-3xl font-semibold tabular-nums">
                 {mer.data.summary.blendedMER.toFixed(2)}×

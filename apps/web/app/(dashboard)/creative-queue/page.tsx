@@ -20,6 +20,7 @@ import { useRecommendations } from "@/lib/hooks/useRecommendations";
 import { useContentBriefs } from "@/lib/hooks/useContentBriefs";
 import { useRecommendationActions } from "@/lib/hooks/useRecommendationActions";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 
 export default function CreativeQueuePage() {
   const { data: me } = useWorkspace();
@@ -48,7 +49,7 @@ export default function CreativeQueuePage() {
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <h2 className="font-display text-lg font-semibold tracking-tight">Top organic pages</h2>
-          {pages && <DataSourceBadge source={pages.source} />}
+          {pages && <DataSourceBadge source={pages.source} platform={MODULE_PLATFORMS.organicToPaid} />}
         </div>
         <Card className="p-0">
           {pages ? (

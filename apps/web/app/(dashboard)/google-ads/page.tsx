@@ -4,6 +4,7 @@ import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useCampaignInsights } from "@/lib/hooks/useCampaignInsights";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { CampaignInsightsPanel } from "@/components/ads/CampaignInsightsPanel";
 import { RsaGenerator } from "@/components/google-ads/RsaGenerator";
 import { BudgetPlanner } from "@/components/google-ads/BudgetPlanner";
@@ -25,7 +26,7 @@ export default function GoogleAdsPage() {
             Campaign efficiency, wasted-spend detection, and ad copy — all deterministic, no AI.
           </p>
         </div>
-        {insights && <DataSourceBadge source={insights.source} />}
+        {insights && <DataSourceBadge source={insights.source} platform={MODULE_PLATFORMS.googleAds} />}
       </div>
 
       {!d ? (

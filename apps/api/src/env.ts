@@ -25,13 +25,54 @@ const requiredSchema = z.object({
 const OPTIONAL_INTEGRATIONS: Array<{ vars: string[]; label: string }> = [
   { vars: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'], label: 'Stripe billing (checkout/webhook/portal will 409)' },
   { vars: ['RESEND_API_KEY'], label: 'Resend lifecycle emails (sends will silently no-op)' },
+  // Google Search Console is the one integration that genuinely works end-to-end, and it was the
+  // only one missing from this list.
+  { vars: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'], label: 'Google OAuth / Search Console sync (connect will fail)' },
+  // Worth warning about even though nothing breaks without it: unlike the others, its absence has
+  // no symptom. A missing Stripe key produces a visible 409; missing error monitoring produces a
+  // silent one, and is only noticed when an incident has already gone unobserved.
+  { vars: ['SENTRY_DSN'], label: 'Sentry error monitoring (crashes will only reach the logs)' },
+]
+
+/**
+ * Secrets that are optional only while nothing uses them, and mandatory the moment something does.
+ *
+ * Both are security-critical and neither was checked anywhere: `TOKEN_ENCRYPTION_KEY` encrypts OAuth
+ * tokens at rest, and `OAUTH_STATE_SECRET` signs the `state` parameter that makes the OAuth callback
+ * CSRF-resistant. Missing, they don't fail at boot — they throw deep inside a callback the user
+ * experiences as a generic "couldn't connect" redirect, which is the hardest possible place to
+ * notice that tokens are unprotected.
+ *
+ * Tying them to the presence of OAuth credentials is what keeps this honest: an environment with no
+ * OAuth configured is legitimately allowed to omit them, and one that configures OAuth cannot.
+ */
+const CONDITIONAL_SECRETS: Array<{ requiredWhen: string; vars: string[]; why: string }> = [
+  {
+    requiredWhen: 'GOOGLE_CLIENT_ID',
+    vars: ['TOKEN_ENCRYPTION_KEY', 'OAUTH_STATE_SECRET'],
+    why: 'OAuth is configured, so tokens must be encryptable at rest and callback state must be signable.',
+  },
 ]
 
 /** Throws with every missing required var listed at once (not just the first one hit). */
 export function validateEnv(env: NodeJS.ProcessEnv = process.env): void {
+  const messages: string[] = []
+
   const result = requiredSchema.safeParse(env)
   if (!result.success) {
-    const messages = result.error.issues.map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`)
+    messages.push(
+      ...result.error.issues.map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`),
+    )
+  }
+
+  for (const { requiredWhen, vars, why } of CONDITIONAL_SECRETS) {
+    if (!env[requiredWhen]) continue
+    for (const v of vars) {
+      if (!env[v]) messages.push(`  - ${v}: required because ${requiredWhen} is set. ${why}`)
+    }
+  }
+
+  if (messages.length > 0) {
     throw new Error(`Missing required environment variables:\n${messages.join('\n')}`)
   }
 }

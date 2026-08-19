@@ -26,6 +26,7 @@
     "fastify": "^5.1.0",
     "ioredis": "^5.11.1",
     "node-cron": "^3.0.3",
+    "pino": "^10.3.1",
     "puppeteer": "^25.3.0",
     "resend": "^4.0.1",
     "stripe": "^17.4.0",

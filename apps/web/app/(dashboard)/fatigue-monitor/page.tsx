@@ -11,6 +11,7 @@ import { useFatigue } from "@/lib/hooks/useFatigue";
 import { useRecommendations } from "@/lib/hooks/useRecommendations";
 import { useRecommendationActions } from "@/lib/hooks/useRecommendationActions";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 
 const STATUS: Record<
   ScoredCreative["status"],
@@ -90,7 +91,7 @@ export default function FatigueMonitorPage() {
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <h2 className="font-display text-lg font-semibold tracking-tight">All creatives</h2>
-          {fatigue && <DataSourceBadge source={fatigue.source} />}
+          {fatigue && <DataSourceBadge source={fatigue.source} platform={MODULE_PLATFORMS.fatigue} />}
         </div>
         {fatigue ? (
           <div className="grid gap-3 sm:grid-cols-2">

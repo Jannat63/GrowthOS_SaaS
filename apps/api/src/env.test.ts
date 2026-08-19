@@ -20,6 +20,37 @@ describe('env', () => {
         expect(message).toContain('BETTER_AUTH_URL')
       }
     })
+
+    // TOKEN_ENCRYPTION_KEY and OAUTH_STATE_SECRET protect OAuth tokens at rest and the callback
+    // against CSRF. Missing, they used to throw deep inside the callback, which the user saw as a
+    // generic "couldn't connect" — the hardest possible place to notice tokens are unprotected.
+    const base = { DATABASE_URL: 'x', BETTER_AUTH_SECRET: 'y', BETTER_AUTH_URL: 'z' }
+
+    it('demands the OAuth secrets once OAuth credentials are present', () => {
+      try {
+        validateEnv({ ...base, GOOGLE_CLIENT_ID: 'id' } as NodeJS.ProcessEnv)
+        expect.fail('should have thrown')
+      } catch (err) {
+        const message = (err as Error).message
+        expect(message).toContain('TOKEN_ENCRYPTION_KEY')
+        expect(message).toContain('OAUTH_STATE_SECRET')
+      }
+    })
+
+    it('allows them to be absent when no OAuth provider is configured', () => {
+      expect(() => validateEnv(base as NodeJS.ProcessEnv)).not.toThrow()
+    })
+
+    it('passes once both are supplied alongside the OAuth credentials', () => {
+      expect(() =>
+        validateEnv({
+          ...base,
+          GOOGLE_CLIENT_ID: 'id',
+          TOKEN_ENCRYPTION_KEY: 'k',
+          OAUTH_STATE_SECRET: 's',
+        } as NodeJS.ProcessEnv),
+      ).not.toThrow()
+    })
   })
 
   describe('logIntegrationStatus', () => {
@@ -37,6 +68,9 @@ describe('env', () => {
         STRIPE_SECRET_KEY: 'x',
         STRIPE_WEBHOOK_SECRET: 'x',
         RESEND_API_KEY: 'x',
+        GOOGLE_CLIENT_ID: 'x',
+        GOOGLE_CLIENT_SECRET: 'x',
+        SENTRY_DSN: 'x',
       } as unknown as NodeJS.ProcessEnv
       logIntegrationStatus(fullEnv)
       expect(warn).not.toHaveBeenCalled()

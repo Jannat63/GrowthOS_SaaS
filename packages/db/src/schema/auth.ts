@@ -100,6 +100,8 @@ export const workspaces = pgTable(
     onboardingComplete: boolean("onboarding_complete").default(false),
     // Agency white-label branding (M3 P3.5 Slice C): { agencyName?, logoUrl?, primaryColor? }.
     whiteLabelConfig: jsonb("white_label_config"),
+    // Autonomous intelligence loop config: { enabled: boolean, cadenceMs: number }.
+    automationConfig: jsonb("automation_config"),
   },
   (table) => [uniqueIndex("workspaces_slug_uidx").on(table.slug)],
 );

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import { WebSocket as NodeWebSocket } from 'ws'
@@ -21,7 +21,11 @@ describe('WebSocket connection', () => {
     if (workspaceId) await db.delete(schema.workspaces).where(eq(schema.workspaces.id, workspaceId))
   })
 
-  it('sets up a real signed-in session and a real workspace', async () => {
+  // Setup is a hook, not a test. Every case below reads `cookie`/`workspaceId`, so when this ran as
+  // an ordinary `it()` a slow signup didn't fail once — it failed here and then again in each later
+  // test as `Invalid value "undefined" for header "cookie"`, which names neither the cause nor the
+  // real failure. As a hook it aborts the file once, with the actual error.
+  beforeAll(async () => {
     app = buildApp()
     await app.listen({ port: 0, host: '127.0.0.1' })
     const address = app.server.address()

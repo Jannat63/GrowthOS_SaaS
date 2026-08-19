@@ -5,6 +5,7 @@ import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useMetaCampaignInsights } from "@/lib/hooks/useMetaCampaignInsights";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { CampaignInsightsPanel } from "@/components/ads/CampaignInsightsPanel";
 import { FunnelPlanner } from "@/components/meta-ads/FunnelPlanner";
 import { AdCopyStudio } from "@/components/meta-ads/AdCopyStudio";
@@ -26,7 +27,7 @@ export default function MetaAdsPage() {
             Campaign efficiency, full-funnel planning, and ad copy — all deterministic, no AI.
           </p>
         </div>
-        {insights && <DataSourceBadge source={insights.source} />}
+        {insights && <DataSourceBadge source={insights.source} platform={MODULE_PLATFORMS.metaAds} />}
       </div>
 
       {!d ? (

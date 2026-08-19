@@ -1,9 +1,12 @@
 import Stripe from 'stripe'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import type { Plan, Subscription, SubscriptionStatus } from '@growthos/types'
 import { AppError } from './errors.js'
 import { getWorkspaceOwnerEmail, sendPaymentFailedEmail, sendTrialConvertedEmail, sendTrialEndingSoonEmail } from './emails.js'
+import { moduleLogger } from './logger.js'
+
+const log = moduleLogger('billing')
 
 /**
  * Stripe billing (M5 P5.1): checkout, webhook sync, and the trial→paid lifecycle. Reuses
@@ -96,8 +99,12 @@ export async function startTrial(workspaceId: string): Promise<void> {
       currentPeriodEnd: trialEndsAt,
     })
     await db.update(schema.workspaces).set({ plan: TRIAL_PLAN }).where(eq(schema.workspaces.id, workspaceId))
-  } catch {
-    // Non-critical — see fallback in getCurrentSubscription.
+  } catch (err) {
+    // Never block workspace creation on billing — `getCurrentSubscription` falls back cleanly when
+    // no row exists. But this failing silently means a customer who should be on a 14-day Growth
+    // trial is quietly treated as Starter, which they will experience as features mysteriously
+    // missing. That needs to be visible to an operator, even though it is not worth failing on.
+    log.error({ err }, `startTrial failed for workspace ${workspaceId}`)
   }
 }
 
@@ -191,30 +198,49 @@ export async function createPortalSession(workspaceId: string): Promise<{ portal
 
 /**
  * Scan trialing subscriptions ending within `withinDays` and send the reminder once per trial.
- * NOT WIRED TO A SCHEDULER YET — Celery/Beat is deferred (see DECISIONS.md D2), same status as
- * the fatigue monitor's scheduled alerts. Call this from whatever periodic trigger lands first
- * (Celery Beat, a cron-hit endpoint, etc.); it's idempotent via `trialReminderSentAt`, so calling
- * it more often than necessary is harmless.
+ * Wired to the daily cron in `scheduler.ts`, which additionally holds a Redis lock so N API
+ * instances produce one run.
+ *
+ * The reminder is *claimed* before it is sent, not marked after: the write sets
+ * `trialReminderSentAt` only `WHERE trial_reminder_sent_at IS NULL`, and the email goes out only if
+ * that update actually took a row. Marking after sending left a window where two concurrent runs
+ * both passed the `!sub.trialReminderSentAt` check and both emailed the same customer
+ * (docs/AUDIT-2026-08-13-post-merge.md #10). Claiming first makes the send at-most-once; the
+ * trade-off is that an email-provider failure after the claim costs that workspace its reminder,
+ * which is the right way round for a marketing email.
  */
 export async function checkTrialsEndingSoon(withinDays = 3): Promise<{ remindersSent: number }> {
   const cutoff = new Date(Date.now() + withinDays * 24 * 60 * 60 * 1000)
   const candidates = await db
     .select()
     .from(schema.subscriptions)
-    .where(eq(schema.subscriptions.status, 'trialing'))
+    .where(
+      and(
+        eq(schema.subscriptions.status, 'trialing'),
+        isNull(schema.subscriptions.trialReminderSentAt),
+      ),
+    )
 
   let remindersSent = 0
   for (const sub of candidates) {
-    if (!sub.trialEndsAt || sub.trialEndsAt > cutoff || sub.trialReminderSentAt) continue
+    if (!sub.trialEndsAt || sub.trialEndsAt > cutoff) continue
+    // Resolve the recipient before claiming, so a workspace with no owner email keeps its reminder
+    // available for the next run rather than burning it on a send that can't happen.
     const ownerEmail = await getWorkspaceOwnerEmail(sub.workspaceId)
     if (!ownerEmail) continue
+
+    const claimed = await db
+      .update(schema.subscriptions)
+      .set({ trialReminderSentAt: new Date() })
+      .where(
+        and(eq(schema.subscriptions.id, sub.id), isNull(schema.subscriptions.trialReminderSentAt)),
+      )
+      .returning({ id: schema.subscriptions.id })
+    if (claimed.length === 0) continue // another run claimed it first
+
     const workspaceName = await getWorkspaceName(sub.workspaceId)
     const daysLeft = Math.max(0, Math.ceil((sub.trialEndsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
     await sendTrialEndingSoonEmail(ownerEmail, workspaceName, daysLeft)
-    await db
-      .update(schema.subscriptions)
-      .set({ trialReminderSentAt: new Date() })
-      .where(eq(schema.subscriptions.id, sub.id))
     remindersSent++
   }
   return { remindersSent }
@@ -267,7 +293,11 @@ export async function handleWebhookEvent(rawBody: Buffer, signature: string | un
   let event: Stripe.Event
   try {
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)
-  } catch {
+  } catch (err) {
+    // The response stays deliberately vague — never tell an unauthenticated caller why their
+    // signature was rejected. The log is not vague: a run of these is either a misconfigured
+    // webhook secret or somebody probing the endpoint, and both need to be visible.
+    log.error({ err }, 'rejected a webhook with an invalid signature')
     throw new AppError('VALIDATION_ERROR', 'Invalid Stripe webhook signature.')
   }
 
@@ -280,13 +310,27 @@ export async function handleWebhookEvent(rawBody: Buffer, signature: string | un
       const subscriptionId =
         typeof session.subscription === 'string' ? session.subscription : session.subscription.id
       const sub = await stripe.subscriptions.retrieve(subscriptionId)
+
+      // Stripe retries a webhook until it gets a 2xx, and a retry carries the same event.
+      // `syncSubscription` is idempotent; the email is not. Treat "we have not recorded this Stripe
+      // subscription id yet" as the signal that this is the first delivery, so a retry syncs again
+      // but stays silent (docs/AUDIT-2026-08-13-post-merge.md #11).
+      const [before] = await db
+        .select({ stripeSubscriptionId: schema.subscriptions.stripeSubscriptionId })
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.workspaceId, workspaceId))
+        .limit(1)
+      const isFirstDelivery = before?.stripeSubscriptionId !== sub.id
+
       await syncSubscription(workspaceId, plan, sub)
 
-      const [ownerEmail, workspaceName] = await Promise.all([
-        getWorkspaceOwnerEmail(workspaceId),
-        getWorkspaceName(workspaceId),
-      ])
-      if (ownerEmail) void sendTrialConvertedEmail(ownerEmail, workspaceName, plan)
+      if (isFirstDelivery) {
+        const [ownerEmail, workspaceName] = await Promise.all([
+          getWorkspaceOwnerEmail(workspaceId),
+          getWorkspaceName(workspaceId),
+        ])
+        if (ownerEmail) void sendTrialConvertedEmail(ownerEmail, workspaceName, plan)
+      }
       break
     }
     case 'customer.subscription.updated': {

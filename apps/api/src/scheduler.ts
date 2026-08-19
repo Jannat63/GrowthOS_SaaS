@@ -1,9 +1,13 @@
 import cron from 'node-cron'
 import { db, schema } from '@growthos/db'
 import { checkTrialsEndingSoon } from './billing.js'
-import { getWeeklyReport } from './intelligence.js'
-import { getMerTrend } from './analytics.js'
-import { publish } from './ws.js'
+import { withRedisLock } from './scheduler/lock.js'
+import { runSchedulerTick } from './scheduler/intelligence-scheduler.js'
+import { failStuckJobs } from './jobs/reaper.js'
+import { moduleLogger } from './logger.js'
+import { captureException } from './monitoring.js'
+
+const log = moduleLogger('scheduler')
 
 /**
  * Lightweight in-process scheduler. Celery/Beat was explicitly deferred (DECISIONS.md D2) in
@@ -12,33 +16,37 @@ import { publish } from './ws.js'
  * serverless). Registered from index.ts ONLY, never app.ts, so tests that build the app via
  * `buildApp()` never accidentally start a background cron loop mid-test-suite.
  *
- * Wires the three dormant scheduled tasks that genuinely benefit from periodic execution:
+ * Two scheduled tasks:
  *
- *  - Trial-ending-soon reminders (billing.ts `checkTrialsEndingSoon`) — built in M5 P5.3, never
- *    wired to anything since. Dedupes via `trialReminderSentAt`, safe to call as often as needed.
- *  - Intelligence Engine weekly report refresh (intelligence.ts `getWeeklyReport`) — recomputes
- *    each workspace's channel spend/revenue/ROAS from current ClickHouse data and updates the
- *    current week's report (idempotent per week — see `intelligence_reports`' unique constraint).
- *    Publishes `intelligence:report_ready` (WS) on each successful refresh.
- *  - Blended MER anomaly check (analytics.ts `getMerTrend`) — checked here, on a controlled 4h
- *    cadence, rather than from the route handler on every page load/poll: `getMerTrend` has no
- *    persistence or dedup of its own, so publishing `analytics:mer_alert` from the read path would
- *    re-fire the same alert every time someone had the analytics page open. Checking it here
- *    instead means the event genuinely means "something was monitored and found anomalous," not
- *    "someone happened to load a page."
+ *  - Trial-ending-soon reminders (billing.ts `checkTrialsEndingSoon`), daily. Idempotent per trial
+ *    via `trialReminderSentAt`, which is now *claimed* before the send rather than written after it.
+ *  - The autonomous intelligence tick (`scheduler/intelligence-scheduler.ts`), hourly. It refreshes
+ *    only workspaces whose report is stale per their own `automation_config.cadenceMs`, and raises
+ *    `analytics:mer_alert` / `meta:fatigue_alert` only when the underlying condition has actually
+ *    changed since the last alert (persistent signatures in `automation_alerts`).
  *
- * Deliberately NOT wired: the Creative Fatigue Monitor's alerts (fatigue.ts
- * `ensureFatigueAlerts`). Its current design generates `fatigue_alert` recommendations exactly
- * once per workspace, ever (`if (existing.length > 0) return`) — for any workspace that's already
- * been through onboarding, calling it again is a guaranteed no-op. Scheduling a no-op would
- * misrepresent this as a working periodic feature. It's also computed over a static fixture
- * (`@growthos/logic/fixtures` creatives — not live Meta Ads creative-level data), so even a
- * redesigned "re-evaluate every run" version would produce identical output on every single call
- * until real creative data is connected — the same "gated on a live integration" status as Google
- * Ads/Meta everywhere else in this codebase, not something a scheduler can fix on its own.
+ * Both tasks run under a Redis lock, so N API instances produce one run, not N. That matters most
+ * for the trial reminder: without it, two instances ticking at the same second would each read the
+ * same un-reminded trials and both send the customer an email.
+ *
+ * The tick used to be two unguarded cron jobs here (`runIntelligenceRefresh` refreshing every
+ * workspace every 4h, `runMerAnomalyCheck` re-publishing the same anomaly forever). Both were
+ * replaced by the deduped, locked, per-workspace-cadence tick — see
+ * docs/AUDIT-2026-08-13-post-merge.md #1, #8, #10.
+ *
+ * Deliberately NOT wired: the Creative Fatigue Monitor's recommendation generator (fatigue.ts
+ * `ensureFatigueAlerts`). It generates `fatigue_alert` recommendations exactly once per workspace,
+ * ever (`if (existing.length > 0) return`), so scheduling it would misrepresent a guaranteed no-op
+ * as a working periodic feature. The fatigue *alert* (the WS event) is scheduled — that one is
+ * genuinely re-evaluated each tick against the current creative set.
  */
 
-/** All workspace IDs — used to fan the per-workspace refresh tasks out across every workspace. */
+const TRIAL_LOCK_KEY = 'scheduler:trial-reminders:lock'
+const TRIAL_LOCK_TTL_MS = 5 * 60 * 1000
+const REAPER_LOCK_KEY = 'scheduler:stuck-jobs:lock'
+const REAPER_LOCK_TTL_MS = 2 * 60 * 1000
+
+/** All workspace IDs. Kept as the scheduler's view of "who exists" — used by tests and callers that need a plain list. */
 export async function listActiveWorkspaceIds(): Promise<string[]> {
   const rows = await db.select({ id: schema.workspaces.id }).from(schema.workspaces)
   return rows.map((r) => r.id)
@@ -46,60 +54,60 @@ export async function listActiveWorkspaceIds(): Promise<string[]> {
 
 export async function runTrialReminders(): Promise<void> {
   try {
-    const { remindersSent } = await checkTrialsEndingSoon()
-    console.log(`[scheduler] trial reminders: sent ${remindersSent}`)
+    const ran = await withRedisLock(TRIAL_LOCK_KEY, TRIAL_LOCK_TTL_MS, async () => {
+      const { remindersSent } = await checkTrialsEndingSoon()
+      log.info(`trial reminders: sent ${remindersSent}`)
+    })
+    if (!ran) log.info('trial reminders: skipped, another instance holds the lock')
   } catch (err) {
-    console.error('[scheduler] trial reminders failed', err)
+    log.error({ err }, 'trial reminders failed')
+    captureException(err, { task: 'trial-reminders' })
   }
 }
 
+/**
+ * One intelligence tick. Never throws — a Redis or Neon outage must not take down the cron loop
+ * (nor the boot path, since index.ts calls startScheduler() without awaiting anything).
+ */
 export async function runIntelligenceRefresh(): Promise<void> {
-  const workspaceIds = await listActiveWorkspaceIds()
-  let succeeded = 0
-  for (const id of workspaceIds) {
-    try {
-      await getWeeklyReport(id)
-      succeeded++
-      void publish({ type: 'intelligence:report_ready', workspaceId: id })
-    } catch (err) {
-      // One workspace's ClickHouse hiccup should never take down the whole refresh cycle — same
-      // "one bad job never kills the loop" principle as the worker's job consumer.
-      console.error(`[scheduler] intelligence refresh failed for workspace ${id}`, err)
-    }
+  try {
+    const refreshed = await runSchedulerTick()
+    log.info(`intelligence refresh: ${refreshed} workspace(s) refreshed`)
+  } catch (err) {
+    log.error({ err }, 'intelligence refresh failed')
+    captureException(err, { task: 'intelligence-refresh' })
   }
-  console.log(`[scheduler] intelligence refresh: ${succeeded}/${workspaceIds.length} workspaces`)
 }
 
-export async function runMerAnomalyCheck(): Promise<void> {
-  const workspaceIds = await listActiveWorkspaceIds()
-  let anomalies = 0
-  for (const id of workspaceIds) {
-    try {
-      const { anomaly, summary } = await getMerTrend(id, 30)
-      if (anomaly.detected) {
-        anomalies++
-        void publish({
-          type: 'analytics:mer_alert',
-          workspaceId: id,
-          payload: { changePercent: anomaly.changePercent, blendedMER: summary.blendedMER },
-        })
-      }
-    } catch (err) {
-      console.error(`[scheduler] MER anomaly check failed for workspace ${id}`, err)
-    }
+/**
+ * Fails jobs that have been in flight impossibly long. Runs under the same lock discipline as the
+ * other tasks — this writes to `background_jobs` and publishes `job:failed`, so N instances doing it
+ * concurrently would emit N events for the same job.
+ */
+export async function runStuckJobSweep(): Promise<void> {
+  try {
+    const ran = await withRedisLock(REAPER_LOCK_KEY, REAPER_LOCK_TTL_MS, async () => {
+      const { failed } = await failStuckJobs()
+      if (failed > 0) log.info(`stuck-job sweep: failed ${failed} abandoned job(s)`)
+    })
+    if (!ran) log.info('stuck-job sweep: skipped, another instance holds the lock')
+  } catch (err) {
+    log.error({ err }, 'stuck-job sweep failed')
+    captureException(err, { task: 'stuck-job-sweep' })
   }
-  console.log(`[scheduler] MER anomaly check: ${anomalies}/${workspaceIds.length} workspaces flagged`)
 }
 
 /** Registers the cron jobs. Call once, at process boot (index.ts) — never from app.ts/tests. */
 export function startScheduler(): void {
   // Daily at 09:00 UTC — trial windows are measured in days, no need to check more often.
   cron.schedule('0 9 * * *', () => void runTrialReminders())
-  // Every 4 hours, on the hour — matches the blueprint's stated Intelligence Engine cadence.
-  cron.schedule('0 */4 * * *', () => void runIntelligenceRefresh())
-  // Offset 30 minutes from the intelligence refresh so the two don't hit ClickHouse at the same instant.
-  cron.schedule('30 */4 * * *', () => void runMerAnomalyCheck())
-  console.log(
-    '[scheduler] started — trial reminders daily @ 09:00 UTC, intelligence refresh + MER anomaly check every 4h',
+  // Hourly. The tick itself decides what's actually due, so this only sets the granularity at which
+  // a workspace's own cadence (default: weekly) can be honoured.
+  cron.schedule('0 * * * *', () => void runIntelligenceRefresh())
+  // Every 15 minutes. A job abandoned by a dead worker otherwise leaves the client polling a
+  // spinner that will never resolve; a terminal state is strictly better than an eternal one.
+  cron.schedule('*/15 * * * *', () => void runStuckJobSweep())
+  log.info(
+    'started — trial reminders daily @ 09:00 UTC, intelligence tick hourly, stuck-job sweep every 15m',
   )
 }

@@ -1,5 +1,8 @@
 import type { WebSocket } from 'ws'
 import { getRedis } from './jobs/client.js'
+import { moduleLogger } from './logger.js'
+
+const log = moduleLogger('ws')
 
 /**
  * Real-time WebSocket transport. Named as a deferred item independently across four different
@@ -43,6 +46,13 @@ const REDIS_CHANNEL = 'growthos:ws-events'
 const rooms = new Map<string, Set<WebSocket>>()
 
 export function subscribeSocket(workspaceId: string, socket: WebSocket): void {
+  // Start the Redis fan-out the first time a socket actually joins a room, not at plugin
+  // registration: `registerWsRoutes` runs inside `buildApp()`, so subscribing there opened a Redis
+  // connection in every route test that built the app, whether or not it used WebSockets at all
+  // (docs/AUDIT-2026-08-13-post-merge.md #9). With no local sockets there is nothing for the
+  // subscriber to deliver to anyway, so this is the earliest point it's genuinely needed.
+  startWsRedisSubscriber()
+
   let room = rooms.get(workspaceId)
   if (!room) {
     room = new Set()
@@ -90,7 +100,7 @@ export async function publish(event: WsEvent): Promise<void> {
       new Promise((_, reject) => setTimeout(() => reject(new Error('redis publish timed out')), 1500)),
     ])
   } catch (err) {
-    console.error('[ws] redis publish failed — falling back to local-only delivery', err)
+    log.error({ err }, 'redis publish failed — falling back to local-only delivery')
     publishLocal(event)
   }
 }
@@ -104,13 +114,13 @@ export function startWsRedisSubscriber(): void {
 
   const subscriber = getRedis().duplicate()
   subscriber.subscribe(REDIS_CHANNEL).catch((err) => {
-    console.error('[ws] redis subscribe failed', err)
+    log.error({ err }, 'redis subscribe failed')
   })
   subscriber.on('message', (_channel, raw) => {
     try {
       publishLocal(JSON.parse(raw) as WsEvent)
     } catch (err) {
-      console.error('[ws] failed to parse a ws event off redis', err)
+      log.error({ err }, 'failed to parse a ws event off redis')
     }
   })
 }
