@@ -11,7 +11,7 @@ done; DataForSEO features (keyword research, site audit, clustering) gated on th
 | Organic traffic view | [x] | Per-page clicks/impr/CTR/position + daily trend from `organic_traffic`; `/seo` Organic traffic tab. |
 | Keyword research | [ ] | **DataForSEO (paid)** — gated on the key. |
 | Site audit + Core Web Vitals | [ ] | Crawler port + PageSpeed (free). Buildable; larger. |
-| Keyword clustering (pgvector) | [ ] | Neon pgvector — free. Later. |
+| Keyword clustering | [ ] | **Planned 2026-08-20** (design in `plan.md`). ~~pgvector~~ — the label was wrong: legacy clusters with Jaccard similarity over word sets, no embeddings and no vector column. Free, pure, buildable now. |
 
 ## Rank tracker — what shipped (commit `210224f`)
 
@@ -44,3 +44,10 @@ GSC metrics (clicks, impressions, CTR, avg position).
 ## Log
 - 2026-07-18 — Rank-tracker slice built + committed. P3.1 opened.
 - 2026-07-18 — Organic-traffic slice built + committed; SEO page split into tabs.
+- 2026-08-20 — **Keyword clustering slice designed** (`plan.md`). Corrected a wrong dependency carried
+  in both this file and `PROGRESS.md`: clustering was recorded as needing Neon pgvector and a
+  `vector(1536)` column, which would imply an embedding model and therefore a paid API. The legacy
+  implementation uses Jaccard similarity over tokenised word sets — no embeddings at all. Also
+  recorded the honest limit of the free approach (lexical similarity cannot see intent that only
+  appears in SERPs) and shaped the engine so a SERP-validation pass can be added when DataForSEO
+  lands, rather than pretending the free layer is the whole answer.
