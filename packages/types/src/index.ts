@@ -88,6 +88,41 @@ export interface WorkspaceMember {
   role: Role;
 }
 
+// Team invitations (M5 follow-up — deferred from M2 P2.8, never delivered in M5). Rows live in
+// `workspace_invitations` (Better Auth's org-plugin table, accessed directly via Drizzle rather
+// than the plugin's own invitation API — see guards.ts for why app roles matter here).
+// "expired" is never stored: `status` on the row is only ever "pending" | "accepted" | "revoked",
+// and API responses report "expired" instead of "pending" once `expiresAt` has passed.
+export type InvitationStatus = "pending" | "accepted" | "revoked" | "expired";
+
+export interface WorkspaceInvitation {
+  id: string;
+  email: string;
+  role: Role;
+  status: InvitationStatus;
+  inviterId: string;
+  inviterName: string | null;
+  createdAt: string; // ISO
+  expiresAt: string; // ISO
+}
+
+// Unauthenticated preview for the accept-invite page — deliberately thin (no workspaceId,
+// inviter identity, or member list) since anyone with the link can read it before signing in.
+export interface InvitationPreview {
+  id: string;
+  email: string;
+  role: Role;
+  status: InvitationStatus;
+  workspaceName: string;
+  workspaceSlug: string;
+}
+
+export interface AcceptInvitationResponse {
+  workspaceId: string;
+  workspaceSlug: string;
+  role: Role;
+}
+
 export interface PlatformConnection {
   id: string;
   workspaceId: string;

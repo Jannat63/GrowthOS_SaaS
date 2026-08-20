@@ -4,7 +4,9 @@ import { z } from 'zod'
 import { fromNodeHeaders } from 'better-auth/node'
 import { db, schema } from '@growthos/db'
 import type {
+  AcceptInvitationResponse,
   CrawlSummary,
+  InvitationPreview,
   JobStatusResponse,
   MeResponse,
   Membership,
@@ -13,12 +15,20 @@ import type {
   Role,
   WhiteLabelConfig,
   AutomationConfig,
+  WorkspaceInvitation,
   WorkspaceMember,
 } from '@growthos/types'
 import { auth } from '../auth.js'
 import { AppError } from '../errors.js'
 import { requireUser } from '../auth-context.js'
-import { requireWorkspaceMember } from '../guards.js'
+import { requireWorkspaceMember, rankOf } from '../guards.js'
+import {
+  acceptInvitation,
+  createInvitation,
+  getInvitationPreview,
+  listInvitations,
+  revokeInvitation,
+} from '../invitations.js'
 import { enqueue } from '../jobs/enqueue.js'
 import { listRecommendations } from '../recommendations.js'
 import { parsePage } from '../pagination.js'
@@ -593,6 +603,105 @@ export async function registerV1Routes(app: FastifyInstance) {
       role: r.role as Role,
     }))
     return { data, total: data.length }
+  })
+
+  // ── Team invitations (deferred at M2 P2.8 as "→ M5", never delivered there either) ─────────
+  // Admin+ to create/list/revoke — the same sensitivity level as API keys, not a read. See
+  // invitations.ts for why these go straight through Drizzle rather than Better Auth's
+  // organization-plugin invitation API.
+  const createInvitationSchema = z.object({
+    email: z.string().email('Enter a valid email address.'),
+    role: z.enum(['client', 'viewer', 'manager', 'admin', 'owner']),
+  })
+
+  app.post('/api/v1/workspaces/:id/invitations', async (request, reply): Promise<WorkspaceInvitation> => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    const member = await requireWorkspaceMember(user.id, id, 'admin')
+    const body = createInvitationSchema.safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    // An admin must not be able to hand out a role that outranks their own — owner is the one
+    // role an admin specifically must not be able to grant.
+    if (rankOf(body.data.role) > rankOf(member.role)) {
+      throw new AppError(
+        'FORBIDDEN',
+        `You cannot invite someone as ${body.data.role} — that outranks your own role.`,
+      )
+    }
+    const invitation = await createInvitation(id, body.data.email, body.data.role, user.id, user.name)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'invitation.created',
+        entityType: 'invitation',
+        entityId: invitation.id,
+        metadata: { email: invitation.email, role: invitation.role },
+      },
+      request,
+    )
+    reply.status(201)
+    return invitation
+  })
+
+  app.get(
+    '/api/v1/workspaces/:id/invitations',
+    async (request): Promise<{ data: WorkspaceInvitation[]; total: number }> => {
+      const user = await requireUser(request)
+      const { id } = request.params as { id: string }
+      await requireWorkspaceMember(user.id, id, 'admin')
+      const data = await listInvitations(id)
+      return { data, total: data.length }
+    },
+  )
+
+  app.delete('/api/v1/workspaces/:id/invitations/:invitationId', async (request) => {
+    const user = await requireUser(request)
+    const { id, invitationId } = request.params as { id: string; invitationId: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    await revokeInvitation(id, invitationId)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'invitation.revoked',
+        entityType: 'invitation',
+        entityId: invitationId,
+      },
+      request,
+    )
+    return { revoked: true }
+  })
+
+  // Public invite preview (no auth) — the accept-invite page reads this before, or without, a
+  // session to render "You've been invited to <workspace> as <role>". Deliberately thin: see
+  // invitations.ts's InvitationPreview doc comment for what's excluded and why.
+  app.get('/api/v1/invitations/:id', async (request): Promise<InvitationPreview> => {
+    const { id } = request.params as { id: string }
+    return getInvitationPreview(id)
+  })
+
+  // Accepting requires a session — the invite is seated onto *this* signed-in user, and
+  // acceptInvitation checks the invitation's email against theirs so a discovered invitation id
+  // can't be used to join someone else's workspace under a different identity.
+  app.post('/api/v1/invitations/:id/accept', async (request): Promise<AcceptInvitationResponse> => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    const result = await acceptInvitation(id, user.id, user.email)
+    void recordAudit(
+      {
+        workspaceId: result.workspaceId,
+        actorId: user.id,
+        action: 'invitation.accepted',
+        entityType: 'invitation',
+        entityId: id,
+        metadata: { role: result.role },
+      },
+      request,
+    )
+    return result
   })
 
   // White-label branding (M3 P3.5 Slice C). GET is any member (branding applies for everyone);

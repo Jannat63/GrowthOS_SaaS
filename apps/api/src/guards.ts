@@ -3,7 +3,10 @@ import { db, schema } from '@growthos/db'
 import type { Role } from '@growthos/types'
 import { AppError } from './errors.js'
 
-const ROLE_RANK: Record<Role, number> = {
+// Exported (not just used by requireWorkspaceMember below) so invitations.ts / routes/v1.ts can
+// stop an admin from inviting someone at a higher rank than their own — the same "fail closed on
+// the unexpected" reasoning as rankOf below applies to invite creation too.
+export const ROLE_RANK: Record<Role, number> = {
   client: 0,
   viewer: 1,
   manager: 2,
@@ -14,9 +17,10 @@ const ROLE_RANK: Record<Role, number> = {
 // Rank a stored role, failing CLOSED for anything unmapped. Better Auth's organization plugin defaults
 // an invited member's role to the string "member" (and the column default is "member"), which is NOT one
 // of our app roles — without this an unmapped role would rank `undefined`, and `undefined < n` is false,
-// silently passing every threshold. Unknown roles get -1 so they clear no threshold (>= client). When the
-// invite flow lands it must assign a real app role (client/viewer/manager/admin/owner).
-function rankOf(role: string): number {
+// silently passing every threshold. Unknown roles get -1 so they clear no threshold (>= client). The
+// invite flow (invitations.ts) assigns a real app role (client/viewer/manager/admin/owner), so this
+// case should only ever apply to rows Better Auth's own plugin created directly.
+export function rankOf(role: string): number {
   return ROLE_RANK[role as Role] ?? -1
 }
 
