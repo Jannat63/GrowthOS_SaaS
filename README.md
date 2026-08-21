@@ -6,6 +6,218 @@ converts, organic should own.
 
 > **Status:** mid-rebuild, and not launched. See [Where the project is](#where-the-project-is).
 
+## Quick Start
+
+See it running in one command, no accounts of any kind — no Neon, no Google, no Stripe, no Resend.
+
+**Requirements:** [Docker](https://docs.docker.com/get-docker/), and Node 22+ with
+[pnpm](https://pnpm.io):
+
+```bash
+corepack enable && corepack prepare pnpm@11.0.9 --activate   # if you don't already have pnpm
+```
+
+On Ubuntu / Zorin / Debian, Docker is one line if you don't have it:
+
+```bash
+sudo apt update && sudo apt install -y docker.io && sudo usermod -aG docker $USER
+# then log out and back in — group membership needs a fresh session
+```
+
+Then, from the project root:
+
+```bash
+pnpm local
+```
+
+That's it. It checks Docker, generates every local secret and `.env` file, starts
+Postgres/Redis/ClickHouse in Docker, sets up the database, seeds a fully populated demo workspace,
+and starts the app:
+
+```text
+GrowthOS is ready!
+
+Web:
+  http://localhost:3000
+
+API:
+  http://localhost:3001
+
+Demo login (local development only):
+  Email:    demo@growthos.local
+  Password: DemoPass123!
+```
+
+Open http://localhost:3000, sign in, and keep going in [Local Demo Mode](#local-demo-mode) below —
+or jump to [Production / Developer Setup](#production--developer-setup) if you're working against
+a real Neon database instead.
+
+## Local Demo Mode
+
+`pnpm local` is meant for exactly this: trying GrowthOS, demoing it, or developing against it
+without setting up any external service first.
+
+**What you get.** Every dashboard is already populated the moment you sign in: SEO keyword
+rankings, organic traffic, Google Ads and Meta Ads performance, campaigns, cross-channel
+recommendations (paid → organic and organic → paid), creative fatigue alerts, and the weekly
+cross-channel intelligence report. This isn't bespoke demo-mode fixture data — `apps/api/scripts/seed-demo.ts`
+calls the same "seed if empty" functions the real dashboard routes already call on a brand-new
+workspace's first page load (`ensureAdPerformanceSeed`, `ensureKeywordRankingsSeed`,
+`ensureFatigueAlerts`, and so on); the seed script just calls them once up front so nothing shows
+an empty state while you're clicking around.
+
+**What's deliberately left empty.** Automation rules. `automation/rules.ts`'s own doc comment
+explains why: *"automation is something you turn on deliberately, not something you discover is
+already running"* — a subsystem that can pause campaigns and move budget shouldn't have a default
+that's already live, not even in a demo. Turn one on yourself under Settings → Automation to see it
+work. There's also no seeded data for in-app notifications — that feature doesn't exist yet.
+
+**Re-running is safe.** Every step — env files, Docker containers, schema, demo user, demo
+workspace, seeded data — checks what's already true before doing anything. Run `pnpm local` as
+many times as you like; it won't duplicate data, regenerate secrets you're already using, or
+overwrite an `.env` file you've since edited by hand.
+
+**Splitting setup from running**, if you'd rather:
+
+```bash
+pnpm setup:local   # Docker + env files + schema + demo data — once
+pnpm local         # start the app — any time after that
+```
+
+**Stopping.** `Ctrl+C` in the same terminal stops the web/API dev servers. The Docker containers
+keep running in the background (so the next `pnpm local` is fast); stop those too with:
+
+```bash
+docker compose -f docker-compose.local.yml down       # stop, keep the data
+docker compose -f docker-compose.local.yml down -v     # stop, wipe all local demo data
+```
+
+**How it works, if you're curious.** `docker-compose.local.yml` brings up a real local Postgres,
+Redis, and ClickHouse — the same Redis/ClickHouse images `docker-compose.yml` already used for
+normal dev, plus a local Postgres so this needs no Neon account at all. `packages/db/src/client.ts`
+supports two Postgres drivers, chosen by `DATABASE_DRIVER`: Neon's HTTP protocol in production
+(unchanged — unset behaves exactly as before this existed), or a plain `pg` connection pool for
+this local Postgres, since Neon's HTTP driver can't speak to an ordinary Postgres server.
+`scripts/local/setup.mjs` and `scripts/local/start.mjs` orchestrate the rest: prerequisite checks,
+`.env` generation, `docker compose up -d --wait`, `db:push`, the seed script, then the dev servers.
+See [Troubleshooting](#troubleshooting) if something doesn't come up clean.
+
+## Production / Developer Setup
+
+For working against a real Neon database, real third-party integrations, or preparing for
+deployment.
+
+Requires **Node 22+**, **pnpm**, **Python 3.12** (worker only), and **Docker** (Redis + ClickHouse).
+
+```bash
+PUPPETEER_SKIP_DOWNLOAD=true pnpm install   # see Troubleshooting re: plain `pnpm install`
+docker compose up -d                        # Redis :6379, ClickHouse :8123
+
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env
+# apps/api/.env needs at minimum: DATABASE_URL (a real Neon connection string),
+# BETTER_AUTH_SECRET, BETTER_AUTH_URL. The API fails fast at boot listing every missing
+# variable at once. Leave DATABASE_DRIVER unset — it defaults to Neon.
+
+pnpm --filter @growthos/db db:push
+pnpm dev                             # web :3000, api :3001
+```
+
+The web app also renders without a backend at all: every feature hook falls back to running the
+real `@growthos/logic` engine over fixtures locally, and a `DataSourceBadge` shows which was used.
+
+## Commands
+
+```bash
+pnpm dev            # turbo dev, all packages
+pnpm build          # turbo build
+pnpm typecheck      # turbo typecheck
+pnpm lint
+
+pnpm --filter @growthos/api dev      # API only  (:3001)
+pnpm --filter @growthos/web dev      # web only  (:3000)
+
+pnpm setup:local     # Local Demo Mode: Docker + env + schema + seed data, once
+pnpm local           # Local Demo Mode: start the app (runs setup first if needed)
+```
+
+### Tests
+
+```bash
+pnpm --filter @growthos/logic test   # engine unit tests — pure, no infrastructure
+pnpm --filter @growthos/db test      # the Neon retry policy
+pnpm --filter @growthos/web test     # web unit tests
+pnpm --filter @growthos/api test     # route + integration tests (needs Docker and a database)
+```
+
+The API suite runs against a real database — a real Neon URL, or the Local Demo Mode Postgres via
+`DATABASE_URL` + `DATABASE_DRIVER=node-postgres` — so it's slower and more sensitive to network
+conditions than the others when pointed at Neon. `apps/api/vitest.config.ts` documents the timeouts
+and concurrency caps and why they're set where they are.
+
+## Environment Variables
+
+| File | Required for | Notes |
+|------|--------------|-------|
+| `packages/db/.env` | any standalone database access (scripts, tests, `db:push`) | `DATABASE_URL`; add `DATABASE_DRIVER=node-postgres` only when pointing at a non-Neon Postgres |
+| `apps/api/.env` | the API | see `apps/api/.env.example` for the full list — every third-party key (Stripe, Resend, Sentry, Google, Meta) is genuinely optional and no-ops when blank; only `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` are required to boot |
+| `apps/web/.env` | the web app | `NEXT_PUBLIC_API_URL`; the PostHog key is optional |
+| `apps/worker/.env` | the Python worker (optional — not started by `pnpm local`) | `DATABASE_URL`, `REDIS_URL`, `QUEUE_KEY`, `CLICKHOUSE_HOST`, `CLICKHOUSE_PORT` |
+
+In Local Demo Mode, `scripts/local/setup.mjs` generates all four files for you, with fresh random
+secrets, and never overwrites one that already exists. In production, generate secrets yourself:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"    # BETTER_AUTH_SECRET, OAUTH_STATE_SECRET
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))" # TOKEN_ENCRYPTION_KEY
+```
+
+## Troubleshooting
+
+**`pnpm install` fails or hangs partway through, mentioning Puppeteer / Chromium.** Puppeteer
+(used for PDF export, `apps/api/src/pdf-report-generate.ts`) tries to download a Chromium build on
+install, which can hard-fail the entire `pnpm install` on a restricted or flaky network.
+`apps/api/.puppeteerrc.cjs` is meant to skip that by default, but in this pnpm workspace layout the
+config file isn't reliably picked up (Puppeteer's own postinstall script runs from deep inside
+pnpm's virtual store, not from `apps/api/`) — so for a plain `pnpm install`, set the environment
+variable explicitly:
+
+```bash
+PUPPETEER_SKIP_DOWNLOAD=true pnpm install
+```
+
+`pnpm local` / `pnpm setup:local` already do this for you. To actually use PDF export locally
+afterward: `npx puppeteer browsers install chrome`.
+
+**Docker isn't installed, or isn't running.** `pnpm local` detects which of these is true and
+prints exactly what to run — see [Quick Start](#quick-start) — rather than a Node stack trace.
+
+**A container won't become healthy.**
+
+```bash
+docker compose -f docker-compose.local.yml ps
+docker compose -f docker-compose.local.yml logs
+```
+
+The most common cause is a conflicting local service. Local Demo Mode's Postgres listens on
+**5433**, not 5432, specifically to avoid clashing with a system Postgres — but Redis (6379) and
+ClickHouse (8123/9000) use their normal ports, so free those up (or edit the `ports:` in
+`docker-compose.local.yml`) if something else already has them.
+
+**Want a clean slate?**
+
+```bash
+docker compose -f docker-compose.local.yml down -v   # wipes all local demo data
+rm apps/api/.env apps/web/.env packages/db/.env apps/worker/.env
+pnpm setup:local
+```
+
+**`pnpm local` says the app didn't come up in time.** The dev servers are almost always still
+starting in the same terminal — scroll up for the actual error, or wait a few more seconds and
+open the URLs directly. If the API's own error mentions a specific missing environment variable,
+that's the real cause; `apps/api/src/env.ts` fails fast and names exactly what's missing rather
+than crashing further downstream.
+
 ## Two worlds in one repo
 
 Read this before changing anything, because the same feature often exists twice.
@@ -48,61 +260,18 @@ apps/
   worker/    Python — consumes a Redis job-bridge; owns crawling, syncs, and data work
 packages/
   logic/     @growthos/logic — the canonical business engines, pure and unit-tested
-  db/        @growthos/db — Drizzle schema + Neon client + migrations
+  db/        @growthos/db — Drizzle schema + Neon (or local Postgres) client + migrations
   types/     @growthos/types — request/response and domain types shared across api and web
   ui/        @growthos/ui — shared shadcn primitives
   config/    shared TypeScript base config
+scripts/
+  local/     Local Demo Mode orchestration (`pnpm setup:local` / `pnpm local`)
 ```
 
 **`packages/logic` is where the product actually lives** — SEO scoring, the paid↔organic bridges,
 creative fatigue, blended MER, the cross-channel rule registry, the ads advisors, attribution, and
 the automation planner. Pure functions, no I/O, consumed by both the API and the web app. The same
 logic exists as ports inside `/legacy`; these copies are canonical.
-
-## Quickstart
-
-Requires **Node 22+**, **pnpm**, **Python 3.12** (worker only), and **Docker** (Redis + ClickHouse).
-
-```bash
-pnpm install
-docker compose up -d                 # Redis :6379, ClickHouse :8123
-
-cp apps/api/.env.example apps/api/.env
-cp apps/web/.env.example apps/web/.env
-# apps/api/.env needs at minimum: DATABASE_URL (Neon), BETTER_AUTH_SECRET, BETTER_AUTH_URL.
-# The API fails fast at boot listing every missing variable at once.
-
-pnpm --filter @growthos/db db:migrate
-pnpm dev                             # web :3000, api :3001
-```
-
-The web app renders without a backend: every feature hook falls back to running the real
-`@growthos/logic` engine over fixtures locally, and a `DataSourceBadge` shows which was used.
-
-## Commands
-
-```bash
-pnpm dev            # turbo dev, all packages
-pnpm build          # turbo build
-pnpm typecheck      # turbo typecheck
-pnpm lint
-
-pnpm --filter @growthos/api dev      # API only  (:3001)
-pnpm --filter @growthos/web dev      # web only  (:3000)
-```
-
-### Tests
-
-```bash
-pnpm --filter @growthos/logic test   # engine unit tests — pure, no infrastructure
-pnpm --filter @growthos/db test      # the Neon retry policy
-pnpm --filter @growthos/web test     # web unit tests
-pnpm --filter @growthos/api test     # route + integration tests (needs Docker and a Neon URL)
-```
-
-The API suite runs against a real remote database, so it is slower and more sensitive to network
-conditions than the others. `apps/api/vitest.config.ts` documents the timeouts and concurrency caps
-and why they are set where they are.
 
 ## Conventions worth knowing before your first change
 
@@ -129,8 +298,9 @@ and why they are set where they are.
 
 Built and working: the platform spine (auth, workspaces, tenancy), the full insight loop across all
 three channels, the intelligence engine and its scheduled autonomous loop, agency features
-(collaboration, audit log, white-label, PDF export), billing and plan metering, the public API, and
-P4.3a's automation control plane — rules, a planner, an approval queue, and an execution ledger.
+(collaboration, audit log, white-label, PDF export), billing and plan metering, the public API,
+team invitations, and P4.3a's automation control plane — rules, a planner, an approval queue, and
+an execution ledger.
 
 Not built: live Google Ads and Meta *write* adapters, AI creative automation, GEO tracking, and the
 mobile app. Most of those are blocked on external credentials — a Google Ads developer token, Meta
@@ -138,7 +308,8 @@ App Review — rather than on engineering.
 
 The important caveat: **most channel data is currently seeded, not live.** Google Search Console is
 the only real provider wired end to end. Everything else computes over fixtures or seeded ClickHouse
-rows, which is why the app looks complete while the numbers are not yet yours.
+rows, which is why the app looks complete while the numbers are not yet yours. (Local Demo Mode
+leans into this deliberately — see [Local Demo Mode](#local-demo-mode).)
 
 ## Contributing
 
