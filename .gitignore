@@ -1,41 +1,24 @@
 # Dependencies
 node_modules/
-.pnp
-.pnp.js
 
-# Build output
+# Build outputs
 dist/
-build/
-out/
 .next/
 .turbo/
-*.tsbuildinfo
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-.venv/
-venv/
-
-# Environment variables (never commit real secrets)
+# Environment files — scripts/local/setup.mjs generates these automatically with real secrets.
+# Never commit them. Committed *.env.example files are the templates; those stay tracked.
 .env
 .env.local
-.env.*.local
-!.env.example
+**/.env
+**/.env.local
+!**/.env.example
 
-# Logs
-*.log
-npm-debug.log*
+# Puppeteer's local browser cache (apps/api/.puppeteerrc.cjs)
+.cache/
 
-# OS
+# Editor / OS
 .DS_Store
-Thumbs.db
-
-# IDE
+*.log
 .vscode/
 .idea/
-
-# Docker
-docker-compose.override.yml

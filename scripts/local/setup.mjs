@@ -188,7 +188,12 @@ export async function installDependencies() {
 
 export async function pushSchema() {
   heading("Setting up the database schema");
-  await run("pnpm", ["--filter", "@growthos/db", "db:push", "--", "--force"], {
+  // `pnpm --filter <pkg> <script> -- <args>` does NOT forward args the way it looks like it
+  // should: pnpm includes the literal `--` in what it hands to the script, and drizzle-kit's own
+  // CLI rejects that as an "Unrecognized option" — so `db:push -- --force` fails outright, every
+  // time, filter or no filter. `exec` sidesteps the whole problem: it runs the binary directly
+  // with the args exactly as given, no script-string concatenation involved.
+  await run("pnpm", ["--filter", "@growthos/db", "exec", "drizzle-kit", "push", "--force"], {
     cwd: ROOT,
     env: { ...process.env, DATABASE_URL: LOCAL_DATABASE_URL },
   });
