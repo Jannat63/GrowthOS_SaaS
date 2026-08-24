@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, gt, sql } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import { PLAN_LIMITS, type BooleanFeature, type CountedMetric, type Plan, type UsageSummary } from '@growthos/types'
 import { AppError } from './errors.js'
@@ -22,9 +22,11 @@ import { getCurrentSubscription } from './billing.js'
  *    degrade-don't-fail shape that makes this safe. `ai_creatives_generated` still has no call site
  *    — that action doesn't exist until M4 P4.2.
  *
- *  - Live counts (`workspaces`) — `assertCanCreateWorkspace` counts what the user owns at the
- *    moment they try to create another. `trackedKeywords` and `teamMembers` still have no write
- *    endpoint to gate (keyword tracking and team invites aren't built).
+ *  - Live counts (`workspaces`, `teamMembers`) — counted at the moment of the gated action rather
+ *    than tracked in `usage_records`, since both are really "how many rows exist right now", not a
+ *    rolling window. `assertCanCreateWorkspace` counts workspaces the user owns; `assertCanInviteMember`
+ *    counts a single workspace's members + pending invitations (see invitations.ts). `trackedKeywords`
+ *    still has no write endpoint to gate (keyword tracking isn't built).
  */
 
 type PlanLimitKey = 'recommendationsPerWeek' | 'aiCreativesPerMonth'
@@ -117,6 +119,40 @@ export async function assertCanCreateWorkspace(userId: string): Promise<void> {
     throw new AppError(
       'PLAN_LIMIT_REACHED',
       `Your plan includes ${limit} workspace${limit === 1 ? '' : 's'}. Upgrade to create another.`,
+    )
+  }
+}
+
+/**
+ * Throws PLAN_LIMIT_REACHED (402) when inviting one more person would push a workspace past its
+ * plan's `teamMembers` seat count. Counts existing members plus *unexpired* pending invitations
+ * together — a pending invite is a claim on a seat before it's accepted, and gating only at
+ * accept-time would let an admin send unlimited invites that then fail silently one by one.
+ * Expired pending invites don't count: they're dead and shouldn't block a re-invite of the same
+ * seat (see invitations.ts for how "expired" is derived rather than stored).
+ */
+export async function assertCanInviteMember(workspaceId: string): Promise<void> {
+  const { plan } = await getCurrentSubscription(workspaceId)
+  const limit = PLAN_LIMITS[plan].teamMembers
+  if (limit === Infinity) return
+
+  const memberCount = await db.$count(
+    schema.workspace_members,
+    eq(schema.workspace_members.organizationId, workspaceId),
+  )
+  const pendingInviteCount = await db.$count(
+    schema.workspace_invitations,
+    and(
+      eq(schema.workspace_invitations.organizationId, workspaceId),
+      eq(schema.workspace_invitations.status, 'pending'),
+      gt(schema.workspace_invitations.expiresAt, new Date()),
+    ),
+  )
+
+  if (memberCount + pendingInviteCount >= limit) {
+    throw new AppError(
+      'PLAN_LIMIT_REACHED',
+      `Your ${plan} plan includes ${limit} team member${limit === 1 ? '' : 's'} (counting pending invites). Upgrade to invite more.`,
     )
   }
 }

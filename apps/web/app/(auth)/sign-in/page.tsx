@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -13,8 +13,12 @@ import { Button } from "@growthos/ui/components/button";
 import { Input } from "@growthos/ui/components/input";
 import { Label } from "@growthos/ui/components/label";
 
-export default function SignInPage() {
+function SignInForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Set when arriving from e.g. the accept-invite page, so a returning user with no workspace
+  // yet lands back where they meant to go instead of the default onboarding/dashboard split.
+  const callbackUrl = searchParams.get("callbackUrl");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,6 +30,11 @@ export default function SignInPage() {
     if (error) {
       setLoading(false);
       toast.error(error.message ?? "Wrong email or password.");
+      return;
+    }
+
+    if (callbackUrl) {
+      router.push(callbackUrl);
       return;
     }
 
@@ -89,10 +98,21 @@ export default function SignInPage() {
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         New to GrowthOS?{" "}
-        <Link href="/sign-up" className="font-medium text-primary hover:underline">
+        <Link
+          href={callbackUrl ? `/sign-up?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/sign-up"}
+          className="font-medium text-primary hover:underline"
+        >
           Create an account
         </Link>
       </p>
     </AuthShell>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignInForm />
+    </Suspense>
   );
 }

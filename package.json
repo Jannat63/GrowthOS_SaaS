@@ -6,7 +6,10 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "setup:local": "node scripts/local/setup.mjs",
+    "local": "node scripts/local/start.mjs",
+    "demo": "node scripts/local/start.mjs"
   },
   "devDependencies": {
     "turbo": "^2.3.0",

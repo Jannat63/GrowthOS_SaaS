@@ -7,15 +7,17 @@ import { moduleLogger } from './logger.js'
 const log = moduleLogger('emails')
 
 /**
- * Lifecycle emails (M5 P5.3): trial-ending, payment-failed (dunning), and trial-converted
- * notifications, sent via Resend. Receipts are NOT reinvented here — Stripe's built-in customer
- * emails (toggle in the Stripe Dashboard → Settings → Customer emails) already cover successful
- * payment / invoice receipts, and that's the standard practice rather than hand-rolling billing
- * receipts.
+ * Transactional emails, sent via Resend: trial-ending, payment-failed (dunning), and
+ * trial-converted notifications (M5 P5.3), plus team invitations (invitations.ts). Receipts are
+ * NOT reinvented here — Stripe's built-in customer emails (toggle in the Stripe Dashboard →
+ * Settings → Customer emails) already cover successful payment / invoice receipts, and that's the
+ * standard practice rather than hand-rolling billing receipts.
  *
- * Every send here is best-effort: a Resend failure is caught and logged, never thrown. These
- * fire from inside the Stripe webhook handler and checkout flow, whose own success (returning 200
- * to Stripe, completing checkout) must never depend on whether an email happened to go out.
+ * Every send here is best-effort: a Resend failure is caught and logged, never thrown. The
+ * billing lifecycle emails fire from inside the Stripe webhook handler and checkout flow, whose
+ * own success (returning 200 to Stripe, completing checkout) must never depend on whether an
+ * email happened to go out — the invite email follows the same rule so a Resend outage never
+ * blocks invite *creation*, only the notification.
  */
 
 let resendClient: Resend | undefined
@@ -84,6 +86,22 @@ export async function sendTrialConvertedEmail(to: string, workspaceName: string,
     `<p>Hi,</p>
      <p>Thanks for upgrading <strong>${workspaceName}</strong> to the ${plan} plan. Your subscription is active.</p>
      <p><a href="${webOriginForEmails()}/settings">View billing details</a></p>`,
+  )
+}
+
+export async function sendTeamInviteEmail(
+  to: string,
+  workspaceName: string,
+  inviterName: string,
+  invitationId: string,
+): Promise<void> {
+  await send(
+    to,
+    `${inviterName} invited you to join ${workspaceName} on GrowthOS`,
+    `<p>Hi,</p>
+     <p><strong>${inviterName}</strong> invited you to join <strong>${workspaceName}</strong> on GrowthOS.</p>
+     <p><a href="${webOriginForEmails()}/accept-invite?id=${invitationId}">Accept invitation</a></p>
+     <p>If you weren't expecting this, you can safely ignore this email.</p>`,
   )
 }
 

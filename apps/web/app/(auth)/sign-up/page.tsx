@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -12,10 +12,15 @@ import { Button } from "@growthos/ui/components/button";
 import { Input } from "@growthos/ui/components/input";
 import { Label } from "@growthos/ui/components/label";
 
-export default function SignUpPage() {
+function SignUpForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl");
+  // Prefills from an invite link (e.g. /accept-invite → /sign-up?callbackUrl=...&email=...) so
+  // an invitee doesn't have to retype the address the invite was sent to — left editable, since
+  // accepting still just checks whatever address they actually sign up with.
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -30,7 +35,7 @@ export default function SignUpPage() {
     }
     trackEvent("account_created");
     toast.success("Account created. Welcome to GrowthOS.");
-    router.push("/welcome");
+    router.push(callbackUrl ?? "/welcome");
   }
 
   return (
@@ -86,10 +91,21 @@ export default function SignUpPage() {
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/sign-in" className="font-medium text-primary hover:underline">
+        <Link
+          href={callbackUrl ? `/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/sign-in"}
+          className="font-medium text-primary hover:underline"
+        >
           Sign in
         </Link>
       </p>
     </AuthShell>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignUpForm />
+    </Suspense>
   );
 }

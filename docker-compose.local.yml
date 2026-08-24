@@ -1,0 +1,75 @@
+# GrowthOS — Local Demo Mode infrastructure.
+#
+# This is the local-only counterpart to docker-compose.yml (which brings up ClickHouse + Redis
+# for normal dev against a real Neon database). This file adds a real local Postgres too, so
+# Local Demo Mode needs no Neon account, no external database, and no production credentials at
+# all — see packages/db/src/client.ts's DATABASE_DRIVER switch for how the app talks to this
+# Postgres instead of Neon's HTTP protocol.
+#
+# You won't usually run this file directly — `pnpm local` / `pnpm setup:local` (scripts/local/)
+# bring it up, wait for every service to actually be healthy, then push the schema and seed a
+# demo account. Direct use:
+#   docker compose -f docker-compose.local.yml up -d       # start
+#   docker compose -f docker-compose.local.yml ps          # status
+#   docker compose -f docker-compose.local.yml down        # stop (keeps data)
+#   docker compose -f docker-compose.local.yml down -v     # stop + wipe all local data
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: growthos-postgres
+    ports:
+      - "5433:5432" # non-default host port so this can run alongside a system Postgres on 5432
+    environment:
+      POSTGRES_USER: growthos
+      POSTGRES_PASSWORD: growthos_local_dev
+      POSTGRES_DB: growthos
+    volumes:
+      - growthos-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U growthos -d growthos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24
+    container_name: growthos-clickhouse
+    ports:
+      - "8123:8123" # HTTP interface
+      - "9000:9000" # native protocol
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - growthos-clickhouse-data:/var/lib/clickhouse
+      # Schema auto-loads on first init (empty data volume) only.
+      - ./infra/clickhouse/schema:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: growthos-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - growthos-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  growthos-postgres-data:
+  growthos-clickhouse-data:
+  growthos-redis-data:
