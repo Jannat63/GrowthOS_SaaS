@@ -72,7 +72,26 @@ function createNodePostgresDb(): DB {
   // A real connection pool, not one-fetch-per-query — appropriate for a long-lived local
   // Postgres container rather than a serverless edge function talking to Neon.
   const pool = new Pool({ connectionString });
+  activePool = pool;
   return drizzlePg({ client: pool, schema }) as unknown as DB;
 }
 
+// Set only for the node-postgres path — see closeDb() below.
+let activePool: Pool | null = null;
+
 export const db: DB = driver === 'node-postgres' ? createNodePostgresDb() : createNeonDb();
+
+/**
+ * Closes the underlying connection, if there is one to close. Required for any one-shot script
+ * (a seed, a smoke test, a reset) to exit on its own under `DATABASE_DRIVER=node-postgres`: unlike
+ * the Neon HTTP client (stateless — one fetch per query, nothing to hold open), a `pg.Pool` keeps
+ * idle sockets open with their own keep-alive timers, which keeps Node's event loop alive
+ * indefinitely. A long-running server (the API itself) should *not* call this — it wants the pool
+ * to stay open for the process's whole lifetime — which is why this isn't wired into Fastify's
+ * own shutdown hooks and has to be called explicitly by scripts that are meant to finish and exit.
+ * No-ops for the Neon driver, so a script can call this unconditionally regardless of which driver
+ * is active rather than branching on `DATABASE_DRIVER` itself.
+ */
+export async function closeDb(): Promise<void> {
+  if (activePool) await activePool.end();
+}

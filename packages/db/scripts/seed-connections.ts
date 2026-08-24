@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { and, eq } from 'drizzle-orm';
-import { db, schema } from '../src/index.js';
+import { db, closeDb, schema } from '../src/index.js';
 
 // Stub connections so the UI shows "connected" channels without live OAuth (M2 rule).
 // Real OAuth + encrypted tokens land in M3 P3.0.
@@ -44,5 +44,16 @@ async function main() {
   console.log(`OK: ${rows.length} platform_connections for workspace ${workspaceId}`);
 }
 
-// Let the process exit naturally (Neon HTTP client is stateless); force-exit only on failure.
-main().catch((e) => { console.error(e); process.exit(1); });
+// Force-exit either way: under DATABASE_DRIVER=node-postgres, `db` holds a real connection pool
+// whose idle sockets keep the process alive on their own — the Neon HTTP client this comment
+// used to describe as "stateless, exits naturally" is only one of two drivers now (see
+// packages/db/src/client.ts). closeDb() no-ops under Neon, so this is safe unconditionally.
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await closeDb();
+    process.exit(process.exitCode ?? 0);
+  });

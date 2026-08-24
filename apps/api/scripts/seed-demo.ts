@@ -14,7 +14,7 @@
 // seeded: notifications — there's no such table in this schema yet.
 import 'dotenv/config'
 import { and, eq } from 'drizzle-orm'
-import { db, schema } from '@growthos/db'
+import { db, closeDb, schema } from '@growthos/db'
 import { buildApp } from '../src/app.js'
 import { getGrowthHub } from '../src/growth-hub.js'
 import { getKeywordRankings, getOrganicTraffic } from '../src/seo.js'
@@ -160,7 +160,17 @@ async function main() {
   console.log(`  Login:     ${DEMO_EMAIL} / ${DEMO_PASSWORD}`)
 }
 
-main().catch((err) => {
-  console.error('[seed-demo] FAILED:', err)
-  process.exit(1)
-})
+main()
+  .catch((err) => {
+    console.error('[seed-demo] FAILED:', err)
+    process.exitCode = 1
+  })
+  .finally(async () => {
+    // Under DATABASE_DRIVER=node-postgres, `db` holds a real connection pool with idle sockets
+    // that keep Node's event loop alive — app.close() tears down Fastify, not this pool, since
+    // @growthos/db's `db` is a module-level singleton the API imports directly, not something
+    // registered with Fastify's own lifecycle. No-ops under the default Neon driver. Without this,
+    // this script (and pnpm local, which runs it) hangs forever after printing its final summary.
+    await closeDb()
+    process.exit(process.exitCode ?? 0)
+  })

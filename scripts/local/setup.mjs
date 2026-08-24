@@ -186,6 +186,29 @@ export async function installDependencies() {
   ok("Dependencies installed");
 }
 
+export async function buildWorkspacePackages() {
+  heading("Building shared packages");
+  // The seed step below runs via a raw `tsx` invocation, not through `turbo dev` — so it doesn't
+  // get turbo.json's `dev` task's `dependsOn: ["^build"]` for free the way starting the app does.
+  // `@growthos/db`, `@growthos/logic`, and `@growthos/types` resolve through their compiled
+  // `dist/`, per their package.json `exports` — apps/api imports all three directly, and
+  // apps/web imports `@growthos/types` for runtime values like `PLAN_LIMITS`, not just types
+  // (`@growthos/ui`/`@growthos/logic` don't need this: next.config.js's `transpilePackages`
+  // compiles those live from source instead). A truly fresh clone with no dist/ yet fails with
+  // `ERR_MODULE_NOT_FOUND` unless something builds these three first.
+  //
+  // Deliberately NOT `--filter=@growthos/api --filter=@growthos/web` here: that would pull in
+  // each app's own `build` task too, and `@growthos/web`'s is a full `next build` — a production
+  // build that needs network access to Google Fonts and can take a minute, neither of which this
+  // step should require just to make three small packages importable.
+  await run(
+    "pnpm",
+    ["turbo", "build", "--filter=@growthos/db", "--filter=@growthos/logic", "--filter=@growthos/types"],
+    { cwd: ROOT },
+  );
+  ok("Shared packages built");
+}
+
 export async function pushSchema() {
   heading("Setting up the database schema");
   // `pnpm --filter <pkg> <script> -- <args>` does NOT forward args the way it looks like it
@@ -212,6 +235,7 @@ async function main() {
   await checkPrereqs();
   writeEnvFiles();
   await installDependencies();
+  await buildWorkspacePackages();
   await startInfra();
   await pushSchema();
   await seedDemoData();

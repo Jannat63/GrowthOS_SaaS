@@ -15,6 +15,7 @@ import {
   checkPrereqs,
   writeEnvFiles,
   installDependencies,
+  buildWorkspacePackages,
   startInfra,
   pushSchema,
   seedDemoData,
@@ -127,6 +128,7 @@ async function main() {
   await checkPrereqs();
   writeEnvFiles();
   await installDependencies();
+  await buildWorkspacePackages();
   await startInfra();
   await pushSchema();
   await seedDemoData();
