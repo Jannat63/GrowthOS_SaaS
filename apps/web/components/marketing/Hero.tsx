@@ -11,7 +11,7 @@ export function Hero() {
 
       <div className="relative mx-auto grid max-w-6xl items-center gap-16 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:py-28">
         <div>
-          <span className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
+          <span className="glass-surface inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-success" />
             SEO · Google Ads · Meta Ads, on one loop
           </span>

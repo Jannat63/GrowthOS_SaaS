@@ -1,18 +1,14 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "@/styles/globals.css";
 import { Providers } from "@/components/Providers";
 
-const inter = Inter({
+// Single family for both body and display text — one voice across marketing, auth, and the
+// data-dense dashboard, rather than pairing a body font with a separate display face.
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space-grotesk",
-  weight: ["500", "600", "700"],
+  variable: "--font-jakarta",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -28,11 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className={`${inter.variable} ${spaceGrotesk.variable}`}
-    >
+    <html lang="en" suppressHydrationWarning className={jakarta.variable}>
       <body>
         <Providers>{children}</Providers>
       </body>

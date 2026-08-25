@@ -13,7 +13,9 @@
   --card-foreground: #0f172a;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
-  --primary: #4f46e5;
+  /* Trust blue — matches the "Analytics Dashboard" + "SaaS (General)" reasoning: clarity and
+     data-credibility over a warmer/quirkier brand color. */
+  --primary: #1e40af;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #0f172a;
@@ -23,23 +25,32 @@
   --accent-foreground: #0f172a;
   --success: #10b981;
   --success-foreground: #ffffff;
-  /* Amber, for states that are neither healthy nor broken — chiefly "this is sample data, not
-     yours". Deliberately distinct from --destructive: seeing demo figures before you've connected
-     an account is the expected path through onboarding, not an error. */
+  /* Amber. Dual purpose by design: (1) "this is sample data, not yours" during onboarding — seeing
+     demo figures before connecting an account isn't an error, so it stays visually distinct from
+     --destructive; (2) the shared "needs attention, not broken" tone for High/Medium severity
+     badges and opportunity highlights across the dashboard. */
   --warning: #d97706;
   --warning-foreground: #ffffff;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --border: #e5e7eb;
   --input: #e5e7eb;
-  --ring: #4f46e5;
+  --ring: #1e40af;
 
-  /* Brand ink — deep indigo for dark bands (the loop's "night" surface) */
-  --ink: #0e0c2b;
-  --ink-2: #171445;
-  --ink-foreground: #eceafe;
-  --ink-muted: #a5a1d4;
-  --ink-border: #2a2560;
+  /* Brand ink — deep navy for dark bands (the loop's "night" surface), tuned to sit with the blue primary */
+  --ink: #0a1128;
+  --ink-2: #13214a;
+  --ink-foreground: #eaf1fe;
+  --ink-muted: #93a3c9;
+  --ink-border: #23345f;
+
+  /* Glass surfaces — used sparingly: sticky chrome, popovers/modals, and signature hero cards.
+     Never on dense tables/forms (translucency reduces text contrast). */
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-ink-bg: rgba(19, 33, 74, 0.55);
+  --glass-ink-border: rgba(234, 241, 254, 0.1);
+  --glass-blur: 20px;
 }
 
 .dark {
@@ -49,7 +60,8 @@
   --card-foreground: #f8fafc;
   --popover: #0f172a;
   --popover-foreground: #f8fafc;
-  --primary: #818cf8;
+  /* Lifted to blue-400 for contrast on the dark surface — #1e40af reads muddy on near-black. */
+  --primary: #60a5fa;
   --primary-foreground: #0b1220;
   --secondary: #1e293b;
   --secondary-foreground: #f8fafc;
@@ -66,13 +78,19 @@
   --destructive-foreground: #f8fafc;
   --border: #1e293b;
   --input: #1e293b;
-  --ring: #818cf8;
+  --ring: #60a5fa;
 
-  --ink: #08061c;
-  --ink-2: #120f38;
-  --ink-foreground: #eceafe;
-  --ink-muted: #a5a1d4;
-  --ink-border: #2a2560;
+  --ink: #060a1c;
+  --ink-2: #0f1a3d;
+  --ink-foreground: #eaf1fe;
+  --ink-muted: #93a3c9;
+  --ink-border: #1c2a54;
+
+  --glass-bg: rgba(15, 23, 42, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-ink-bg: rgba(15, 26, 61, 0.55);
+  --glass-ink-border: rgba(234, 241, 254, 0.08);
+  --glass-blur: 20px;
 }
 
 @theme inline {
@@ -106,14 +124,19 @@
   --color-ink-muted: var(--ink-muted);
   --color-ink-border: var(--ink-border);
 
+  --color-glass-bg: var(--glass-bg);
+  --color-glass-border: var(--glass-border);
+  --color-glass-ink-bg: var(--glass-ink-bg);
+  --color-glass-ink-border: var(--glass-ink-border);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 12px);
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-space-grotesk), var(--font-inter), sans-serif;
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
@@ -145,6 +168,50 @@
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+}
+
+/* Glass surfaces — restrained on purpose: sticky chrome, popovers/dialogs, and signature hero
+   cards that sit over an ambient glow. Never applied to dense tables, forms, or long-form text —
+   translucency competes with reading contrast there. Falls back to a solid surface when the OS
+   requests reduced transparency, and the ambient glow it sits over respects reduced motion. */
+.glass-surface {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+.glass-ink {
+  background: var(--glass-ink-bg);
+  border: 1px solid var(--glass-ink-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass-surface {
+    background: var(--card);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .glass-ink {
+    background: var(--ink-2);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Soft ambient glow, sized to sit behind a glass-surface card and give the blur something to
+   read against. Purely decorative — aria-hidden at the call site. */
+.ambient-glow {
+  pointer-events: none;
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(48px);
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-glow {
+    opacity: 0.35;
   }
 }
 

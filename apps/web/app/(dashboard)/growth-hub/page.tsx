@@ -1,26 +1,21 @@
 "use client";
 import Link from "next/link";
 import {
-  Area,
-  AreaChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
   ArrowUpRight,
+  ArrowRight,
   FileText,
   Megaphone,
   Flame,
   Sparkles,
   TrendingUp,
-  Wallet,
-  ListChecks,
   AlertTriangle,
+  Target,
+  ListChecks,
   DollarSign,
   MousePointerClick,
   ShoppingCart,
+  Search,
+  Wallet,
 } from "lucide-react";
 import type { Recommendation } from "@growthos/types";
 import { Card } from "@growthos/ui/components/card";
@@ -37,6 +32,8 @@ import { platformToChannel, type ChannelKey } from "@/components/dashboard/chann
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { GoalSimulator } from "@/components/dashboard/GoalSimulator";
+import { ScoreGauge, computeGrowthScore } from "@/components/dashboard/ScoreGauge";
+import { severityFromScore, SEVERITY_BADGE_VARIANT } from "@/components/dashboard/severity";
 
 // The four "moves" of the loop — each maps to a recommendation type + its module.
 const MOVES = [
@@ -46,12 +43,6 @@ const MOVES = [
   { type: "cross_channel", label: "Cross-channel moves", hint: "Bridges across channels", href: "/growth-hub", icon: Sparkles },
 ] as const;
 
-const TYPE_DOT: Record<string, string> = {
-  paid_to_organic: "bg-primary",
-  organic_to_paid: "bg-success",
-  fatigue_alert: "bg-destructive",
-  cross_channel: "bg-primary",
-};
 const TYPE_HREF: Record<string, string> = {
   paid_to_organic: "/content-pipeline",
   organic_to_paid: "/creative-queue",
@@ -59,10 +50,18 @@ const TYPE_HREF: Record<string, string> = {
   cross_channel: "/growth-hub",
 };
 
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function GrowthHubPage() {
   const { data: me } = useWorkspace();
   const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaceId = activeId ?? me?.data.memberships[0]?.workspaceId ?? null;
+  const firstName = me?.data.user?.name?.split(" ")[0];
 
   const { data: mer } = useMer(workspaceId, 30);
   const { data: hub } = useGrowthHub(workspaceId, 30);
@@ -73,8 +72,30 @@ export default function GrowthHubPage() {
 
   const pending = (recs?.data ?? []).filter((r) => r.status === "pending");
   const countByType = (t: string) => pending.filter((r) => r.type === t).length;
-  // One fatigue_alert is generated per non-healthy creative, so this is the at-risk count.
+  // One fatigue_alert is generated per non-healthy creative, so this is the at-risk count,
+  // and — since it's the loop's only "something is degrading" type — also the Needs Attention list.
   const atRisk = countByType("fatigue_alert");
+  const needsAttention = pending
+    .filter((r) => r.type === "fatigue_alert")
+    .sort((a, b) => b.urgencyScore - a.urgencyScore)
+    .slice(0, 4);
+  const topOpportunities = pending
+    .filter((r) => r.type !== "fatigue_alert")
+    .sort((a, b) => b.impactScore - a.impactScore)
+    .slice(0, 4);
+  const priorityActions = [...pending]
+    .sort((a, b) => b.compositeScore - a.compositeScore)
+    .slice(0, 5);
+  const highUrgencyPending = pending.filter(
+    (r) => severityFromScore(r.urgencyScore) === "High"
+  ).length;
+
+  const trend = mer?.data.trend ?? [];
+  const merTrendPct =
+    trend.length >= 2 && trend[0].mer > 0
+      ? ((trend[trend.length - 1].mer - trend[0].mer) / trend[0].mer) * 100
+      : null;
+  const growthScore = recs && mer ? computeGrowthScore({ merTrendPct, atRiskCreatives: atRisk, highUrgencyPending }) : null;
 
   const connectedKeys = new Set(
     (conn?.data ?? [])
@@ -85,44 +106,42 @@ export default function GrowthHubPage() {
 
   return (
     <div className="animate-rise space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight">Growth Hub</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="font-display text-2xl font-semibold tracking-tight">
+            {greeting()}{firstName ? `, ${firstName}` : ""}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             One efficiency number, and the loop&rsquo;s next moves across every channel.
           </p>
         </div>
-        {recs && <DataSourceBadge source={recs.source} platform={MODULE_PLATFORMS.crossChannel} />}
+        <div className="flex items-center gap-3">
+          {recs && <DataSourceBadge source={recs.source} platform={MODULE_PLATFORMS.crossChannel} />}
+        </div>
       </div>
 
-      {/* Stat row — the MER tile is the signature: the one number the whole loop feeds. */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MerTile mer={mer} />
-        <StatTile
-          icon={Wallet}
-          label="Ad spend (30d)"
-          value={kpi("adSpend")?.value}
-          deltaPct={kpi("adSpend")?.deltaPct}
-          hint="Google + Meta combined"
-        />
-        <StatTile
-          icon={ListChecks}
-          label="Open actions"
-          value={recs ? String(pending.length) : undefined}
-          hint="Recommendations awaiting you"
-          href="#priority"
-        />
-        <StatTile
-          icon={AlertTriangle}
-          label="Creatives at risk"
-          value={recs ? String(atRisk) : undefined}
-          hint="Fatigued or approaching it"
-          tone={atRisk > 0 ? "warn" : "default"}
-          href="/fatigue-monitor"
-        />
-      </div>
+      {/* Growth Score — a signature glass card. Composite of this workspace's own signals
+          (MER trend, creative health, open priority load); never a claim vs. other businesses,
+          since there's no peer dataset behind this app to back that. */}
+      <Card className="relative overflow-hidden p-6">
+        <span aria-hidden="true" className="ambient-glow -right-10 -top-16 h-64 w-64 bg-primary/20" />
+        <span aria-hidden="true" className="ambient-glow -left-16 bottom-0 h-48 w-48 bg-warning/10" />
+        <div className="glass-surface relative rounded-xl p-5">
+          {growthScore !== null ? (
+            <ScoreGauge score={growthScore} />
+          ) : (
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-[120px] w-[120px] rounded-full" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-48" />
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
 
-      {/* Outcome metrics — what the loop is actually producing, plus a forward projection. */}
+      {/* Stat row — four headline numbers, matching what the loop actually reports. */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatTile
           icon={DollarSign}
@@ -130,6 +149,14 @@ export default function GrowthHubPage() {
           value={kpi("revenue")?.value}
           deltaPct={kpi("revenue")?.deltaPct}
           hint="Blended across every channel"
+        />
+        <MerTile mer={mer} />
+        <StatTile
+          icon={ShoppingCart}
+          label="Conversions (30d)"
+          value={kpi("conversions")?.value}
+          deltaPct={kpi("conversions")?.deltaPct}
+          hint="Google + Meta combined"
         />
         <StatTile
           icon={MousePointerClick}
@@ -139,84 +166,84 @@ export default function GrowthHubPage() {
           hint="Search Console, all pages"
           href="/seo"
         />
-        <StatTile
-          icon={ShoppingCart}
-          label="Conversions (30d)"
-          value={kpi("conversions")?.value}
-          deltaPct={kpi("conversions")?.deltaPct}
-          hint="Google + Meta combined"
-        />
-        <GoalSimulator baseline={hub?.data.baseline} />
       </div>
 
-      {/* Trend + priority actions */}
+      {/* Needs Attention / Top Opportunities / Priority Actions */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="flex flex-col p-6 text-primary lg:col-span-2">
+        <ActionListCard
+          title="Needs attention"
+          icon={AlertTriangle}
+          tone="warn"
+          items={needsAttention}
+          loading={!recs}
+          emptyLabel="No creatives at risk right now."
+        />
+        <ActionListCard
+          title="Top opportunities"
+          icon={Target}
+          tone="default"
+          items={topOpportunities}
+          loading={!recs}
+          emptyLabel="New opportunities appear as data flows in."
+        />
+        <ActionListCard
+          title="Priority actions"
+          icon={ListChecks}
+          tone="default"
+          items={priorityActions}
+          loading={!recs}
+          emptyLabel="You're all caught up."
+          numbered
+        />
+      </div>
+
+      {/* Channel performance + Goal Simulator */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="p-6 lg:col-span-2">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold tracking-tight text-foreground">
-              Blended MER trend
-            </h2>
+            <h2 className="font-display text-lg font-semibold tracking-tight">Channel performance</h2>
             <Link href="/analytics" className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
-              Analytics <ArrowUpRight className="h-3.5 w-3.5" />
+              Full report <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </div>
-          <div className="mt-4 w-full flex-1 min-h-[14rem]">
-            {mer ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={mer.data.trend} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-                  <defs>
-                    <linearGradient id="hubMer" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="currentColor" stopOpacity={0.22} />
-                      <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="var(--color-muted-foreground)" tickFormatter={(d: string) => d.slice(5)} minTickGap={28} />
-                  <YAxis tick={{ fontSize: 11 }} stroke="var(--color-muted-foreground)" width={40} />
-                  <Tooltip
-                    contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
-                    labelStyle={{ color: "var(--color-muted-foreground)" }}
-                    formatter={(v) => [`${Number(v).toFixed(2)}×`, "MER"]}
-                  />
-                  <Area type="monotone" dataKey="mer" stroke="currentColor" strokeWidth={2} fill="url(#hubMer)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <Skeleton className="h-full w-full" />
-            )}
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <ChannelColumn
+              channelKey="seo"
+              label="SEO"
+              icon={Search}
+              connected={connectedKeys.has("seo")}
+              rows={[{ label: "Organic clicks", value: kpi("organicClicks")?.value, deltaPct: kpi("organicClicks")?.deltaPct }]}
+              href="/seo"
+              loading={!hub}
+            />
+            <ChannelColumn
+              channelKey="google"
+              label="Google Ads"
+              icon={MousePointerClick}
+              connected={connectedKeys.has("google")}
+              rows={[
+                { label: "Spend", value: mer ? `$${Math.round(mer.data.channelBreakdown.googleAdsSpend).toLocaleString()}` : undefined },
+                { label: "Conversions", value: hub ? String(hub.data.channelMetric.google.split(" ")[0]) : undefined },
+              ]}
+              href="/google-ads"
+              loading={!hub || !mer}
+            />
+            <ChannelColumn
+              channelKey="meta"
+              label="Meta Ads"
+              icon={Megaphone}
+              connected={connectedKeys.has("meta")}
+              rows={[
+                { label: "Spend", value: mer ? `$${Math.round(mer.data.channelBreakdown.metaAdsSpend).toLocaleString()}` : undefined },
+                { label: "Conversions", value: hub ? String(hub.data.channelMetric.meta.split(" ")[0]) : undefined },
+              ]}
+              href="/meta-ads"
+              loading={!hub || !mer}
+            />
           </div>
         </Card>
 
-        <Card className="flex flex-col p-6" id="priority">
-          <h2 className="font-display text-lg font-semibold tracking-tight">Priority actions</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Highest-impact moves right now.</p>
-          <div className="mt-4 flex-1">
-            {!recs ? (
-              <Skeleton className="h-56 w-full" />
-            ) : pending.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-center">
-                <p className="text-sm font-medium">You&rsquo;re all caught up</p>
-                <p className="mt-1 text-xs text-muted-foreground">New moves appear as data flows in.</p>
-              </div>
-            ) : (
-              <ul className="flex flex-col divide-y">
-                {pending.slice(0, 5).map((r: Recommendation) => (
-                  <li key={r.id}>
-                    <Link
-                      href={TYPE_HREF[r.type] ?? "/growth-hub"}
-                      className="-mx-2 flex items-start gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-secondary"
-                    >
-                      <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", TYPE_DOT[r.type] ?? "bg-primary")} />
-                      <span className="min-w-0 flex-1">
-                        <span className="line-clamp-2 text-sm font-medium">{r.title}</span>
-                        <span className="mt-0.5 block text-xs text-muted-foreground">Impact {r.impactScore}</span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Card>
+        <GoalSimulator baseline={hub?.data.baseline} />
       </div>
 
       {/* The loop's four moves */}
@@ -241,30 +268,131 @@ export default function GrowthHubPage() {
           );
         })}
       </div>
-
-      {/* Channel connections */}
-      <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 p-5">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Channels
-        </span>
-        {(["seo", "google", "meta"] as ChannelKey[]).map((k) => {
-          const connected = connectedKeys.has(k);
-          const label = k === "seo" ? "SEO" : k === "google" ? "Google Ads" : "Meta Ads";
-          return (
-            <span key={k} className="inline-flex items-center gap-2 text-sm">
-              <span className={cn("h-2 w-2 rounded-full", connected ? "bg-success" : "bg-muted-foreground/40")} />
-              <span className="font-medium">{label}</span>
-              <span className="text-xs text-muted-foreground">
-                {connected ? (hub?.data.channelMetric[k] ?? "Connected") : "Not connected"}
-              </span>
-            </span>
-          );
-        })}
-        <Link href="/settings" className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
-          Manage <ArrowUpRight className="h-3.5 w-3.5" />
-        </Link>
-      </Card>
     </div>
+  );
+}
+
+// ── Action list (Needs attention / Top opportunities / Priority actions) ──────
+
+function ActionListCard({
+  title,
+  icon: Icon,
+  tone,
+  items,
+  loading,
+  emptyLabel,
+  numbered,
+}: {
+  title: string;
+  icon: typeof AlertTriangle;
+  tone: "warn" | "default";
+  items: Recommendation[];
+  loading: boolean;
+  emptyLabel: string;
+  numbered?: boolean;
+}) {
+  return (
+    <Card className="flex flex-col p-6">
+      <div className="flex items-center justify-between">
+        <div className={cn("flex items-center gap-2 text-sm font-semibold", tone === "warn" && items.length > 0 ? "text-warning" : "text-foreground")}>
+          <Icon className="h-4 w-4" /> {title}
+        </div>
+        {!loading && (
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+            {items.length}
+          </span>
+        )}
+      </div>
+      <div className="mt-3 flex-1">
+        {loading ? (
+          <Skeleton className="h-40 w-full" />
+        ) : items.length === 0 ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">{emptyLabel}</p>
+        ) : (
+          <ul className="flex flex-col divide-y">
+            {items.map((r, i) => (
+              <li key={r.id}>
+                <Link
+                  href={TYPE_HREF[r.type] ?? "/growth-hub"}
+                  className="group -mx-2 flex items-start gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-secondary"
+                >
+                  {numbered && (
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.65rem] font-semibold text-primary">
+                      {i + 1}
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="line-clamp-2 text-sm font-medium">{r.title}</span>
+                      <Badge variant={SEVERITY_BADGE_VARIANT[severityFromScore(r.urgencyScore)]} className="shrink-0">
+                        {severityFromScore(r.urgencyScore)}
+                      </Badge>
+                    </span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{r.body}</span>
+                  </span>
+                  <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-muted-foreground/0 transition-colors group-hover:text-muted-foreground" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ── Channel performance column ────────────────────────────────────────────────
+
+function ChannelColumn({
+  label,
+  icon: Icon,
+  connected,
+  rows,
+  href,
+  loading,
+}: {
+  channelKey: ChannelKey;
+  label: string;
+  icon: typeof Search;
+  connected: boolean;
+  rows: { label: string; value: string | undefined; deltaPct?: number | null }[];
+  href: string;
+  loading: boolean;
+}) {
+  return (
+    <Link href={href} className="block rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-secondary/40">
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-2 text-sm font-semibold">
+          <Icon className="h-4 w-4 text-muted-foreground" /> {label}
+        </span>
+        <span className={cn("h-2 w-2 rounded-full", connected ? "bg-success" : "bg-muted-foreground/40")} />
+      </div>
+      {!connected ? (
+        <p className="mt-3 text-xs text-muted-foreground">Not connected</p>
+      ) : loading ? (
+        <div className="mt-3 space-y-2">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-16" />
+        </div>
+      ) : (
+        <div className="mt-3 space-y-1.5">
+          {rows.map((row) => (
+            <div key={row.label} className="flex items-baseline justify-between">
+              <span className="text-xs text-muted-foreground">{row.label}</span>
+              <span className="flex items-baseline gap-1.5 text-sm font-semibold tabular-nums">
+                {row.value ?? "—"}
+                {row.deltaPct != null && (
+                  <span className={cn("text-[0.65rem] font-medium", row.deltaPct > 0 ? "text-success" : row.deltaPct < 0 ? "text-destructive" : "text-muted-foreground")}>
+                    {row.deltaPct > 0 ? "+" : ""}
+                    {row.deltaPct}%
+                  </span>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Link>
   );
 }
 
@@ -280,7 +408,7 @@ function MerTile({ mer }: { mer: ReturnType<typeof useMer>["data"] }) {
       {mer ? (
         <>
           <div className="mt-2 flex items-end gap-2">
-            <span className="font-display text-4xl font-semibold tabular-nums leading-none">
+            <span className="font-display text-3xl font-semibold tabular-nums leading-none">
               {mer.data.summary.blendedMER.toFixed(2)}×
             </span>
           </div>

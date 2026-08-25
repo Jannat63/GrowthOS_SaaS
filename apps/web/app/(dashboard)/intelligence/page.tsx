@@ -166,23 +166,26 @@ export default function IntelligencePage() {
               <h2 className="font-display text-lg font-semibold tracking-tight">
                 Suggested budget move
               </h2>
-              <Card className="border-primary/30 bg-primary/5 p-6">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
-                  <Wallet className="h-3.5 w-3.5" />
-                  Reallocation
+              <Card className="relative overflow-hidden p-6">
+                <span aria-hidden="true" className="ambient-glow -right-10 -top-14 h-48 w-48 bg-primary/25" />
+                <div className="glass-surface relative rounded-xl p-5">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
+                    <Wallet className="h-3.5 w-3.5" />
+                    Reallocation
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-sm font-medium">
+                    <Badge variant="muted">{channelLabel(r.budgetReallocation.fromChannel)}</Badge>
+                    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                      <ArrowRight className="h-4 w-4" />
+                      {usd(r.budgetReallocation.amount)}
+                      <ArrowRight className="h-4 w-4" />
+                    </span>
+                    <Badge>{channelLabel(r.budgetReallocation.toChannel)}</Badge>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                    {r.budgetReallocation.reason}
+                  </p>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm font-medium">
-                  <Badge variant="muted">{channelLabel(r.budgetReallocation.fromChannel)}</Badge>
-                  <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                    <ArrowRight className="h-4 w-4" />
-                    {usd(r.budgetReallocation.amount)}
-                    <ArrowRight className="h-4 w-4" />
-                  </span>
-                  <Badge>{channelLabel(r.budgetReallocation.toChannel)}</Badge>
-                </div>
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  {r.budgetReallocation.reason}
-                </p>
               </Card>
             </section>
           )}

@@ -14,7 +14,7 @@ export function OnboardingShell({
 }) {
   return (
     <div className="loop-backdrop relative min-h-screen bg-muted/20">
-      <header className="sticky top-0 z-20 border-b border-border/60 bg-background/70 backdrop-blur-xl">
+      <header className="glass-surface sticky top-0 z-20">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-6">
           <Link
             href="/"

@@ -21,6 +21,7 @@ import {
   useRecommendationComments,
   useCollaborationActions,
 } from "@/lib/hooks/useCollaboration";
+import { severityFromScore, SEVERITY_BADGE_VARIANT } from "@/components/dashboard/severity";
 
 const STATUS_BADGE: Record<
   Recommendation["status"],
@@ -66,6 +67,11 @@ export function RecommendationCard({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Badge variant={status.variant}>{status.label}</Badge>
+          {rec.status === "pending" && (
+            <Badge variant={SEVERITY_BADGE_VARIANT[severityFromScore(rec.urgencyScore)]}>
+              {severityFromScore(rec.urgencyScore)}
+            </Badge>
+          )}
           <Badge variant="muted">Impact {rec.impactScore}</Badge>
         </div>
       </div>

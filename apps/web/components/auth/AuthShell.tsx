@@ -13,7 +13,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Brand panel */}
       <aside className="relative hidden overflow-hidden bg-ink p-12 text-ink-foreground lg:flex lg:flex-col lg:justify-between">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-primary/30 blur-3xl" />
+        <span aria-hidden="true" className="ambient-glow -right-24 -top-24 h-80 w-80 bg-primary/30" />
         <Link href="/" className="relative flex items-center gap-2.5">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
             <span className="h-3 w-3 rounded-sm bg-primary-foreground" />
@@ -24,7 +24,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         </Link>
 
         <div className="relative">
-          <span className="inline-flex items-center gap-2 rounded-full border border-ink-border bg-ink-2 px-3 py-1 text-xs font-medium text-ink-muted">
+          <span className="glass-ink inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium text-ink-muted">
             <Repeat className="h-3.5 w-3.5" />
             The insight loop
           </span>

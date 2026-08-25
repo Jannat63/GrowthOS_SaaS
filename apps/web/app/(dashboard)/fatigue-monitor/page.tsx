@@ -12,6 +12,7 @@ import { useRecommendations } from "@/lib/hooks/useRecommendations";
 import { useRecommendationActions } from "@/lib/hooks/useRecommendationActions";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
+import { severityFromScore, SEVERITY_BADGE_VARIANT } from "@/components/dashboard/severity";
 
 const STATUS: Record<
   ScoredCreative["status"],
@@ -69,7 +70,9 @@ export default function FatigueMonitorPage() {
                       <p className="mt-1 text-sm text-muted-foreground">{rec.body}</p>
                     </div>
                   </div>
-                  <Badge variant="muted">Urgency {rec.urgencyScore}</Badge>
+                  <Badge variant={SEVERITY_BADGE_VARIANT[severityFromScore(rec.urgencyScore)]}>
+                    {severityFromScore(rec.urgencyScore)}
+                  </Badge>
                 </div>
                 <div className="mt-4 flex items-center gap-2">
                   <Button size="sm" onClick={() => actions.mutate({ id: rec.id, status: "acted" })} disabled={actions.isPending}>

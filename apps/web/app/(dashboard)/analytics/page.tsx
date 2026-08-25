@@ -60,15 +60,18 @@ export default function AnalyticsPage() {
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Card className="p-6">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                <TrendingUp className="h-3.5 w-3.5" /> Blended MER
-                <DataSourceBadge source={mer.source} platform={MODULE_PLATFORMS.blendedMer} />
+            <Card className="relative overflow-hidden p-6">
+              <span aria-hidden="true" className="ambient-glow -right-8 -top-10 h-40 w-40 bg-primary/20" />
+              <div className="glass-surface relative rounded-xl p-4">
+                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <TrendingUp className="h-3.5 w-3.5" /> Blended MER
+                  <DataSourceBadge source={mer.source} platform={MODULE_PLATFORMS.blendedMer} />
+                </div>
+                <p className="mt-2 font-display text-3xl font-semibold tabular-nums">
+                  {mer.data.summary.blendedMER.toFixed(2)}×
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{mer.data.summary.interpretation}</p>
               </div>
-              <p className="mt-2 font-display text-3xl font-semibold tabular-nums">
-                {mer.data.summary.blendedMER.toFixed(2)}×
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">{mer.data.summary.interpretation}</p>
             </Card>
             <Card className="p-6">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
