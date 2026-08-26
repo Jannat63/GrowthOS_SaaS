@@ -1,9 +1,11 @@
 import { getClickhouse } from './analytics.js'
+import { clusterKeywords } from '@growthos/logic'
 import type {
   KeywordRanking,
   OrganicPage,
   OrganicTrafficPoint,
   OrganicTrafficResponse,
+  SeoClustersResponse,
   SeoRankingsResponse,
 } from '@growthos/types'
 
@@ -116,6 +118,52 @@ export async function getKeywordRankings(workspaceId: string): Promise<SeoRankin
   const improved = keywords.filter((k) => k.change > 0).length
 
   return { keywords, summary: { tracked, avgPosition, topThree, improved } }
+}
+
+/**
+ * Topical clusters over the workspace's tracked keywords (M3 P3.1 slice).
+ *
+ * Adapts the pure `clusterKeywords` engine over the same `keyword_rankings` data the rank tracker
+ * reads, the same way `google-ads-advisor` is adapted over `ad_performance` — the engine takes
+ * `string[]` and knows nothing about ClickHouse, so `apps/web` runs the identical engine over its
+ * fixtures and gets identical groupings.
+ *
+ * Positions come from `getKeywordRankings` rather than a second query: it already seeds an empty
+ * workspace, and re-querying would risk the two surfaces disagreeing about the keyword set.
+ *
+ * Every cluster comes back `intentVerified: false` — see `SeoKeywordCluster` for why that matters
+ * and must reach the UI.
+ */
+export async function getKeywordClusters(workspaceId: string): Promise<SeoClustersResponse> {
+  const { keywords } = await getKeywordRankings(workspaceId)
+  const positionByKeyword = new Map(keywords.map((k) => [k.keyword, k.position]))
+
+  const clusters = clusterKeywords(keywords.map((k) => k.keyword)).map((cluster) => {
+    const members = cluster.keywords.map((keyword) => ({
+      keyword,
+      position: positionByKeyword.get(keyword) ?? 0,
+    }))
+    // Best-ranking keyword first, so the cluster leads with the page already closest to winning.
+    members.sort((a, b) => a.position - b.position)
+    const avgPosition = members.length
+      ? Math.round((members.reduce((s, m) => s + m.position, 0) / members.length) * 10) / 10
+      : 0
+    return { clusterName: cluster.clusterName, intentVerified: cluster.intentVerified, keywords: members, avgPosition }
+  })
+
+  // Biggest clusters first — a cluster of one is a keyword with no topical neighbours, which is the
+  // least actionable thing on the page.
+  clusters.sort((a, b) => b.keywords.length - a.keywords.length || a.avgPosition - b.avgPosition)
+
+  return {
+    clusters,
+    summary: {
+      clusters: clusters.length,
+      keywords: keywords.length,
+      largestCluster: clusters.reduce((m, c) => Math.max(m, c.keywords.length), 0),
+      singletons: clusters.filter((c) => c.keywords.length === 1).length,
+    },
+  }
 }
 
 // ── Organic traffic (GSC page dimension → organic_traffic) ───────────────────────────────────

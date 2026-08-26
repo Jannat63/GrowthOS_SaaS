@@ -16,7 +16,9 @@ const MOCK_KEYWORDS = [
 ];
 
 // Mirrors the API's seed generator so mock mode reads like live data.
-function mockRankings(): SeoRankingsResponse {
+// Exported so `useKeywordClusters` clusters the SAME fixture this tab renders — a second copy of
+// the keyword list would let the Rank tracker and Clusters tabs disagree about what is tracked.
+export function mockRankings(): SeoRankingsResponse {
   const base = new Date("2026-06-18T00:00:00Z");
   const keywords: KeywordRanking[] = MOCK_KEYWORDS.map((keyword, i) => {
     const series = Array.from({ length: 30 }, (_, day) => {

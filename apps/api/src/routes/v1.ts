@@ -41,7 +41,7 @@ import {
 import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
 import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
-import { getKeywordRankings, getOrganicTraffic } from '../seo.js'
+import { getKeywordClusters, getKeywordRankings, getOrganicTraffic } from '../seo.js'
 import { generateSchemaMarkup } from '../schema-markup-lookup.js'
 import { getInternalLinkRecommendations } from '../internal-links.js'
 import { getCampaignInsights } from '../google-ads.js'
@@ -475,6 +475,16 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     return getKeywordRankings(id)
+  })
+
+  // SEO keyword clusters (M3 P3.1 slice) — topical groups over the same tracked keyword set, via
+  // the pure `clusterKeywords` engine. Lexical only: no SERP data, so no intent verification. The
+  // response carries `intentVerified: false` on every cluster and the UI is expected to surface it.
+  app.get('/api/v1/workspaces/:id/seo/clusters', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    return getKeywordClusters(id)
   })
 
   // SEO organic traffic (M3 P3.1) — per-page clicks/impressions/CTR/position from ClickHouse

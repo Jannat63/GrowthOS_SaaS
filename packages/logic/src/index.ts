@@ -1,4 +1,5 @@
 export * from './engines/seo-scoring.js'
+export * from './engines/keyword-clustering.js'
 export * from './engines/search-terms-bridge.js'
 export * from './engines/creative-fatigue.js'
 export * from './engines/cross-channel-engine.js'

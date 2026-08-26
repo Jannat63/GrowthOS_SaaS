@@ -1,7 +1,8 @@
 # P3.1 — SEO Module — Progress
 
-Status: [~]  ·  Updated: 2026-07-18  ·  **In progress** — GSC-fed rank-tracker + organic-traffic slices
-done; DataForSEO features (keyword research, site audit, clustering) gated on the paid key.
+Status: [~]  ·  Updated: 2026-08-27  ·  **In progress** — GSC-fed rank-tracker, organic-traffic and
+**keyword-clustering** slices done. Keyword research is gated on the paid DataForSEO key; site audit
+is free and still buildable.
 
 ## Slices
 
@@ -11,7 +12,7 @@ done; DataForSEO features (keyword research, site audit, clustering) gated on th
 | Organic traffic view | [x] | Per-page clicks/impr/CTR/position + daily trend from `organic_traffic`; `/seo` Organic traffic tab. |
 | Keyword research | [ ] | **DataForSEO (paid)** — gated on the key. |
 | Site audit + Core Web Vitals | [ ] | Crawler port + PageSpeed (free). Buildable; larger. |
-| Keyword clustering | [ ] | **Planned 2026-08-20** (design in `plan.md`). ~~pgvector~~ — the label was wrong: legacy clusters with Jaccard similarity over word sets, no embeddings and no vector column. Free, pure, buildable now. |
+| Keyword clustering | [x] | **Done 2026-08-27.** `clusterKeywords` in `@growthos/logic` (Jaccard over tokenised word sets), `getKeywordClusters` over the same `keyword_rankings` data, `GET .../seo/clusters`, and a Clusters tab on `/seo`. ~~pgvector~~ — the label was wrong: no embeddings and no vector column, so it was free and buildable all along. 16 engine tests + 1 API test. |
 
 ## Rank tracker — what shipped (commit `210224f`)
 
@@ -51,3 +52,29 @@ GSC metrics (clicks, impressions, CTR, avg position).
   recorded the honest limit of the free approach (lexical similarity cannot see intent that only
   appears in SERPs) and shaped the engine so a SERP-validation pass can be added when DataForSEO
   lands, rather than pretending the free layer is the whole answer.
+- 2026-08-27 — **Keyword clustering slice built.** Engine at
+  `packages/logic/src/engines/keyword-clustering.ts`, adapter `getKeywordClusters` in
+  `apps/api/src/seo.ts`, route `GET /workspaces/:id/seo/clusters`, and a Clusters tab on `/seo`. The
+  web mock runs the identical engine over the identical fixture the Rank tracker renders
+  (`mockRankings` is now exported for exactly that), so mock mode shows the real grouping rather
+  than a hand-written impression of one.
+
+  Both determinism fixes from the design landed: seeds are chosen by descending significant-token
+  count then alphabetically (legacy seeded from input order, so shuffling the same keyword set
+  produced different clusters), and naming ties break on frequency → length → alphabetical (legacy
+  used Python `max()`, which resolves ties by insertion order).
+
+  **A third defect turned up only by running it on the shipped seed keywords: cluster names were not
+  unique.** "best office chair for back pain" + "office chair lumbar support" and the singleton
+  "home office ideas" were both named **Office** — unreadable side by side in the UI, and useless as
+  an identifier. Names are now de-duplicated by widening to the next-most-common token ("Office" and
+  "Office ideas") rather than by a numeric suffix. Worth noting that neither the unit tests nor the
+  design caught this; looking at the real output did.
+
+  **The default threshold was deliberately NOT tuned.** On the 8 seed keywords, 0.3 yields one real
+  cluster and 6 singletons, and lowering it to 0.2 makes the page look busier by merging all three
+  `desk` keywords. That is the algorithm honestly reporting that a small, topically-diverse keyword
+  set has few neighbours — the fixture exercises the rank tracker, not clustering — and lowering a
+  threshold so a demo looks better is how a made-up number ends up on a customer's screen. The UI
+  handles it instead: singletons collapse into one "Ungrouped" card rather than six identical
+  one-item cards implying groupings that are not there.

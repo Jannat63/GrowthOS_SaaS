@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@growthos/ui/component
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { RankTracker } from "@/components/seo/RankTracker";
+import { KeywordClusters } from "@/components/seo/KeywordClusters";
 import { OrganicTraffic } from "@/components/seo/OrganicTraffic";
 import { SchemaMarkupGenerator } from "@/components/seo/SchemaMarkupGenerator";
 import { InternalLinkOptimizer } from "@/components/seo/InternalLinkOptimizer";
@@ -25,12 +26,16 @@ export default function SeoPage() {
       <Tabs defaultValue="rankings" className="space-y-6">
         <TabsList>
           <TabsTrigger value="rankings">Rank tracker</TabsTrigger>
+          <TabsTrigger value="clusters">Clusters</TabsTrigger>
           <TabsTrigger value="traffic">Organic traffic</TabsTrigger>
           <TabsTrigger value="schema">Schema markup</TabsTrigger>
           <TabsTrigger value="links">Internal links</TabsTrigger>
         </TabsList>
         <TabsContent value="rankings">
           <RankTracker workspaceId={workspaceId} />
+        </TabsContent>
+        <TabsContent value="clusters">
+          <KeywordClusters workspaceId={workspaceId} />
         </TabsContent>
         <TabsContent value="traffic">
           <OrganicTraffic workspaceId={workspaceId} />

@@ -182,6 +182,32 @@ export interface SeoRankingsResponse {
   summary: { tracked: number; avgPosition: number; topThree: number; improved: number };
 }
 
+// Keyword clustering (M3 P3.1 slice). Topical groups over the tracked keyword set, produced by the
+// `clusterKeywords` engine in @growthos/logic.
+//
+// `intentVerified` is false for every cluster today, and the UI must say so. These are LEXICAL
+// clusters — grouped by shared words — and text similarity cannot see intent that only shows up in
+// the search results ("how to clean running shoes" and "best running shoes" look alike and are not
+// alike). Confirming intent needs SERP-overlap data, i.e. a paid DataForSEO key. The flag exists so
+// that when that pass lands, verified and unverified clusters stay distinguishable rather than the
+// UI quietly starting to overclaim.
+export interface SeoClusterKeyword {
+  keyword: string;
+  position: number;
+}
+export interface SeoKeywordCluster {
+  clusterName: string;
+  intentVerified: boolean;
+  keywords: SeoClusterKeyword[];
+  avgPosition: number;
+}
+export interface SeoClustersResponse {
+  clusters: SeoKeywordCluster[];
+  // `singletons` counts clusters of exactly one keyword — the honest read on how much grouping
+  // actually happened, which a bare cluster count hides.
+  summary: { clusters: number; keywords: number; largestCluster: number; singletons: number };
+}
+
 // Organic traffic (GSC page dimension). CTR is a percentage (e.g. 4.2 = 4.2%).
 export interface OrganicPage {
   pageUrl: string;
