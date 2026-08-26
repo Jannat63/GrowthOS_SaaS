@@ -1,8 +1,9 @@
 # P4.4 — GEO Tracking + Public API — Progress
 
-Status: [~]  ·  Updated: 2026-08-27  ·  **In progress** — the public API + OpenAPI half shipped
-2026-07-26, and **per-key rate limits (P4.4a-1) shipped 2026-08-27**. Outbound webhooks are planned
-(`plan.md`) and not yet built. GEO/AI-citation tracking is deferred on credentials.
+Status: [~]  ·  Updated: 2026-08-27  ·  **P4.4a COMPLETE** — the public API + OpenAPI half shipped
+2026-07-26, and both remaining un-gated slices shipped 2026-08-27: **per-key rate limits (P4.4a-1)**
+and **outbound webhooks (P4.4a-2)**. Only P4.4b (GEO/AI-citation tracking) is left, deferred on
+credentials.
 
 ## Slices
 
@@ -10,7 +11,7 @@ Status: [~]  ·  Updated: 2026-08-27  ·  **In progress** — the public API + O
 |-------|--------|-------|
 | Public REST API + OpenAPI + API keys UI | [x] | **Done 2026-07-26.** `api_keys` (SHA-256 hash only), Bearer-authenticated `/api/public/v1/*`, spec + docs UI via `@fastify/swagger`, Settings → API Keys. 15 tests. Verified with a real signup → upgrade → create-key → call → revoke run. |
 | P4.4a-1 Per-key rate limits | [x] | **Done 2026-08-27.** Scoped limiter inside the `public-api.ts` plugin, bucketed by `api_keys.id`, `max` from `getApiRateLimit()` → `PLAN_LIMITS[plan].apiRequestsPerMinute` (Scale = 120/min), Redis-backed on a dedicated fail-fast connection. Emits the draft-spec `RateLimit-*` trio on every response plus `Retry-After` on a 429. The global per-IP limiter now exempts these routes. 8 new tests; whole API suite 39 files / 208 passing. **One deviation from the plan and one bug found — see the log below.** |
-| P4.4a-2 Outbound webhooks | [ ] | **Planned.** Standard Webhooks signing, `webhook_endpoints` + `webhook_deliveries`, fan-out from the existing `publish()` bus, scheduler-driven delivery with jittered exponential backoff. |
+| P4.4a-2 Outbound webhooks | [x] | **Done 2026-08-27.** Standard Webhooks signing over raw bytes, `webhook_endpoints` + `webhook_deliveries` (migration `0015_swift_talisman`), fan-out from the existing `publish()` bus, a 1-minute scheduler sweep under the Redis single-runner lock, jittered exponential backoff (10s → 2h, 5 attempts), auto-disable at 20 consecutive failures, endpoint CRUD + re-enable, and a Settings → Webhooks section. Secrets AES-256-GCM encrypted at rest and returned exactly once. 37 tests. **One production bug found by these tests — see the log.** |
 | P4.4b GEO / AI-citation tracking | [!] | **Deferred** — needs paid ChatGPT/Perplexity/Gemini access. Nothing to measure without it. |
 
 ## Design decisions worth keeping visible
@@ -79,3 +80,30 @@ Status: [~]  ·  Updated: 2026-08-27  ·  **In progress** — the public API + O
   not an authorization one, and the key is already authenticated by the time the limiter runs. The
   cost is real and worth stating plainly — during a Redis outage a Scale key is unthrottled. A
   wrapper store is the follow-up if that trade is ever judged wrong.
+- 2026-08-27 — **P4.4a-2 built, and it found a real bug in its own first test run.**
+
+  **The database clock and the app clock are not the same clock.** `webhook_deliveries.next_attempt_at`
+  defaults to Postgres `now()`, and the sweep originally selected due rows with
+  `lte(nextAttemptAt, new Date())` — the Node clock. On this Neon instance Postgres runs about
+  **900ms ahead** of the API process, so every freshly-enqueued delivery was stamped in the future
+  as far as the sweeper was concerned and was skipped by the sweep that should have sent it. It
+  would have gone out on the *next* sweep instead: every webhook a minute late, silently, forever,
+  and worse if the skew ever grew. Seven delivery tests failed on this at once, all with "zero rows
+  found"; a direct `select now()` against Neon confirmed the skew rather than leaving it a guess.
+  The sweep now compares against `sql\`now()\`` — the database clock is also the only one that stays
+  coherent across several API instances, since app clocks can disagree with each other.
+
+  Worth stating plainly: **nothing about this was visible without an integration test that asserted
+  an enqueued delivery is actually sent.** A unit test with a mocked clock would have passed.
+
+  Two smaller decisions recorded at the code:
+  - **The delivery row id IS the `webhook-id` header.** The spec designates that header as the
+    consumer's idempotency key, so reusing the row id means a retried delivery carries the same id
+    and a consumer that de-duplicates on it processes the event once even if we deliver twice.
+  - **Only an EXHAUSTED delivery counts against the endpoint**, not each failed attempt. Counting
+    attempts would disable an endpoint after four bad events rather than twenty.
+
+  The signing tests deliberately do **not** claim to use a published spec test vector — the
+  Standard Webhooks vectors were not available offline, and inventing one and labelling it official
+  would be worse than not having it. They recompute the HMAC independently instead, and verify our
+  own output through an independent `verify()` implementation.

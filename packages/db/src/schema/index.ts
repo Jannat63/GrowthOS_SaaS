@@ -21,5 +21,7 @@ export * from './audit.js';
 export * from './billing.js';
 // Public API keys (M4 P4.4 buildable half).
 export * from './api-keys.js';
+// Outbound webhooks — endpoints + delivery ledger (M4 P4.4a-2).
+export * from './webhooks.js';
 // Autonomous automation loop — alert de-dupe + scheduler run log (M4).
 export * from './automation.js';

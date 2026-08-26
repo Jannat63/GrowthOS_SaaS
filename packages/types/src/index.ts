@@ -182,6 +182,25 @@ export interface SeoRankingsResponse {
   summary: { tracked: number; avgPosition: number; topThree: number; improved: number };
 }
 
+// Outbound webhooks (M4 P4.4a-2) — the push half of the public API, Scale tier.
+//
+// `secret` appears ONLY in the creation response. It is encrypted at rest and never returned by any
+// read route, so a UI that loses it cannot recover it — the user must copy it at creation or rotate
+// the endpoint. Same handling as an API key's plaintext.
+export interface WebhookEndpoint {
+  id: string;
+  url: string;
+  eventTypes: string[];
+  enabled: boolean;
+  consecutiveFailures: number;
+  disabledAt: string | null; // ISO
+  createdAt: string; // ISO
+}
+
+export interface CreatedWebhookEndpointResponse extends WebhookEndpoint {
+  secret: string; // shown once, at creation, and never again
+}
+
 // Keyword clustering (M3 P3.1 slice). Topical groups over the tracked keyword set, produced by the
 // `clusterKeywords` engine in @growthos/logic.
 //

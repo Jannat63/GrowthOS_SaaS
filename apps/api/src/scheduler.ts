@@ -4,6 +4,7 @@ import { checkTrialsEndingSoon } from './billing.js'
 import { withRedisLock } from './scheduler/lock.js'
 import { runSchedulerTick } from './scheduler/intelligence-scheduler.js'
 import { failStuckJobs } from './jobs/reaper.js'
+import { runWebhookDeliverySweep } from './webhooks/dispatch.js'
 import { moduleLogger } from './logger.js'
 import { captureException } from './monitoring.js'
 
@@ -45,6 +46,9 @@ const TRIAL_LOCK_KEY = 'scheduler:trial-reminders:lock'
 const TRIAL_LOCK_TTL_MS = 5 * 60 * 1000
 const REAPER_LOCK_KEY = 'scheduler:stuck-jobs:lock'
 const REAPER_LOCK_TTL_MS = 2 * 60 * 1000
+const WEBHOOK_LOCK_KEY = 'scheduler:webhook-deliveries:lock'
+// Comfortably above a worst-case sweep: 100 deliveries against endpoints that all time out at 10s.
+const WEBHOOK_LOCK_TTL_MS = 20 * 60 * 1000
 
 /** All workspace IDs. Kept as the scheduler's view of "who exists" — used by tests and callers that need a plain list. */
 export async function listActiveWorkspaceIds(): Promise<string[]> {
@@ -97,6 +101,28 @@ export async function runStuckJobSweep(): Promise<void> {
   }
 }
 
+/**
+ * Sends webhook deliveries that are due (M4 · P4.4a-2).
+ *
+ * Under the same lock discipline as the other tasks, and for a sharper reason than most: without
+ * it, N instances would each pick up the same due rows and POST the same event to a customer's
+ * endpoint N times. Duplicate webhooks are a correctness problem for the consumer, not just noise.
+ */
+export async function runWebhookDeliverySweepTask(): Promise<void> {
+  try {
+    const ran = await withRedisLock(WEBHOOK_LOCK_KEY, WEBHOOK_LOCK_TTL_MS, async () => {
+      const { delivered, failed } = await runWebhookDeliverySweep()
+      if (delivered > 0 || failed > 0) {
+        log.info(`webhook sweep: ${delivered} delivered, ${failed} failed`)
+      }
+    })
+    if (!ran) log.info('webhook sweep: skipped, another instance holds the lock')
+  } catch (err) {
+    log.error({ err }, 'webhook delivery sweep failed')
+    captureException(err, { task: 'webhook-delivery-sweep' })
+  }
+}
+
 /** Registers the cron jobs. Call once, at process boot (index.ts) — never from app.ts/tests. */
 export function startScheduler(): void {
   // Daily at 09:00 UTC — trial windows are measured in days, no need to check more often.
@@ -107,7 +133,10 @@ export function startScheduler(): void {
   // Every 15 minutes. A job abandoned by a dead worker otherwise leaves the client polling a
   // spinner that will never resolve; a terminal state is strictly better than an eternal one.
   cron.schedule('*/15 * * * *', () => void runStuckJobSweep())
+  // Every minute. The first backoff step is ~10s, so a coarser interval would turn "retry in 10
+  // seconds" into "retry whenever the next sweep happens to run" and make the schedule a fiction.
+  cron.schedule('* * * * *', () => void runWebhookDeliverySweepTask())
   log.info(
-    'started — trial reminders daily @ 09:00 UTC, intelligence tick hourly, stuck-job sweep every 15m',
+    'started — trial reminders daily @ 09:00 UTC, intelligence tick hourly, stuck-job sweep every 15m, webhook sweep every 1m',
   )
 }

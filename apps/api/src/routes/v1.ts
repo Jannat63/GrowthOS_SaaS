@@ -55,6 +55,12 @@ import { recordAudit, getAuditLogs } from '../audit.js'
 import { startTrial } from '../billing.js'
 import { assertFeatureEnabled, assertCanCreateWorkspace } from '../plan-limits.js'
 import { createApiKey, listApiKeys, revokeApiKey } from '../api-keys.js'
+import {
+  createWebhookEndpoint,
+  deleteWebhookEndpoint,
+  enableWebhookEndpoint,
+  listWebhookEndpoints,
+} from '../webhooks/endpoints.js'
 import { listSchedulerRuns } from '../scheduler/queries.js'
 import { listRules, upsertRule, deleteRule } from '../automation/rules.js'
 import { listActions, approveAction, rejectAction } from '../automation/actions.js'
@@ -810,6 +816,60 @@ export async function registerV1Routes(app: FastifyInstance) {
     await revokeApiKey(id, keyId)
     void recordAudit({ workspaceId: id, actorId: user.id, action: 'api_key.revoked', entityType: 'api_key', entityId: keyId }, request)
     return { revoked: true }
+  })
+
+  // Outbound webhooks (M4 P4.4a-2) — the push half of the public API. Same `apiAccess` gate and the
+  // same admin+ sensitivity as API keys: an endpoint URL is where a workspace's data gets sent, and
+  // the create response is the only time its signing secret is ever visible.
+  const createWebhookSchema = z.object({
+    url: z.string().min(1),
+    eventTypes: z.array(z.string().min(1)).min(1),
+  })
+  app.post('/api/v1/workspaces/:id/webhooks', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const body = createWebhookSchema.safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    const endpoint = await createWebhookEndpoint(id, body.data.url, body.data.eventTypes, user.id)
+    // The URL is audited; the secret deliberately is not. An audit log is a read surface, and
+    // writing a live signing credential into one hands it to anyone who can read the log.
+    void recordAudit(
+      { workspaceId: id, actorId: user.id, action: 'webhook.created', entityType: 'webhook', entityId: endpoint.id, metadata: { url: endpoint.url, eventTypes: endpoint.eventTypes } },
+      request,
+    )
+    return endpoint
+  })
+
+  app.get('/api/v1/workspaces/:id/webhooks', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const data = await listWebhookEndpoints(id)
+    return { data, total: data.length }
+  })
+
+  app.delete('/api/v1/workspaces/:id/webhooks/:webhookId', async (request) => {
+    const user = await requireUser(request)
+    const { id, webhookId } = request.params as { id: string; webhookId: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    await deleteWebhookEndpoint(id, webhookId)
+    void recordAudit({ workspaceId: id, actorId: user.id, action: 'webhook.deleted', entityType: 'webhook', entityId: webhookId }, request)
+    return { deleted: true }
+  })
+
+  // Re-enable an endpoint auto-disabled after repeated failures. Without this, a customer who fixes
+  // their listener would have to recreate the endpoint — rotating the secret and forcing them to
+  // redeploy their verifier for what is really just "it's working again".
+  app.post('/api/v1/workspaces/:id/webhooks/:webhookId/enable', async (request) => {
+    const user = await requireUser(request)
+    const { id, webhookId } = request.params as { id: string; webhookId: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const endpoint = await enableWebhookEndpoint(id, webhookId)
+    void recordAudit({ workspaceId: id, actorId: user.id, action: 'webhook.enabled', entityType: 'webhook', entityId: webhookId }, request)
+    return endpoint
   })
 
   // Autonomous automation loop config (scheduled intelligence). GET is any member; PATCH is admin+.

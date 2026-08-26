@@ -10,6 +10,7 @@ import { ActivitySection } from "@/components/settings/ActivitySection";
 import { BrandingSection } from "@/components/settings/BrandingSection";
 import { BillingSection } from "@/components/settings/BillingSection";
 import { ApiKeysSection } from "@/components/settings/ApiKeysSection";
+import { WebhooksSection } from "@/components/settings/WebhooksSection";
 import { AutomationSection } from "@/components/settings/AutomationSection";
 import { TeamSection } from "@/components/settings/TeamSection";
 
@@ -63,6 +64,10 @@ export default function SettingsPage() {
       {isAdmin && <BrandingSection workspaceId={workspaceId} />}
 
       {isAdmin && <ApiKeysSection workspaceId={workspaceId} />}
+
+      {/* Directly after API keys: same Scale gate, same admin-only sensitivity, and webhooks are
+          the push half of the same product — a reader looking for one is looking for both. */}
+      {isAdmin && <WebhooksSection workspaceId={workspaceId} />}
 
       {isAdmin && <AutomationSection workspaceId={workspaceId} />}
 
