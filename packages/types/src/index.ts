@@ -467,6 +467,11 @@ export interface Subscription {
 
 // Plan limits reference (blueprint DATA_MODELS.md). Enforcement (PLAN_LIMIT_REACHED, 402) lands
 // in M5 P5.2 — this table is the shared source of truth both apps/api and apps/web read from.
+//
+// `apiRequestsPerMinute` (M4 P4.4a-1) is the public API's per-key ceiling, not a per-IP one. It is
+// 0 below Scale because `apiAccess` is false there and `resolveApiKey` rejects the key before any
+// limiter runs — the 0 records that "no access" and "zero budget" agree, rather than leaving a
+// tier out of the table and making a reader guess which.
 export const PLAN_LIMITS = {
   starter: {
     workspaces: 1,
@@ -479,6 +484,7 @@ export const PLAN_LIMITS = {
     whiteLabel: false,
     crossChannelAttribution: "mer_only",
     apiAccess: false,
+    apiRequestsPerMinute: 0,
   },
   growth: {
     workspaces: 5,
@@ -491,6 +497,7 @@ export const PLAN_LIMITS = {
     whiteLabel: true,
     crossChannelAttribution: "full",
     apiAccess: false,
+    apiRequestsPerMinute: 0,
   },
   scale: {
     workspaces: Infinity,
@@ -503,6 +510,7 @@ export const PLAN_LIMITS = {
     whiteLabel: true,
     crossChannelAttribution: "full_custom",
     apiAccess: true,
+    apiRequestsPerMinute: 120,
   },
 } as const satisfies Record<Plan, Record<string, unknown>>;
 

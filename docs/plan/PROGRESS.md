@@ -1,9 +1,16 @@
 # GrowthOS — Master Progress Dashboard
 
-> **Where we are: M4 — V2: Automation & Scale · P4.3 Automated Campaign Management.**
+> **Where we are: M4 — V2: Automation & Scale · P4.4a Public API hardening.**
 > P4.3a (the control plane) is done; P4.3b (live Google Ads / Meta adapters) is blocked on external
-> credentials. Everything else still open in M3/M4 is likewise externally gated — the un-gated
-> backlog is in `docs/AUDIT-2026-08-13-codebase.md`.
+> credentials. **P4.4a-1 per-key rate limits shipped 2026-08-27**; P4.4a-2 outbound webhooks is the
+> next un-gated slice.
+>
+> **Do not read "everything else is externally gated" into this tracker — it said that until
+> 2026-08-27 and it was wrong twice over.** The claim came from `docs/AUDIT-2026-08-13-codebase.md`'s
+> summary rather than from the phase-level plans; reading those on 2026-08-20 turned up four
+> un-gated slices, all written up in `M4-v2-automation/P4.2-ai-creative/`,
+> `M4-v2-automation/P4.4-geo-public-api/` and `M3-v1-channels/P3.1-seo-module/`. Two more features
+> shipped in the meantime that this file did not know about at all (below).
 
 Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 COMPLETE** (seeded Insight Loop MVP,
 P2.1–P2.8); **M3 IN PROGRESS** — every channel module now has a live UI (P3.0 OAuth built, live pending
@@ -34,7 +41,31 @@ four still open are tracked in **`docs/AUDIT-2026-08-13-codebase.md`** — API t
 `/health/ready` exists but nothing polls it and there's no Sentry), `README.md` (#13), and seeded
 data being presented as real throughout the UI (#14, a product decision). Those four are the real
 un-gated backlog — most of what's left in M3/M4 needs external credentials.
-·  Updated: 2026-08-13
+
+**2026-08-27 — two features shipped between 2026-08-20 and 2026-08-25 that this tracker never
+recorded**, both by Ahsan and both merged into `shihab-restructure` by `76d1296`:
+
+- **Team invitations** (`83e0431`). `POST`/`GET`/`DELETE /api/v1/workspaces/:id/invitations` plus an
+  unauthenticated invite-preview endpoint, `apps/api/src/invitations.ts`, an `/accept-invite` page and
+  a settings Team section, with seat counting wired into `plan-limits.ts`. This closes a gap that had
+  been open since **M2 P2.8 deferred it to M5, where it was never delivered either** — the platform
+  was single-seat until now, while two of the three PRD personas are multi-seat by definition.
+- **Local Demo Mode** (`ee0c97d`, refined by `427340d`). `pnpm setup:local` / `pnpm local` stand up
+  Postgres, Redis and ClickHouse from `docker-compose.local.yml`, so **the project now runs with no
+  Neon account at all** (`packages/db/src/client.ts` picks its driver from `DATABASE_DRIVER`).
+  `GETTING_STARTED` instructions elsewhere that assume a Neon URL are now the slower path, not the
+  only one.
+
+**2026-08-27 — audit #9's root cause came back and is fixed again.** `ec43f8f` had raised
+`packages/db` to `drizzle-orm@^0.45.2` (a SQL-injection advisory in the auth path, and the fix for
+the five-duplicate-copies problem audit #9 names). The `76d1296` merge resolved that file in favour
+of main's side and **reverted it to `^0.38.3`**, silently undoing the security patch and putting two
+copies of `drizzle-orm` back in the store — which broke `pnpm typecheck` in `@growthos/api`
+outright, since the two copies' types are not interchangeable. Restored to `^0.45.2` (and
+`drizzle-kit` to `^0.31.10`), keeping the `pg` / `@types/pg` deps main added for Local Demo Mode.
+Typecheck is 9/9 again and `pnpm peers check` reports no issues.
+
+·  Updated: 2026-08-27
 
 Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked (note blocker)
 
@@ -105,7 +136,7 @@ Gate: 500 users / MRR >$50K / agency tier.
 | P4.4 | Public API (buildable half) | [~] | **Done 2026-07-26** — `api_keys` table (SHA-256 hash only), Bearer-authenticated `/api/public/v1/*` routes, OpenAPI spec + docs UI via `@fastify/swagger`, Settings → API Keys UI. Verified with a real signup→upgrade→create-key→call-public-API→revoke run. GEO/AI-citation tracking (this phase's other half) still needs external access this codebase doesn't have. 15 tests. |
 | P4.2 | AI creative automation | [ ] | **Folder + plan written 2026-08-20** — `M4-v2-automation/P4.2-ai-creative/`. Split at the credential line: **P4.2a buildable now** (brand-guidelines system, creative scorecard, variant-experiment structure, `ai_creatives_generated` metering — which closes the last open M5 P5.2 item); **P4.2b deferred** (15–25 image variants/week + video storyboards need a paid generation API, D4). The roadmap's "performance prediction" bullet was deliberately rescoped to a scorecard over creatives that have *actually run* — honest prediction needs a trained model this codebase has neither the data nor the credential for, and a confident-looking fake number is audit #14 again. |
 | P4.3 | Automated campaign management | [~] | **← current phase. P4.3a done 2026-08-13.** Backbone (autonomous scheduler, Redis-lock single-runner, per-workspace cadence, persistent-dedupe alerting, `scheduler_runs`) landed 2026-07-23 and was restored after the merge. On top of it, the **control plane**: `automation_rules` + `automation_actions`, a pure planner in `@growthos/logic`, an executor enforcing caps + reversibility, dry-run and real `content-queue` adapters, 6 routes, and the `/automation` approval queue. 32 tests. **P4.3b — live Google Ads / Meta adapters — blocked** on a developer token + App Review (and on having ad-account data to test against). See `M4-v2-automation/P4.3-automated-campaigns/`. |
-| P4.4 | GEO tracking + public API | [~] | **Folder + plan written 2026-08-20** — `M4-v2-automation/P4.4-geo-public-api/` (this row and the "Public API (buildable half)" row above are the same phase; the folder now consolidates both). Public API + OpenAPI **done**. **Planned, un-gated:** per-key rate limits (scoped limiter keyed by API-key id, per-plan ceilings, Redis-backed, `RateLimit-*` + `Retry-After` headers) and **outbound webhooks** (Standard Webhooks signing, `webhook_endpoints`/`webhook_deliveries`, fan-out from the existing `publish()` bus, scheduler-driven delivery with jittered backoff). **P4.4b GEO/AI-citation tracking deferred** on paid ChatGPT/Perplexity/Gemini access. |
+| P4.4 | GEO tracking + public API | [~] | **Folder + plan written 2026-08-20** — `M4-v2-automation/P4.4-geo-public-api/` (this row and the "Public API (buildable half)" row above are the same phase; the folder now consolidates both). Public API + OpenAPI **done**. **P4.4a-1 per-key rate limits done 2026-08-27** — scoped limiter inside the `public-api.ts` plugin bucketed by `api_keys.id`, ceiling from `PLAN_LIMITS[plan].apiRequestsPerMinute` (Scale 120/min), Redis-backed on a dedicated fail-fast connection, draft-spec `RateLimit-*` on every response + `Retry-After` on a 429, and the global per-IP limiter now exempts these routes. 8 tests. It also uncovered and fixed a pre-existing bug: **every 429 in the app was rendering as a 500**, because `@fastify/rate-limit` throws whatever `errorResponseBuilder` returns and a plain object misses the error handler's typed branches. **Still planned, un-gated:** **outbound webhooks** (Standard Webhooks signing, `webhook_endpoints`/`webhook_deliveries`, fan-out from the existing `publish()` bus, scheduler-driven delivery with jittered backoff). **P4.4b GEO/AI-citation tracking deferred** on paid ChatGPT/Perplexity/Gemini access. |
 | P4.5 | Mobile app | [ ] | Outline — expand to folder when reached. |
 
 Gate: 2,000 users / MRR >$200K.

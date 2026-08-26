@@ -13,7 +13,7 @@ import { captureException } from './monitoring.js'
 import { registerV1Routes } from './routes/v1.js'
 import { registerConnectionRoutes } from './routes/connections.js'
 import { registerBillingRoutes } from './routes/billing.js'
-import { registerPublicApiRoutes } from './routes/public-api.js'
+import { registerPublicApiRoutes, isPublicApiDataRoute } from './routes/public-api.js'
 import { registerWsRoutes } from './routes/ws.js'
 
 interface HealthCheck {
@@ -74,13 +74,28 @@ export function buildApp() {
   // from a small set of source IPs, and a 429 is treated by Stripe as a failed delivery to retry —
   // rate-limiting it turns a spike into a retry storm (docs/AUDIT-2026-08-13-post-merge.md #15).
   // It is authenticated by webhook signature instead, which is the stronger control here.
+  //
+  // The public API's data routes are exempt too (M4 P4.4a-1) because they carry their own, stricter,
+  // per-API-key limiter registered inside routes/public-api.ts. Leaving them under this one as well
+  // would defeat the point of the per-key limiter: a customer's server-side integration is a single
+  // IP, so this bucket — shared with every browser request from that address — would still be the
+  // binding constraint, which is the exact problem the per-key limiter exists to remove.
+  //
+  // `/api/public/v1/docs` is NOT exempt. The docs UI is mounted at the root scope (see swaggerUi
+  // below), so it is unauthenticated and gets no per-key limiter; exempting it by a bare prefix
+  // match would leave it with no rate limiting at all.
   app.register(rateLimit, {
     max: Number(process.env.RATE_LIMIT_MAX ?? 200),
     timeWindow: '1 minute',
-    allowList: (request) => request.url === '/api/v1/billing/webhook',
-    errorResponseBuilder: () => ({
-      error: { code: 'RATE_LIMITED', message: 'Too many requests — slow down.', statusCode: 429 },
-    }),
+    allowList: (request) => request.url === '/api/v1/billing/webhook' || isPublicApiDataRoute(request.url),
+    // Returns an AppError, NOT a plain envelope object. @fastify/rate-limit *throws* whatever this
+    // returns, and a thrown plain object is not an Error, so it missed both branches of the error
+    // handler below and came out as a 500 — with the correct 429 envelope logged at error level on
+    // the way past, and reported to Sentry as a crash. Every throttled request in this app answered
+    // 500 until this was fixed (found while building M4 P4.4a-1); nothing caught it because no test
+    // had ever driven a limiter to its ceiling. An AppError hits the `instanceof` branch below and
+    // renders the documented envelope with a real 429.
+    errorResponseBuilder: () => new AppError('RATE_LIMITED', 'Too many requests — slow down.'),
   })
 
   // OpenAPI spec + interactive docs for the Public API (M4 P4.4). Generated from the route
