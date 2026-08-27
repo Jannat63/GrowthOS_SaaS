@@ -31,6 +31,13 @@ import {
 } from '../invitations.js'
 import { getBrandGuidelinesForDisplay, upsertBrandGuidelines } from '../brand.js'
 import { generateCreatives } from '../creatives.js'
+import {
+  concludeExperiment,
+  createExperiment,
+  deleteExperiment,
+  listExperiments,
+  setExperimentStatus,
+} from '../experiments.js'
 import { BRAND_TONES } from '@growthos/logic'
 import { enqueue } from '../jobs/enqueue.js'
 import { listRecommendations } from '../recommendations.js'
@@ -820,6 +827,113 @@ export async function registerV1Routes(app: FastifyInstance) {
     }
 
     return generateCreatives(id, body.data)
+  })
+
+  // Creative variant experiments (M4 P4.2a-3) — an experiment LOG. Nothing here publishes an ad or
+  // computes a winner; the test runs in the customer's own ad manager and the conclusion is an
+  // explicitly human act, stored `selfReported`. See experiments.ts.
+  //
+  // Read is viewer+; every write is manager+, matching recommendation act/assign.
+  app.get('/api/v1/workspaces/:id/creative-experiments', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'viewer')
+    const data = await listExperiments(id)
+    return { data, total: data.length }
+  })
+
+  app.post('/api/v1/workspaces/:id/creative-experiments', async (request, reply) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+
+    const body = z
+      .object({
+        hypothesis: z.string().min(1, 'A hypothesis is required.').max(2000),
+        // `unknown` on purpose: a variant is a snapshot of whatever the generator produced —
+        // AdCopyVariant, UGCScript, or a plain RSA string. Constraining the shape here would mean
+        // updating this schema every time a generator is added.
+        variantA: z.unknown().refine((v) => v != null, 'Variant A is required.'),
+        variantB: z.unknown().refine((v) => v != null, 'Variant B is required.'),
+        variantALabel: z.string().max(80).optional(),
+        variantBLabel: z.string().max(80).optional(),
+        successMetric: z.string().min(1, 'Say how this will be judged.').max(200),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    const experiment = await createExperiment(id, body.data, user.id)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'creative_experiment.created',
+        entityType: 'creative_experiment',
+        entityId: experiment.id,
+      },
+      request,
+    )
+    reply.status(201)
+    return { experiment }
+  })
+
+  // Launch / un-launch. `concluded` is deliberately unreachable here — see the conclude route.
+  app.patch('/api/v1/workspaces/:id/creative-experiments/:expId/status', async (request) => {
+    const user = await requireUser(request)
+    const { id, expId } = request.params as { id: string; expId: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+
+    const body = z
+      .object({ status: z.enum(['draft', 'running', 'concluded']) })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    return { experiment: await setExperimentStatus(id, expId, body.data.status) }
+  })
+
+  app.post('/api/v1/workspaces/:id/creative-experiments/:expId/conclude', async (request) => {
+    const user = await requireUser(request)
+    const { id, expId } = request.params as { id: string; expId: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+
+    const body = z
+      .object({
+        winner: z.enum(['a', 'b', 'inconclusive']),
+        notes: z.string().max(4000).optional(),
+        // Whatever the user read in their own ad manager. Stored flagged `selfReported` and never
+        // used to pick or second-guess the winner.
+        metricA: z.number().nonnegative().optional(),
+        metricB: z.number().nonnegative().optional(),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    const experiment = await concludeExperiment(id, expId, body.data, user.id)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'creative_experiment.concluded',
+        entityType: 'creative_experiment',
+        entityId: expId,
+      },
+      request,
+    )
+    return { experiment }
+  })
+
+  app.delete('/api/v1/workspaces/:id/creative-experiments/:expId', async (request) => {
+    const user = await requireUser(request)
+    const { id, expId } = request.params as { id: string; expId: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+    await deleteExperiment(id, expId)
+    return { ok: true }
   })
 
   // Brand guidelines (M4 P4.2a-1). Read is viewer+ (anyone who can see generated copy benefits from

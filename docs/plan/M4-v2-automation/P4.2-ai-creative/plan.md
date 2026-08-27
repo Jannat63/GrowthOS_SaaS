@@ -255,12 +255,60 @@ Two rules the tests must hold it to:
 ## P4.2a-3 — Variant experiments (UGC A/B structure)
 
 Pairs generated variants into experiments with a declared hypothesis and success metric, and records
-them. **Measurement is honestly gated:** without live ad delivery there is no outcome to read, so an
-experiment stays `draft` until a live channel connection exists. Building the structure now is what
-makes the measurement half a wiring change later rather than a redesign.
+them.
 
-**`creative_experiments`**: `id`, `workspace_id`, `hypothesis`, `variant_a`, `variant_b`,
-`success_metric`, `status` (`draft` | `running` | `concluded`), `result` jsonb.
+### Correction 2026-08-27 — what gets gated, and what this feature actually is
+
+The original text said: *"an experiment stays `draft` until a live channel connection exists."*
+**That is the wrong thing to gate, and it would make the feature useless.**
+
+- **It protects nothing.** `draft` vs `running` is a label on a row. Compare the real precedent,
+  `resolveAdapter` in `automation/executor.ts`: that gate requires both a registered adapter *and*
+  an active connection, and it prevents an actual API call against a live ad account. A gate with
+  teeth. Here there is no action to prevent — **nothing in this codebase publishes an ad** — so
+  gating the label stops nothing.
+- **It would freeze the record of work that is genuinely happening.** The only way to run one of
+  these tests today is manually, in Meta Ads Manager. A user who has launched their A/B test *is*
+  running it; refusing to let them say so conflates **our** measurement capability with **their**
+  workflow state.
+
+**What must be gated instead is the `result`** — any claim about a winner. The product must never
+compute, infer, or assert an outcome it cannot observe. So:
+
+- **Status is user-controlled.** They know whether they launched it; we do not.
+- **A conclusion is an explicitly human act**, recorded as such. Any numbers the user enters are
+  stored flagged `self-reported`, never mixed with measured data. Without that flag, a later reader
+  — or the intelligence engine — would treat a hand-typed CTR as observed fact, which is audit #14
+  in a new place.
+- **No automatic winner selection anywhere**, including "A has higher CTR so A wins". We do not have
+  per-variant delivery data, and inferring one from account-level numbers would be fabrication.
+
+**This reframes the slice, and the reframing is the point.** It is not "an A/B testing system waiting
+for its measurement half" — that would be speculative generality. It is **an experiment log**: a
+complete, useful feature today for the agency persona in the PRD, which records what was tested, why,
+how it would be judged, and what the human concluded. Automatic measurement is a later addition *to
+a working feature*, not the thing that makes it work.
+
+### Data model
+
+**`creative_experiments`**: `id`, `workspace_id`, `hypothesis`, `variant_a` jsonb, `variant_b` jsonb,
+`variant_a_label`, `variant_b_label`, `success_metric`, `status` (`draft` | `running` | `concluded`),
+`result` jsonb, `created_by`, `started_at`, `concluded_at`, `created_at`, `updated_at`.
+
+- **Variants are stored as a snapshot, not a reference.** The generators are deterministic templates,
+  so re-deriving a variant later would silently return today's template output rather than what was
+  actually tested. An experiment record whose variants can change is not a record.
+- **`success_metric` is free text** rather than an enum. Constraining it to what we can measure
+  (CTR — the only rate `creative_performance` carries) would be constraining the user's *stated
+  intent* to our current *reading* capability, which are different things. They may well be judging
+  on CPA in their own reporting; the honesty requirement is on the `result`, not the hypothesis.
+
+### Transitions
+
+`draft → running → concluded`, plus `draft → concluded` (abandoned before launch) and
+`running → draft` (un-launch, for a mistake). `concluded` is terminal — reopening would let a
+recorded outcome be quietly rewritten, and an experiment log whose history is editable is not a log.
+Validation lives in `@growthos/logic` as a pure state machine so it is testable without a database.
 
 ---
 

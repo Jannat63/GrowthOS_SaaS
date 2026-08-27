@@ -27,6 +27,7 @@ export default defineConfig({
     './src/schema/automation.ts',
     './src/schema/webhooks.ts',
     './src/schema/brand.ts',
+    './src/schema/experiments.ts',
   ],
   out: './drizzle',
   dbCredentials: {

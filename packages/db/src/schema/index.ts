@@ -27,3 +27,5 @@ export * from './webhooks.js';
 export * from './automation.js';
 // Per-workspace brand guidelines for the copy generators (M4 · P4.2a-1).
 export * from './brand.js';
+// Creative variant experiments — the A/B log (M4 · P4.2a-3).
+export * from './experiments.js';

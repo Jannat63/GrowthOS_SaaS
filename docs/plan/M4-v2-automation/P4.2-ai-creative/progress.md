@@ -1,9 +1,10 @@
 # P4.2 — AI Creative Automation — Progress
 
-Status: [~]  ·  Updated: 2026-08-27  ·  **In progress — P4.2a-1, P4.2a-4 and P4.2a-2 done; only P4.2a-3 (variant experiments) remains.** The plan was re-audited
-against the source before building and **two of its four slices could not be built as written**; both
-were rewritten (see the log and `plan.md`'s "Re-audit against the code"). Build order changed as a
-result. P4.2b (image/video generation) stays deferred on a paid generation API.
+Status: [x]  ·  Updated: 2026-08-27  ·  **P4.2a COMPLETE — all four slices done (P4.2a-1, P4.2a-2, P4.2a-3, P4.2a-4).** P4.2b (image/video generation) stays deferred on a paid generation API.
+
+Every slice was re-audited against the source before being built, and **three of the four needed
+plan corrections first** — twice the error was in a correction written the day before. Build order
+changed as a result. See the log below and `plan.md`'s "Re-audit against the code".
 
 ## Slices
 
@@ -14,7 +15,7 @@ Listed in **execution order**, revised 2026-08-27. IDs are stable.
 | P4.2a-1 Brand guidelines system | [x] | **Done 2026-08-27.** `brand_guidelines` (migration `0016`) + a pure `applyBrandGuidelines` filter in `@growthos/logic`, `GET`/`PUT /workspaces/:id/brand-guidelines`, and a Settings → Brand guidelines section. 31 engine tests + 13 route tests. |
 | P4.2a-4 Server-side generation + metering | [x] | **Done 2026-08-27.** `POST /workspaces/:id/creatives/generate` (manager+), `apps/api/src/creatives.ts`, guidelines applied server-side, `assertWithinLimit` → `recordUsage` on delivered creatives only. Both studio components switched off the browser generators — **verified absent from the built bundle**. 13 route tests, including driving the starter ceiling to a real 402. Closes the last open M5 P5.2 item. |
 | P4.2a-2 Creative scorecard | [x] | **Done 2026-08-27.** `scoreCreatives` in `@growthos/logic`, `getCreativeScorecard` in `fatigue.ts` (reusing the existing `creative_performance` loader), `GET .../meta-ads/scorecard`, and a provenance-labelled panel on `/creative-queue`. 21 engine + 6 integration tests. Re-specified twice first — the named primary inputs (hook/hold rate) do not exist, and the `fatigue_score` column named in the *first* rewrite turned out to be dead too. |
-| P4.2a-3 Variant experiments | [ ] | **Planned**, unchanged. `creative_experiments` structure; measurement honestly gated on live ad delivery. |
+| P4.2a-3 Variant experiments | [x] | **Done 2026-08-27.** `creative_experiments` (migration `0017`), a pure transition/conclusion state machine in `@growthos/logic`, five routes, and a panel on `/creative-queue`. 22 engine + 20 route tests. **Re-specified first:** the plan gated `running` on a live connection, which gates a label and protects nothing — the `result` is what needed gating. |
 | P4.2b Image / video generation | [!] | **Deferred** — 15–25 image variants/week and storyboard rendering need a paid generation API. D4 defers paid AI. |
 
 ## Design decisions worth keeping visible
@@ -211,3 +212,59 @@ Listed in **execution order**, revised 2026-08-27. IDs are stable.
 
   Verified: 21 engine tests + 6 integration tests against real ClickHouse; 196 logic tests, 23 web
   tests, tsc clean on api and web, real Next production build.
+
+- 2026-08-27 — **P4.2a-3 built; P4.2a COMPLETE.** `creative_experiments` (migration `0017`), a pure
+  transition/conclusion state machine in `@growthos/logic`, five routes (list / create / status /
+  conclude / delete, read viewer+ and every write manager+, audit-logged), and a panel on
+  `/creative-queue`. **22 engine tests + 20 route tests.**
+
+  **The plan gated the wrong thing.** Its one substantive line was *"an experiment stays `draft`
+  until a live channel connection exists."* Two problems:
+
+  - **It protects nothing.** `draft` vs `running` is a label on a row. The real precedent is
+    `resolveAdapter` in `automation/executor.ts`, where a connection gate requires both a registered
+    adapter *and* an active connection and prevents an actual API call against a live ad account —
+    a gate with teeth. Here there is no action to prevent, because **nothing in this codebase
+    publishes an ad**.
+  - **It would freeze the record of work that is genuinely happening.** The only way to run one of
+    these tests today is manually, in Meta Ads Manager. A user who launched their test *is* running
+    it; refusing to let them say so confuses **our** measurement capability with **their** workflow
+    state.
+
+  **What actually needed gating is the `result`.** The product never computes, infers or asserts a
+  winner — it has no per-variant delivery data, and deriving one from account-level numbers would be
+  fabrication. Concluding is an explicitly human act, and `buildResult` stamps `selfReported: true`
+  on every outcome so a later reader (or the intelligence engine) cannot mistake a hand-typed CTR
+  for an observed one. The UI says so in words too.
+
+  **This reframed the slice, and the reframing is the point.** It is not "an A/B testing system
+  waiting for its measurement half" — that would be speculative generality, building structure for a
+  capability that may never arrive. It is an **experiment log**: a complete, useful feature today for
+  the agency persona, recording what was tested, why, how it would be judged, and what the human
+  concluded. Automatic measurement later becomes an addition *to a working feature* rather than the
+  thing that finally makes it work.
+
+  Decisions worth keeping visible:
+
+  - **`concluded` is terminal, and a concluded experiment cannot be deleted.** A log whose history
+    can be rewritten or erased after the fact is not a log. Abandoning before launch is expressed by
+    concluding it (`draft → concluded` is allowed), not by deleting it.
+  - **The engine deliberately does NOT overrule a winner that disagrees with the reported numbers.**
+    A user may pick B despite A's higher CTR because B drove downstream revenue they can see and we
+    cannot. Overruling them from two figures we did not measure would be the same false confidence
+    this phase has been correcting throughout. Covered by a test at both layers.
+  - **An inconclusive result requires notes.** "We could not tell" is only useful to a future reader
+    if it says what was seen; a winner can stand on the variants alone.
+  - **Variants are stored as a jsonb snapshot, not a reference.** The generators are deterministic
+    templates, so re-deriving a variant later would return today's template output rather than what
+    was actually tested.
+  - **`successMetric` is free text, not an enum.** Limiting it to what we can read (CTR) would
+    constrain the user's stated *intent* to our current *measurement* capability — different things.
+    They may well be judging on CPA in their own reporting.
+  - **A no-op transition is refused**, not silently accepted: a status write that looks successful
+    while changing nothing reads to the caller as a state change that never happened.
+  - **The offline fallback for the list is an empty list, not invented experiments.** These are
+    records of what a real person decided to test; fabricating one would put words in their mouth.
+
+  Verified: 218 logic tests, 20 route tests against real Neon, 23 web tests, tsc clean on api and
+  web, real Next production build. Migration `0017` is `CREATE TABLE` + one index, no drops.

@@ -22,6 +22,7 @@ import { useRecommendationActions } from "@/lib/hooks/useRecommendationActions";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { CreativeScorecard } from "@/components/creative/CreativeScorecard";
+import { VariantExperiments } from "@/components/creative/VariantExperiments";
 
 export default function CreativeQueuePage() {
   const { data: me } = useWorkspace();
@@ -50,6 +51,10 @@ export default function CreativeQueuePage() {
       {/* Placed above the brief queue on purpose: how the creatives already running are doing is
           the context for deciding what to make next. */}
       <CreativeScorecard workspaceId={workspaceId} />
+
+      {/* Sits with the scorecard: both are about creatives already in flight, as opposed to the
+          brief queue below, which is about what to make next. */}
+      <VariantExperiments workspaceId={workspaceId} />
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">
