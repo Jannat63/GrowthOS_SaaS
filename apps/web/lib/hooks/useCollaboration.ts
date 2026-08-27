@@ -39,9 +39,28 @@ export function useCollaborationActions(workspaceId: string | null | undefined) 
     },
   });
 
+  /**
+   * Assign a recommendation, optionally with a target date.
+   *
+   * `dueDate` has been accepted by this endpoint and stored on the row since M3 P3.5, and nothing
+   * ever sent it — so "Assigned" meant a name and no commitment. Passed as `undefined` when the
+   * caller doesn't set one, so an assignee change never silently clears a date someone else set;
+   * pass an explicit `null` to clear it.
+   */
   const assign = useMutation({
-    mutationFn: ({ recId, assignedTo }: { recId: string; assignedTo: string | null }) =>
-      api.patch(`/workspaces/${workspaceId}/recommendations/${recId}/assignment`, { assignedTo }),
+    mutationFn: ({
+      recId,
+      assignedTo,
+      dueDate,
+    }: {
+      recId: string;
+      assignedTo: string | null;
+      dueDate?: string | null;
+    }) =>
+      api.patch(`/workspaces/${workspaceId}/recommendations/${recId}/assignment`, {
+        assignedTo,
+        ...(dueDate === undefined ? {} : { dueDate }),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["recommendations", workspaceId] });
     },

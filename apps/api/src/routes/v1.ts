@@ -47,6 +47,7 @@ import {
   getScoredSearchTerms,
   getContentBriefs,
   updateRecommendationStatus,
+  updateContentBriefStatus,
 } from '../search-terms.js'
 import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
 import { ensureFatigueAlerts, getCreativeScorecard, getFatigueResults } from '../fatigue.js'
@@ -653,6 +654,42 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     return getContentBriefs(id, parsePage(request.query))
+  })
+
+  // Advance a brief through the editorial pipeline. Manager+, matching the recommendation status
+  // route — moving something to "published" is a claim about work that shipped, not a read.
+  app.patch('/api/v1/workspaces/:id/content-briefs/:briefId', async (request) => {
+    const user = await requireUser(request)
+    const { id, briefId } = request.params as { id: string; briefId: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+    const body = z
+      .object({
+        status: z.enum(['draft', 'approved', 'in_progress', 'published']),
+        publishedUrl: z.string().url('Enter a valid URL.').nullable().optional(),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    const updated = await updateContentBriefStatus(
+      id,
+      briefId,
+      body.data.status,
+      body.data.publishedUrl,
+    )
+    if (!updated) throw new AppError('WORKSPACE_NOT_FOUND', 'Content brief not found in this workspace.')
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'content_brief.status_changed',
+        entityType: 'content_brief',
+        entityId: briefId,
+        metadata: { status: body.data.status },
+      },
+      request,
+    )
+    return updated
   })
 
   // Workspace members + roles (P2.8 settings) — guarded by membership.

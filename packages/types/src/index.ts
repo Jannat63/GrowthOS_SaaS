@@ -162,6 +162,26 @@ export interface Recommendation {
   status: RecommendationStatus;
   assignedTo: string | null; // → user.id; null = unassigned (M3 P3.5)
   dueDate: string | null; // ISO date; null = no due date (M3 P3.5)
+  /**
+   * When a snoozed recommendation returns to the queue. Null on a snooze with no end date.
+   *
+   * The column has existed since P2.3b and was never surfaced, which made Snooze inert: the row
+   * kept its place in the open queue and only its badge changed. The queue reads this to hide a
+   * snoozed row until its date passes, so the button now does what it says.
+   */
+  snoozedUntil: string | null; // ISO
+  /** When someone marked this acted. Null until then. */
+  actedAt: string | null; // ISO
+  /** When the recommendation was generated — how long it has been waiting. */
+  createdAt: string | null; // ISO
+  /**
+   * Comments on this recommendation, counted server-side.
+   *
+   * Carried on the row rather than fetched per card: the thread itself is still lazy, but the
+   * count has to arrive with the list or the queue cannot show which items have a discussion
+   * without opening all of them one at a time.
+   */
+  commentCount: number;
 }
 
 // SEO rank tracking (M3 P3.1, GSC-fed). Per-keyword position over time.
@@ -402,13 +422,32 @@ export interface ScoredSearchTerm {
   message: string;
 }
 
+/**
+ * The editorial stages a brief moves through. The column and its default have existed since the
+ * table was created; nothing ever wrote it after the insert and no screen ever showed it, so a
+ * page called "Content Pipeline" had no pipeline in it.
+ */
+export type ContentBriefStatus = "draft" | "approved" | "in_progress" | "published";
+
+export const CONTENT_BRIEF_STAGES: readonly ContentBriefStatus[] = [
+  "draft",
+  "approved",
+  "in_progress",
+  "published",
+];
+
 export interface ContentBriefRecord {
   id: string;
   workspaceId: string;
   recommendationId: string | null;
   keyword: string;
-  status: string;
+  status: ContentBriefStatus;
   brief: ContentBrief;
+  /** Which bridge produced it — google_ads_search_term | organic_top_page | meta_hook | manual. */
+  source: string;
+  /** Set when the article ships. This is what closes the loop back to the SEO module. */
+  publishedUrl: string | null;
+  createdAt: string | null; // ISO
 }
 
 // Organic-to-Paid (M2 P2.4) — Meta creative briefs from top organic pages.
