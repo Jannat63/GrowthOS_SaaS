@@ -42,7 +42,7 @@ import {
   updateRecommendationStatus,
 } from '../search-terms.js'
 import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
-import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
+import { ensureFatigueAlerts, getCreativeScorecard, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
 import { getKeywordClusters, getKeywordRankings, getOrganicTraffic } from '../seo.js'
 import { generateSchemaMarkup } from '../schema-markup-lookup.js'
@@ -590,6 +590,16 @@ export async function registerV1Routes(app: FastifyInstance) {
     await ensureFatigueAlerts(id)
     const data = await getFatigueResults(id)
     return { data, total: data.length }
+  })
+
+  // Creative scorecard (M4 P4.2a-2) — grades creatives that have RUN against this account's own
+  // trailing CTR median. Not a prediction: see creative-scorecard.ts for why prediction is not
+  // built. Read-level guard, like fatigue — this is analysis of existing data, not an action.
+  app.get('/api/v1/workspaces/:id/meta-ads/scorecard', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    return getCreativeScorecard(id)
   })
 
   // Content briefs for a workspace (linked to paid_to_organic + organic_to_paid recommendations).

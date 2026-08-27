@@ -168,9 +168,12 @@ underperforming.
 
 ### Inputs — rewritten 2026-08-27 to the columns that exist
 
-Scored **only** from what `creative_performance` actually holds: `ctr`, `cpm`, `frequency`,
-`fatigue_score`, `date`, `platform`. The original spec's primary inputs (hook rate, hold rate) do
-not exist in the schema and cannot until Meta App Review lands — see Correction 2.
+Scored **only** from what `creative_performance` actually *carries*, which is narrower than what it
+declares: **`ctr`, `frequency`, `date`** — plus the fatigue status the existing engine derives from
+CTR week-over-week. `cpm` is displayed but does not affect the band, and `fatigue_score` is excluded
+entirely (both are constants today; see the bullets below). The original spec's primary inputs
+(hook rate, hold rate) do not exist in the schema at all and cannot until Meta App Review lands —
+see Correction 2.
 
 That inverts the original weighting, and the inversion must be **stated in the output**, not hidden:
 
@@ -182,13 +185,41 @@ That inverts the original weighting, and the inversion must be **stated in the o
   plan is right that CTR is mid-funnel and reflects targeting as much as creative — so the band it
   produces is reported as *"underperforming relative to this account"*, never as a claim about the
   creative in isolation.
-- **`frequency` and `fatigue_score` are the discriminators** that stop CTR being read naively: a
+- **`frequency` and the fatigue engine are the discriminators** that stop CTR being read naively: a
   creative below median at frequency 6.0 is saturated, which is a different finding, with a
-  different action, from one below median at frequency 1.2. This is where the score earns its
-  keep — and it composes with the shipped `creative-fatigue` engine (`detectFatigueAll`) rather
-  than re-deriving decline.
-- **`cpm` is a cost-side flag only.** Efficiency needs spend and conversions, which the table does
-  not have, so no ROAS/CPA claim is made anywhere.
+  different action, from one below median at frequency 1.2. This is where the score earns its keep.
+
+  **Second-pass correction (2026-08-27): the fatigue signal comes from `detectFatigueAll`, NEVER
+  from the `fatigue_score` column.** An earlier draft of this section named the column as a
+  discriminator. It is dead: `fatigue.ts:54` writes it as a literal `0` and **nothing anywhere else
+  ever writes it** — no worker, no sync path. Using it would have given every creative an identical
+  score on that dimension while looking like a real input. That is the same error this document
+  criticises the 2026-08-20 plan for, committed one day later; the lesson is that "the column
+  exists" and "the column carries data" are different checks, and only the second one counts.
+  `detectFatigueAll` derives decline from CTR week-over-week, which is real.
+- **`cpm` does not affect the band yet.** Efficiency needs spend and conversions, which the table
+  does not have, so no ROAS/CPA claim is made anywhere. Beyond that, the seed writes `cpm: 12.5` for
+  every row, so on a workspace with nothing connected it is information-free. It is surfaced for
+  context and will become meaningful when a real sync writes it — it must not silently shape a
+  verdict before then.
+- **Scope is `meta_ads`.** The seed writes only `platform: 'meta_ads'`, so no `google_ads` creative
+  rows exist in this table at all; `fatigue.ts` already filters to `meta_ads` for the same reason.
+  A scorecard querying both would return one empty half and invite a reader to conclude Google
+  creatives are all underperforming.
+
+### Provenance is part of this slice, not a follow-up
+
+`ensureCreativePerformanceSeed` fabricates rows for any workspace with none, so **the default
+experience of this feature is a graded verdict over invented data.** A panel that says "this
+creative is underperforming" about a seeded row is `AUDIT-2026-08-13-codebase.md` #14 in its purest
+form — worse than the badge problem that audit found, because a band reads as a judgement rather
+than as a number.
+
+The mechanism already exists and must be used: `useDataProvenance` resolves `live | sample |
+offline` (`sample` = the API answered but nothing is connected, so this is demonstration data). The
+scorecard panel declares `meta_ads` and renders its provenance state. Bands stay visible in
+`sample` — the feature should be explorable before onboarding — but they are labelled as
+demonstration, not presented as findings about the customer's account.
 
 **Published benchmarks are deferred, not seeded.** The three figures in the original draft carried
 no source, and two named platforms (TikTok, YouTube) are not ingested. When a benchmark is added it

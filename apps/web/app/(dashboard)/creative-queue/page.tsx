@@ -21,6 +21,7 @@ import { useContentBriefs } from "@/lib/hooks/useContentBriefs";
 import { useRecommendationActions } from "@/lib/hooks/useRecommendationActions";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
+import { CreativeScorecard } from "@/components/creative/CreativeScorecard";
 
 export default function CreativeQueuePage() {
   const { data: me } = useWorkspace();
@@ -45,6 +46,10 @@ export default function CreativeQueuePage() {
           Top organic pages turned into Meta creative briefs — amplify proven demand with paid.
         </p>
       </div>
+
+      {/* Placed above the brief queue on purpose: how the creatives already running are doing is
+          the context for deciding what to make next. */}
+      <CreativeScorecard workspaceId={workspaceId} />
 
       <section className="space-y-3">
         <div className="flex items-center gap-2">

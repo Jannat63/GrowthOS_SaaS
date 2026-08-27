@@ -1,6 +1,6 @@
 # P4.2 — AI Creative Automation — Progress
 
-Status: [~]  ·  Updated: 2026-08-27  ·  **In progress — P4.2a-1 and P4.2a-4 done.** The plan was re-audited
+Status: [~]  ·  Updated: 2026-08-27  ·  **In progress — P4.2a-1, P4.2a-4 and P4.2a-2 done; only P4.2a-3 (variant experiments) remains.** The plan was re-audited
 against the source before building and **two of its four slices could not be built as written**; both
 were rewritten (see the log and `plan.md`'s "Re-audit against the code"). Build order changed as a
 result. P4.2b (image/video generation) stays deferred on a paid generation API.
@@ -13,7 +13,7 @@ Listed in **execution order**, revised 2026-08-27. IDs are stable.
 |-------|--------|-------|
 | P4.2a-1 Brand guidelines system | [x] | **Done 2026-08-27.** `brand_guidelines` (migration `0016`) + a pure `applyBrandGuidelines` filter in `@growthos/logic`, `GET`/`PUT /workspaces/:id/brand-guidelines`, and a Settings → Brand guidelines section. 31 engine tests + 13 route tests. |
 | P4.2a-4 Server-side generation + metering | [x] | **Done 2026-08-27.** `POST /workspaces/:id/creatives/generate` (manager+), `apps/api/src/creatives.ts`, guidelines applied server-side, `assertWithinLimit` → `recordUsage` on delivered creatives only. Both studio components switched off the browser generators — **verified absent from the built bundle**. 13 route tests, including driving the starter ceiling to a real 402. Closes the last open M5 P5.2 item. |
-| P4.2a-2 Creative scorecard | [ ] | **Re-specified 2026-08-27.** Its named primary inputs (hook rate, hold rate) do not exist in `creative_performance`, and two of its three benchmarks are for platforms nothing ingests. Rewritten around the columns that exist, with the self-median as the primary reference. |
+| P4.2a-2 Creative scorecard | [x] | **Done 2026-08-27.** `scoreCreatives` in `@growthos/logic`, `getCreativeScorecard` in `fatigue.ts` (reusing the existing `creative_performance` loader), `GET .../meta-ads/scorecard`, and a provenance-labelled panel on `/creative-queue`. 21 engine + 6 integration tests. Re-specified twice first — the named primary inputs (hook/hold rate) do not exist, and the `fatigue_score` column named in the *first* rewrite turned out to be dead too. |
 | P4.2a-3 Variant experiments | [ ] | **Planned**, unchanged. `creative_experiments` structure; measurement honestly gated on live ad delivery. |
 | P4.2b Image / video generation | [!] | **Deferred** — 15–25 image variants/week and storyboard rendering need a paid generation API. D4 defers paid AI. |
 
@@ -33,9 +33,12 @@ Listed in **execution order**, revised 2026-08-27. IDs are stable.
 - **CTR is a confirming signal, not the primary score** — *the reasoning is still right, but the
   data forces the opposite arrangement.* `creative_performance` holds no hook rate and no hold rate,
   so CTR is the only performance rate available. It is therefore the main observable, with
-  `frequency` and `fatigue_score` as the discriminators that stop it being read naively — and the
-  band it produces is reported as "underperforming **relative to this account**", never as a claim
-  about the creative in isolation.
+  `frequency` and **the fatigue engine's derived decline** as the discriminators that stop it being
+  read naively — and the band it produces is reported as "underperforming **relative to this
+  account**", never as a claim about the creative in isolation.
+  *(Corrected 2026-08-27: an earlier version of this bullet named the `fatigue_score` **column**. It
+  is written as a literal `0` and never updated, so it carries no signal — see the log entry for
+  P4.2a-2. `detectFatigueAll` derives decline from CTR week-over-week instead.)*
 - **Guidelines drop violating variants rather than rewriting them.** Rewriting without a language
   model produces mangled copy; fewer clean variants beat more broken ones.
 - **Benchmarks carry their source and date in the code.** They decay, and an unattributed magic
@@ -155,3 +158,56 @@ Listed in **execution order**, revised 2026-08-27. IDs are stable.
   to the non-promise `Chain` signature). The tests passed at runtime, so only `tsc` caught it — and
   the API typecheck had last been run *before* that file was written. Typed to
   `Record<string, unknown>`; suite still 13/13.
+
+- 2026-08-27 — **P4.2a-2 built. The plan needed a SECOND correction first, and it was my own.**
+
+  The 2026-08-27 rewrite of this slice replaced the non-existent hook/hold-rate inputs with "`ctr`,
+  `cpm`, `frequency`, `fatigue_score`". Checking those against the data before building:
+
+  - **`fatigue_score` is a dead column.** `fatigue.ts:54` writes it as a literal `0` and nothing
+    anywhere else ever writes it — no worker, no sync path. Scoring on it would have given every
+    creative an identical dimension while looking like a real input. This is precisely the error the
+    rewrite criticised the original plan for, committed one day later. The lesson worth keeping:
+    *"the column exists" and "the column carries data" are different checks, and only the second
+    one counts.* The fatigue signal now comes from `detectFatigueAll`, which derives decline from
+    CTR week-over-week — real data.
+  - **`cpm` is a constant `12.5` in the seed.** It is displayed for context and never affects a
+    band. Efficiency needs spend and conversions, which the table does not carry.
+  - **The seed writes only `platform: 'meta_ads'`.** There are no `google_ads` creative rows at all,
+    so a scorecard spanning both would have returned an empty half that reads as "every Google
+    creative is underperforming". Scoped to `meta_ads`, matching `fatigue.ts`.
+
+  So the honest input set is **`ctr` + `frequency` + engine-derived fatigue** — narrower than either
+  version of the plan implied, and stated as such in the engine header.
+
+  **Provenance was added to the slice rather than deferred.** `ensureCreativePerformanceSeed`
+  fabricates rows for any workspace with none, so the default experience of this feature is a graded
+  verdict over invented data — audit #14 in its purest form, and worse than the badge problem that
+  audit found, because a *band* reads as a judgement rather than as a number. The panel declares
+  `MODULE_PLATFORMS.fatigue` and renders `DataSourceBadge`, so it reports `sample` until Meta is
+  actually connected.
+
+  **The fixture was widened, not the threshold lowered.** The engine withholds a verdict below 5
+  creatives, because with 3 the median *is* one of the 3. The `creatives` fixture held exactly 4, so
+  every demonstration workspace would have shown "insufficient data" everywhere and the feature
+  would have read as broken. Tuning the threshold to fit the fixture would have been backwards — it
+  is a statistical judgement, and bending it to make demo data grade is how a confident verdict over
+  too-thin evidence gets shipped. A fifth creative was added to the fixture instead, positioned mid-
+  spread so the seeded account now yields one underperforming, one strong and three average — the
+  feature's full range. `fatigue.test.ts` computes its expectations dynamically, so nothing broke.
+
+  Two smaller decisions:
+
+  - **`getCreativeScorecard` lives in `fatigue.ts`, not `meta-ads.ts` where the plan put it.** That
+    module already owns every `creative_performance` read — its seed, its max-date windowing, its
+    loader. A second reader in `meta-ads.ts` (which reads `ad_performance`, a different table) would
+    have duplicated all three and drifted.
+  - **Three kinds of "underperforming", not one.** Below-median at high frequency is *saturated*
+    (widen targeting); below-median while declining is *fatiguing* (refresh, it worked before);
+    below-median with neither is *weak* (it never connected). Saturation wins when both apply,
+    because a saturated creative is declining *because* it is saturated and "rewrite the copy" would
+    be the wrong action. Collapsing these into one number would lose the only part that tells a user
+    what to do.
+
+  Verified: 21 engine tests + 6 integration tests against real ClickHouse; 196 logic tests, 23 web
+  tests, tsc clean on api and web, real Next production build.

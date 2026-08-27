@@ -1,7 +1,14 @@
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import type { ScoredCreative } from '@growthos/types'
-import { detectFatigueAll, fatigueAlertRecommendation, type CreativePerformance } from '@growthos/logic'
+import {
+  detectFatigueAll,
+  fatigueAlertRecommendation,
+  scoreCreatives,
+  type CreativePerformance,
+  type ScorecardInput,
+  type ScorecardResult,
+} from '@growthos/logic'
 import { creatives } from '@growthos/logic/fixtures'
 import { getClickhouse } from './analytics.js'
 import { publish } from './ws.js'
@@ -88,6 +95,10 @@ async function loadCreativePerformance(workspaceId: string): Promise<CreativePer
         toFloat64(avgIf(ctr, date > subtractDays(maxDate, 7))) AS ctrThisWeek,
         toFloat64(avgIf(ctr, date > subtractDays(maxDate, 14) AND date <= subtractDays(maxDate, 7))) AS ctrLastWeek,
         toFloat64(argMax(frequency, date)) AS frequency,
+        -- Trailing-week average, matching ctrThisWeek's window. Read by the scorecard (P4.2a-2) for
+        -- context only: it never affects a band, because efficiency needs spend and conversions
+        -- that this table does not carry, and the seed writes a constant.
+        toFloat64(avgIf(cpm, date > subtractDays(maxDate, 7))) AS cpm,
         toFloat64(dateDiff('hour', min(date), maxDate)) AS hoursSinceLaunch
       FROM creative_performance
       WHERE workspace_id = {ws:String} AND platform = 'meta_ads'
@@ -97,7 +108,23 @@ async function loadCreativePerformance(workspaceId: string): Promise<CreativePer
     format: 'JSONEachRow',
   })
 
-  return (await rs.json()) as CreativePerformance[]
+  return (await rs.json()) as ScorecardInput[]
+}
+
+/**
+ * Creative scorecard (M4 · P4.2a-2) — grades creatives that have actually run against this
+ * workspace's own trailing CTR median.
+ *
+ * Lives here rather than in `meta-ads.ts` (where the plan first put it) because this module already
+ * owns every `creative_performance` read: its seed, its max-date windowing, and the loader. A second
+ * reader over there would have duplicated all three and drifted from them.
+ *
+ * Scoped to `meta_ads` by the loader's own WHERE clause — the seed writes no `google_ads` creative
+ * rows, so a scorecard spanning both would return one empty half and read as "every Google creative
+ * is underperforming".
+ */
+export async function getCreativeScorecard(workspaceId: string): Promise<ScorecardResult> {
+  return scoreCreatives(await loadCreativePerformance(workspaceId))
 }
 
 export async function getFatigueResults(workspaceId: string): Promise<ScoredCreative[]> {
