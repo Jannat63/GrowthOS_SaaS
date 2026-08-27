@@ -102,7 +102,7 @@ export function RankTracker({ workspaceId }: { workspaceId: string | null }) {
               <TableRow key={k.keyword}>
                 <TableCell className="font-medium">{k.keyword}</TableCell>
                 <TableCell className="text-right">
-                  <Badge variant={k.position <= 3 ? "success" : k.position <= 10 ? "default" : "muted"}>
+                  <Badge variant={k.position <= 3 ? "success" : k.position <= 10 ? "outline" : "muted"}>
                     {k.position}
                   </Badge>
                 </TableCell>

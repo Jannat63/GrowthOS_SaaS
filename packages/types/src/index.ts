@@ -263,6 +263,15 @@ export interface OrganicTrafficPoint {
 export interface OrganicTrafficResponse {
   pages: OrganicPage[];
   trend: OrganicTrafficPoint[];
+  /**
+   * The window these figures were actually measured over.
+   *
+   * Both queries behind this response ran with no date filter at all, summing every seeded day —
+   * 180 of them — while the UI labelled the totals "Clicks (30d)". The live figures were six times
+   * the window they claimed, and six times what the offline fallback produced for the same tiles.
+   * The window now travels with the numbers so a label can never drift from them again.
+   */
+  period: { from: string; to: string } | null;
   summary: {
     pages: number;
     totalClicks: number;

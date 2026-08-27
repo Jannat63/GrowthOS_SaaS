@@ -62,6 +62,10 @@ function mockTraffic(): OrganicTrafficResponse {
   return {
     pages,
     trend,
+    // The offline window, stated the same way the API states its own. The mock has always built
+    // exactly 30 days from this base; the API used to sum all 180 seeded days behind the same
+    // "(30d)" label, so the two paths disagreed by 6x on every headline figure.
+    period: { from: trend[0]?.date ?? "", to: trend[trend.length - 1]?.date ?? "" },
     summary: {
       pages: pages.length,
       totalClicks,

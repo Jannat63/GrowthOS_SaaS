@@ -17,6 +17,7 @@ export function KeywordClusters({ workspaceId }: { workspaceId: string | null })
   const anyVerified = c.clusters.some((cluster) => cluster.intentVerified);
   const grouped = c.clusters.filter((cluster) => cluster.keywords.length > 1);
   const ungrouped = c.clusters.filter((cluster) => cluster.keywords.length === 1);
+  const groupedKeywordCount = grouped.reduce((n, cluster) => n + cluster.keywords.length, 0);
 
   return (
     <div className="space-y-6">
@@ -24,11 +25,20 @@ export function KeywordClusters({ workspaceId }: { workspaceId: string | null })
         {clusters && <DataSourceBadge source={clusters.source} platform={MODULE_PLATFORMS.seo} />}
       </div>
 
+      {/*
+        Counted from what this page actually shows, not from `summary`.
+
+        `summary.clusters` counts every cluster including one-keyword ones — 7 on the sample data —
+        while the body below deliberately separates those out and calls them "Ungrouped", so the
+        tile and the page disagreed about how many topics exist. `summary.keywords` is the total
+        tracked count (8) and was labelled "Keywords grouped" when only 2 keywords are in a topic.
+        Both tiles described a different page from the one underneath them.
+      */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SeoTile label="Clusters" value={c.summary.clusters} />
-        <SeoTile label="Keywords grouped" value={c.summary.keywords} />
-        <SeoTile label="Largest cluster" value={c.summary.largestCluster} />
-        <SeoTile label="Ungrouped keywords" value={c.summary.singletons} />
+        <SeoTile label="Topics found" value={grouped.length} />
+        <SeoTile label="Keywords in a topic" value={groupedKeywordCount} />
+        <SeoTile label="Largest topic" value={c.summary.largestCluster} />
+        <SeoTile label="Not grouped" value={ungrouped.length} />
       </div>
 
       {/*
@@ -80,7 +90,7 @@ export function KeywordClusters({ workspaceId }: { workspaceId: string | null })
                 <li key={k.keyword} className="flex items-center justify-between gap-3 text-sm">
                   <span className="truncate">{k.keyword}</span>
                   <Badge
-                    variant={k.position <= 3 ? "success" : k.position <= 10 ? "default" : "muted"}
+                    variant={k.position <= 3 ? "success" : k.position <= 10 ? "outline" : "muted"}
                   >
                     {k.position}
                   </Badge>
@@ -112,7 +122,7 @@ export function KeywordClusters({ workspaceId }: { workspaceId: string | null })
                     (cluster.keywords[0]?.position ?? 0) <= 3
                       ? "success"
                       : (cluster.keywords[0]?.position ?? 0) <= 10
-                        ? "default"
+                        ? "outline"
                         : "muted"
                   }
                 >
