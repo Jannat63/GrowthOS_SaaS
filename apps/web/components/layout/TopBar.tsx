@@ -14,8 +14,6 @@ import { cn } from "@/lib/utils/cn";
 import { signOut } from "@/lib/auth/client";
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
-import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
-import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationCenter } from "@/components/layout/NotificationCenter";
 
@@ -82,8 +80,10 @@ export function TopBar() {
       </DropdownMenu>
 
       {/* Right side */}
+      {/* The cross-channel DataSourceBadge used to sit here as well as in each page header —
+          same words, same colour, ~130px apart. The page-level one is the more useful of the two
+          because it is scoped to the module being read, so this copy is gone. */}
       <div className="flex items-center gap-2.5">
-        <DataSourceBadge source={data?.source ?? "mock"} platform={MODULE_PLATFORMS.crossChannel} />
         <NotificationCenter workspaceId={active?.workspaceId ?? null} />
         <ThemeToggle />
         <DropdownMenu>

@@ -58,7 +58,7 @@ import { getCampaignInsights } from '../google-ads.js'
 import { getMetaCampaignInsights } from '../meta-ads.js'
 import { getAttribution } from '../attribution.js'
 import { getGrowthHub } from '../growth-hub.js'
-import { getWeeklyReport } from '../intelligence.js'
+import { getArchivedReport, getWeeklyReport, listReportPeriods } from '../intelligence.js'
 import { generateReportPdf } from '../pdf-report-generate.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
@@ -115,6 +115,21 @@ async function listMemberships(userId: string): Promise<Membership[]> {
       onboardingComplete: r.onboardingComplete ?? false,
     },
   }))
+}
+
+/**
+ * The reporting window every analytics route accepts.
+ *
+ * `from`/`to` are what the dashboard's date picker sends; `days` is the older shorthand, kept so
+ * existing callers and the public API keep working. When both are present the explicit range wins
+ * (see `resolveWindow`). The `days` ceiling is generous rather than 90 because the window is really
+ * bounded by the data a workspace has, which `getDataBounds` reports back to the client.
+ */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+const DATE_WINDOW_QUERY = {
+  from: z.string().regex(ISO_DATE).optional(),
+  to: z.string().regex(ISO_DATE).optional(),
+  days: z.coerce.number().int().positive().max(400).optional(),
 }
 
 export async function registerV1Routes(app: FastifyInstance) {
@@ -550,11 +565,36 @@ export async function registerV1Routes(app: FastifyInstance) {
   })
 
   // Weekly Growth Intelligence Report (M3 P3.4) — generate + persist, return latest.
+  //
+  // With `?week=` it serves that week straight out of the archive instead, unchanged from when it
+  // was generated. That distinction matters: a past week must not be recomputed against today's
+  // data, or the "report" for a week gone by would silently rewrite itself on every read.
   app.get('/api/v1/workspaces/:id/intelligence/report', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    return getWeeklyReport(id)
+
+    const query = z.object({ week: z.string().date().optional() }).safeParse(request.query)
+    if (!query.success) {
+      throw new AppError('VALIDATION_ERROR', 'week must be a YYYY-MM-DD date.')
+    }
+    const week = query.data.week
+    if (!week) return getWeeklyReport(id)
+
+    const archived = await getArchivedReport(id, week)
+    if (!archived) {
+      throw new AppError('NOT_FOUND', `No report is stored for the week of ${week}.`)
+    }
+    return archived
+  })
+
+  // Which weeks this workspace has a stored report for — the report archive's index.
+  app.get('/api/v1/workspaces/:id/intelligence/reports', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const data = await listReportPeriods(id)
+    return { data, total: data.length }
   })
 
   // Cross-channel attribution (M4 P4.1) — every model's per-channel credit over conversion paths.
@@ -565,17 +605,16 @@ export async function registerV1Routes(app: FastifyInstance) {
     return getAttribution(id)
   })
 
-  // Growth Hub headline metrics — revenue/spend/organic/conversions for the current window vs the
-  // preceding one, plus the Goal Simulator's baseline. Windows are measured from the latest date in
-  // the data, not today (see growth-hub.ts).
+  // Growth Hub headline metrics — revenue/spend/organic/conversions for the selected window vs the
+  // equal-length window before it, plus the Goal Simulator's baseline and the workspace's data
+  // bounds. With no range given the window is anchored to the latest date in the data, not today
+  // (see growth-hub.ts and date-window.ts).
   app.get('/api/v1/workspaces/:id/analytics/growth-hub', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    const q = z
-      .object({ days: z.coerce.number().int().positive().max(90).optional() })
-      .safeParse(request.query)
-    return getGrowthHub(id, q.success ? (q.data.days ?? 30) : 30)
+    const q = z.object(DATE_WINDOW_QUERY).safeParse(request.query)
+    return getGrowthHub(id, q.success ? q.data : {})
   })
 
   // Blended MER — trend + channel breakdown from ClickHouse ad_performance (seeded per workspace).
@@ -583,10 +622,9 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    const q = z.object({ days: z.coerce.number().int().positive().max(90).optional() }).safeParse(request.query)
-    const days = q.success ? (q.data.days ?? 30) : 30
+    const q = z.object(DATE_WINDOW_QUERY).safeParse(request.query)
     await ensureAdPerformanceSeed(id)
-    return getMerTrend(id, days)
+    return getMerTrend(id, q.success ? q.data : {})
   })
 
   // Creative fatigue — scored Meta creatives (+ generate fatigue_alert recs).
@@ -767,7 +805,7 @@ export async function registerV1Routes(app: FastifyInstance) {
         logoUrl: z.string().url().max(2000).nullable().optional().or(z.literal('')),
         primaryColor: z
           .string()
-          .regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex color, e.g. #4f46e5.')
+          .regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex color, e.g. #ce4218.')
           .nullable()
           .optional(),
       })

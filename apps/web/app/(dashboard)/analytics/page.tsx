@@ -1,5 +1,4 @@
 "use client";
-import { useState } from "react";
 import {
   Area,
   AreaChart,
@@ -13,7 +12,6 @@ import {
 import { TrendingUp, AlertTriangle } from "lucide-react";
 import { Card } from "@growthos/ui/components/card";
 import { Badge } from "@growthos/ui/components/badge";
-import { Button } from "@growthos/ui/components/button";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import { cn } from "@/lib/utils/cn";
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
@@ -21,16 +19,21 @@ import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useMer } from "@/lib/hooks/useMer";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
-
-const RANGES = [30, 60, 90] as const;
+import { DateRangePicker } from "@/components/dashboard/DateRangePicker";
+import { useGrowthHub } from "@/lib/hooks/useGrowthHub";
+import { useRangeStore } from "@/lib/stores/range";
 
 export default function AnalyticsPage() {
   const { data: me } = useWorkspace();
   const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const workspaceId = activeId ?? me?.data.memberships[0]?.workspaceId ?? null;
-  const [days, setDays] = useState<(typeof RANGES)[number]>(30);
+  // Shared with every other module rather than local state: a reader who picks 90d here and opens
+  // the Growth Hub is still asking about 90d. This page previously offered 30/60/90 of its own.
+  const range = useRangeStore((s) => s.range);
+  // Only for the picker's bounds — the hub call is already cached by the Growth Hub page.
+  const { data: hub } = useGrowthHub(workspaceId, range);
 
-  const { data: mer } = useMer(workspaceId, days);
+  const { data: mer } = useMer(workspaceId, range);
 
   return (
     <div className="animate-rise space-y-6">
@@ -41,18 +44,11 @@ export default function AnalyticsPage() {
             Total revenue ÷ ad spend across Google &amp; Meta — immune to platform attribution bias.
           </p>
         </div>
-        <div className="flex gap-1 rounded-lg border p-1">
-          {RANGES.map((r) => (
-            <Button
-              key={r}
-              size="sm"
-              variant={days === r ? "default" : "ghost"}
-              onClick={() => setDays(r)}
-            >
-              {r}d
-            </Button>
-          ))}
-        </div>
+        <DateRangePicker
+          dataFrom={hub?.data.dataFrom}
+          dataThrough={hub?.data.dataThrough}
+          activeRange={hub?.data.window}
+        />
       </div>
 
       {!mer ? (

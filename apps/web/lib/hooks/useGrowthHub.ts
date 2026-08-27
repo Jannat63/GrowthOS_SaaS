@@ -5,6 +5,8 @@ import { calculateBlendedMER, type MERResult } from "@growthos/logic";
 import { api } from "@/lib/api/client";
 import { liveOrMock } from "./liveOrMock";
 import { growthHubMock } from "@/lib/mock-data/growth-hub";
+import { rangeKey, rangeQuery } from "./rangeQuery";
+import type { DateRange } from "@/lib/stores/range";
 import type { ChannelKey } from "@/components/dashboard/channels";
 
 export interface GrowthHubKpi {
@@ -13,10 +15,18 @@ export interface GrowthHubKpi {
   value: string;
   /** null when the previous window was zero — a percentage change from nothing is undefined, not 0%. */
   deltaPct: number | null;
+  /** Daily values across the window, oldest first — drives the tile sparkline. */
+  series: number[];
 }
 
 export interface GrowthHubData {
   windowDays: number;
+  /** The exact window these figures cover, as the API resolved it. */
+  window: { from: string; to: string };
+  /** Earliest date this workspace has data for — bounds the date picker. */
+  dataFrom: string | null;
+  /** Last date every surface has data for — see `dataThrough` in GrowthHubResponse. */
+  dataThrough: string | null;
   kpis: GrowthHubKpi[];
   mer: MERResult;
   channelMetric: Record<ChannelKey, string>;
@@ -50,30 +60,37 @@ export function toGrowthHubData(res: GrowthHubResponse): GrowthHubData {
 
   return {
     windowDays: res.windowDays,
+    window: res.window,
+    dataFrom: res.dataFrom,
+    dataThrough: res.dataThrough,
     kpis: [
       {
         key: "revenue",
         label: "Revenue",
         value: currency(metrics.revenue.current),
         deltaPct: deltaPct(metrics.revenue.current, metrics.revenue.previous),
+        series: res.daily.revenue,
       },
       {
         key: "adSpend",
         label: "Ad spend",
         value: currency(adSpendCur),
         deltaPct: deltaPct(adSpendCur, adSpendPrev),
+        series: res.daily.adSpend,
       },
       {
         key: "organicClicks",
         label: "Organic clicks",
         value: compact(metrics.organicClicks.current),
         deltaPct: deltaPct(metrics.organicClicks.current, metrics.organicClicks.previous),
+        series: res.daily.organicClicks,
       },
       {
         key: "conversions",
         label: "Conversions",
         value: count(metrics.conversions.current),
         deltaPct: deltaPct(metrics.conversions.current, metrics.conversions.previous),
+        series: res.daily.conversions,
       },
     ],
     mer: calculateBlendedMER({
@@ -91,16 +108,16 @@ export function toGrowthHubData(res: GrowthHubResponse): GrowthHubData {
 }
 
 /** Growth Hub headline metrics + the Goal Simulator's baseline, in one call. */
-export function useGrowthHub(workspaceId: string | null | undefined, days = 30) {
+export function useGrowthHub(workspaceId: string | null | undefined, range: DateRange | null) {
   return useQuery<{ data: GrowthHubData; source: "live" | "mock" }>({
-    queryKey: ["growth-hub", workspaceId, days],
+    queryKey: ["growth-hub", workspaceId, rangeKey(range)],
     enabled: Boolean(workspaceId),
     queryFn: () =>
       liveOrMock(
         async () =>
           toGrowthHubData(
             await api.get<GrowthHubResponse>(
-              `/workspaces/${workspaceId}/analytics/growth-hub?days=${days}`
+              `/workspaces/${workspaceId}/analytics/growth-hub${rangeQuery(range)}`
             )
           ),
         () => toGrowthHubData(growthHubMock)

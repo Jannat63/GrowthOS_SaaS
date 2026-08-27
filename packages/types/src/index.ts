@@ -453,9 +453,29 @@ export interface GrowthHubMetric {
   previous: number;
 }
 
+/**
+ * Daily values across the current window, oldest first — one array per headline metric, for the
+ * tile sparklines. Returned alongside the aggregates rather than as a second endpoint because the
+ * page needs both together and they come from the same two tables.
+ *
+ * Paid and organic series can differ in length: they are windowed against their own `max(date)`
+ * (see growth-hub.ts), so a workspace whose GSC sync is a day behind its ad sync gets arrays of
+ * different sizes. Sparklines don't care, and forcing them into step would mean inventing a day.
+ */
+export interface GrowthHubDaily {
+  revenue: number[];
+  adSpend: number[];
+  conversions: number[];
+  organicClicks: number[];
+}
+
 export interface GrowthHubResponse {
   /** Length of each comparison window, in days. Both windows are this long. */
   windowDays: number;
+  /** The exact inclusive date range these figures cover — what the date picker displays. */
+  window: { from: string; to: string };
+  /** Earliest date this workspace has data for, or null when it has none. Bounds the picker. */
+  dataFrom: string | null;
   metrics: {
     revenue: GrowthHubMetric;
     googleSpend: GrowthHubMetric;
@@ -464,6 +484,17 @@ export interface GrowthHubResponse {
     conversions: GrowthHubMetric;
   };
   /** Per-channel headline for the loop masthead. */
+  daily: GrowthHubDaily;
+  /**
+   * The last date every surface on this dashboard has data for, `YYYY-MM-DD`, or null on a
+   * workspace with no data at all.
+   *
+   * Deliberately the EARLIER of the paid and organic maxima, not the later. Past that point one
+   * of the two pipelines has nothing, so a blended figure covering it would be understated
+   * without saying so. Reporting the later date would make the dashboard claim freshness it
+   * only has on one channel.
+   */
+  dataThrough: string | null;
   channels: {
     seo: { organicClicks: number };
     google: { conversions: number };

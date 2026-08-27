@@ -26,7 +26,20 @@ function SignInForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { error } = await signIn.email({ email, password });
+
+    // Better Auth returns `{ error }` for a rejected credential, but *throws* when the request
+    // never lands — API down, wrong NEXT_PUBLIC_API_URL, CORS. Without this catch the rejection
+    // escapes the handler, `setLoading(false)` is never reached, and the button spins on
+    // "Signing in…" forever with nothing explaining why.
+    let error: { message?: string } | null = null;
+    try {
+      ({ error } = await signIn.email({ email, password }));
+    } catch {
+      setLoading(false);
+      toast.error("Can't reach GrowthOS. Check your connection and try again.");
+      return;
+    }
+
     if (error) {
       setLoading(false);
       toast.error(error.message ?? "Wrong email or password.");

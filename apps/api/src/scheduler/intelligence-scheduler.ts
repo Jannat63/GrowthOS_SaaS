@@ -63,7 +63,7 @@ export async function refreshWorkspace(workspaceId: string): Promise<number> {
   let alerts = 0
 
   // Blended-MER anomaly. Signature encodes the rounded change so a *different* swing re-alerts.
-  const mer = await getMerTrend(workspaceId, 14)
+  const mer = await getMerTrend(workspaceId, { days: 14 })
   const merSig = mer.anomaly.detected ? `mer:${mer.anomaly.changePercent}` : ''
   if (await emitIfChanged(workspaceId, 'mer_anomaly', merSig)) {
     await publish({

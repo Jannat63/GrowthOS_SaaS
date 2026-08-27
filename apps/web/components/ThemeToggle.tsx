@@ -6,7 +6,15 @@ import { Moon, Sun } from "lucide-react";
 import { Button } from "@growthos/ui/components/button";
 import { cn } from "@/lib/utils/cn";
 
-/** Light/dark switch. Renders a stable placeholder until mounted to avoid hydration mismatch. */
+/**
+ * Light/dark switch.
+ *
+ * Everything that depends on the resolved theme is gated on `mounted`. The server has no idea which
+ * theme this visitor picked — `resolvedTheme` is undefined there — so any attribute derived from it
+ * renders one way on the server and another after hydration. The icons were already gated; the
+ * `aria-label` was not, which is what produced the `Switch to dark mode` / `Switch to light mode`
+ * mismatch. Pre-mount it reads as the neutral "Toggle theme", which is accurate in both directions.
+ */
 export function ThemeToggle({ className }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -18,7 +26,7 @@ export function ThemeToggle({ className }: { className?: string }) {
     <Button
       variant="outline"
       size="icon"
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={mounted ? (isDark ? "Switch to light mode" : "Switch to dark mode") : "Toggle theme"}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       className={cn("relative h-9 w-9 text-muted-foreground", className)}
     >

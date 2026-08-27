@@ -11,7 +11,7 @@ Rows in **execution order** (interleaved BE↔FE — see README). IDs kept stabl
 | 1 | P1.1 packages/db (Drizzle + Neon) | 🔧 BE | [x] | Tenancy schema live on Neon; migration applied; write/read verified. |
 | 2 | P1.2 Better Auth + workspaces | 🔧 BE | [x] | Live on Neon; sign-up + create-workspace(owner) verified. |
 | 3 | P1.5 shadcn/ui foundation | 🎨 FE | [x] | Delivered via Frontend Rebuild Slice 1 (`packages/ui`, Tailwind v4, theme tokens). |
-| 4 | P1.6 Landing page | 🎨 FE | [x] | Delivered via Slice 1 — redesigned (loop signature, bento, ink bands). |
+| 4 | P1.6 Landing page | 🎨 FE | [x] | P1.6a via Slice 1. **P1.6b 2026-08-27** — "Signal" rebrand (ember on graphite) + landing rebuilt around the six bridges; blog/FAQ/about/security added. |
 | 5 | P1.4a Web login | 🎨 FE | [x] | Delivered via Slice 1 — sign-in/up + onboarding + middleware; browser→Neon verified. |
 | 6 | P1.3 Fastify domain skeleton | 🔧 BE | [x] | `/api/v1` (auth/me, workspaces, connections) + member guard + `@growthos/types`; verified. |
 | 7 | P1.4b Web data re-point | 🎨 FE | [x] | Via Slice 2 — dashboard shell + Growth Hub; `lib/api`→`/api/v1`, hooks live/mock via `liveOrMock`, `DataSourceBadge`. |
@@ -45,3 +45,9 @@ Rows in **execution order** (interleaved BE↔FE — see README). IDs kept stabl
   `useRecommendations` fall back to the tested `lib/logic` engines over ported mock data via the pure
   `liveOrMock()` helper; `DataSourceBadge` surfaces the source. `/growth-hub` middleware-guarded.
   Full turbo build green; 53 web tests pass.
+- 2026-08-27 — **P1.6b** reopened and closed P1.6's one real gap: the phase shipped against an explicit
+  placeholder brand (`plan.md:9-10`). Swapped it for "Signal" — ember `#ce4218`/`#ff6b41` on cold
+  graphite, with new channel, elevation, and mono tokens — and rebuilt the landing page around the
+  Exchange (three stations, six directed bridges). Also corrected this phase's `progress.md`, which
+  had been stale at `Status: [ ]` since 2026-07-05 while both rollups said `[x]`.
+  Spec: `docs/superpowers/specs/2026-08-27-rebrand-landing-design.md`.

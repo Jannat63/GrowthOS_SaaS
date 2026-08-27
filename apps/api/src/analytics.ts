@@ -1,6 +1,8 @@
 import { createClient, type ClickHouseClient } from '@clickhouse/client'
 import { calculateBlendedMER } from '@growthos/logic'
 import type { MerDashboard, MerTrendPoint } from '@growthos/types'
+import { seedDates, missingSeedDates } from './seed-window.js'
+import { getDataBounds, resolveWindow, type DateWindowQuery } from './date-window.js'
 
 let client: ClickHouseClient | null = null
 
@@ -16,72 +18,83 @@ export function getClickhouse(): ClickHouseClient {
 // way — two copies of this constant would let /analytics and the hub quietly disagree.
 export const REVENUE_FACTOR = 2.2
 
-function seedRows(workspaceId: string) {
-  const base = new Date('2026-06-18T00:00:00Z')
+// `only` limits which dates are generated, so a workspace missing part of the window backfills
+// just the gap. `day` stays the index within the FULL window, so a row's figures never depend on
+// which subset happened to be inserted.
+function seedRows(workspaceId: string, only?: Set<string>) {
   const round2 = (n: number) => Math.round(n * 100) / 100
   const rows: Record<string, unknown>[] = []
-  for (let day = 0; day < 30; day++) {
-    const d = new Date(base)
-    d.setUTCDate(base.getUTCDate() + day)
-    const date = d.toISOString().slice(0, 10)
+  seedDates().forEach((date, day) => {
+    if (only && !only.has(date)) return
+    const d = new Date(`${date}T00:00:00Z`)
     // Deterministic day-to-day variance so the MER trend reads as alive (weekend dip in
     // spend, sinusoidal swing in revenue, mild upward drift). Seeded stand-in until M3.
     const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6
     const spendFactor = (weekend ? 0.7 : 1) * (1 + Math.sin(day / 3) * 0.12)
     const revFactor = 1 + Math.sin(day / 2.5 + 1) * 0.28 + day * 0.012 + (weekend ? 0.08 : 0)
+    // Conversions drift too. They used to be a flat 6/4 every single day, which meant the
+    // Conversions tile reported a permanent 0% change once period-over-period deltas started
+    // rendering — a headline KPI that never moves reads as a broken tile, not a stable business.
+    const convOf = (b: number) => Math.max(1, Math.round(b * (1 + Math.sin(day / 3.5) * 0.18 + day * 0.008)))
     rows.push({
       workspace_id: workspaceId, platform: 'google_ads', campaign_id: 'g-1',
       campaign_name: 'Search - Brand', date, impressions: 1000 + day * 10,
-      clicks: 80 + day, spend: round2(45.5 * spendFactor), conversions: 6,
+      clicks: 80 + day, spend: round2(45.5 * spendFactor), conversions: convOf(6),
       conversion_value: round2(320 * revFactor),
     })
     rows.push({
       workspace_id: workspaceId, platform: 'meta_ads', campaign_id: 'm-1',
       campaign_name: 'Prospecting - Lookalike', date, impressions: 5000 + day * 20,
-      clicks: 120 + day, spend: round2(90.25 * spendFactor), conversions: 4,
+      clicks: 120 + day, spend: round2(90.25 * spendFactor), conversions: convOf(4),
       conversion_value: round2(210 * revFactor),
     })
-  }
+  })
   return rows
 }
 
 // Seed the workspace's ad_performance rows if it has none (generate-if-empty, like ensureRecommendations).
 export async function ensureAdPerformanceSeed(workspaceId: string): Promise<void> {
-  const rs = await getClickhouse().query({
-    query: 'SELECT count() AS c FROM ad_performance WHERE workspace_id = {ws:String}',
-    query_params: { ws: workspaceId },
-    format: 'JSONEachRow',
-  })
-  const [row] = (await rs.json()) as { c: string }[]
-  if (row && Number(row.c) > 0) return
+  const missing = await missingSeedDates(getClickhouse(), 'ad_performance', workspaceId)
+  if (missing.length === 0) return
   await getClickhouse().insert({
     table: 'ad_performance',
-    values: seedRows(workspaceId),
+    values: seedRows(workspaceId, new Set(missing)),
     format: 'JSONEachRow',
   })
 }
 
-export async function getMerTrend(workspaceId: string, days: number): Promise<MerDashboard> {
+/**
+ * Blended MER over an explicit date window.
+ *
+ * Was `ORDER BY date DESC LIMIT days` — "the most recent N rows", which cannot express a range that
+ * ends anywhere but the newest data. The dashboard's date picker can, so the window is now a real
+ * `[from, to]` filter; with no range given, `resolveWindow` still defaults to the last N days of
+ * available data, which is the behaviour the LIMIT form approximated.
+ */
+export async function getMerTrend(
+  workspaceId: string,
+  query: DateWindowQuery = {},
+): Promise<MerDashboard> {
+  const w = resolveWindow(await getDataBounds(workspaceId), query)
   const rs = await getClickhouse().query({
     query: `
-      SELECT toString(date) AS date,
+      SELECT toString(date) AS day,
         toFloat64(sumIf(spend, platform = 'google_ads')) AS googleSpend,
         toFloat64(sumIf(spend, platform = 'meta_ads')) AS metaSpend,
         toFloat64(sum(conversion_value)) AS convValue
       FROM ad_performance
-      WHERE workspace_id = {ws:String}
-      GROUP BY date ORDER BY date DESC LIMIT {days:UInt32}`,
-    query_params: { ws: workspaceId, days },
+      WHERE workspace_id = {ws:String} AND date >= {from:Date} AND date <= {to:Date}
+      GROUP BY day ORDER BY day`,
+    query_params: { ws: workspaceId, from: w.from, to: w.to },
     format: 'JSONEachRow',
   })
-  const raw = (await rs.json()) as { date: string; googleSpend: number; metaSpend: number; convValue: number }[]
-  const rows = raw.slice().reverse() // ascending by date
+  const rows = (await rs.json()) as { day: string; googleSpend: number; metaSpend: number; convValue: number }[]
 
   const trend: MerTrendPoint[] = rows.map((r) => {
     const revenue = Math.round(r.convValue * REVENUE_FACTOR)
     const spend = r.googleSpend + r.metaSpend
     const mer = calculateBlendedMER({ totalRevenue: revenue, googleAdsSpend: r.googleSpend, metaAdsSpend: r.metaSpend }).blendedMER
-    return { date: r.date, mer, spend: Math.round(spend * 100) / 100, revenue }
+    return { date: r.day, mer, spend: Math.round(spend * 100) / 100, revenue }
   })
 
   const googleAdsSpend = rows.reduce((s, r) => s + r.googleSpend, 0)

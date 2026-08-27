@@ -68,7 +68,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
             usage — DataSourceBadge renders a tooltip and appears on nearly every dashboard page. */}
         <TooltipProvider delayDuration={200}>
           {children}
-          <Toaster position="top-center" richColors />
+          {/* No `richColors` — it makes sonner inject its own success/error palette at
+              runtime, outside the token system, so toasts would keep the old indigo-era
+              colours after a rebrand. sonner.tsx maps our tokens instead. */}
+          <Toaster position="top-center" />
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

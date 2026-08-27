@@ -24,6 +24,7 @@ import { useSidebarStore } from "@/lib/stores/sidebar";
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useBranding } from "@/lib/hooks/useBranding";
+import { LogoMark } from "@/components/brand/LogoMark";
 
 // Ghost icon button restyled for the dark ink rail (tailwind-merge overrides the
 // default light accent hover). Reused for both collapse/expand affordances.
@@ -86,12 +87,12 @@ export function Sidebar() {
             aria-label="Expand sidebar"
             className={cn("group relative h-9 w-9 rounded-lg", INK_ICON_BTN)}
           >
-            <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg bg-primary transition-opacity duration-200 group-hover:opacity-0">
+            <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg transition-opacity duration-200 group-hover:opacity-0">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logoUrl} alt={brandName} className="h-full w-full object-cover" />
               ) : (
-                <span className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
+                <LogoMark />
               )}
             </span>
             <PanelLeftOpen className="absolute h-4 w-4 text-ink-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
@@ -102,12 +103,12 @@ export function Sidebar() {
               href="/growth-hub"
               className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg">
                 {logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={logoUrl} alt={brandName} className="h-full w-full object-cover" />
                 ) : (
-                  <span className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
+                  <LogoMark />
                 )}
               </span>
               <span className="truncate font-display text-lg font-semibold tracking-tight">

@@ -19,8 +19,19 @@ describe('weekly intelligence report', () => {
   it('builds + persists a report with channel breakdown and top opportunities', async () => {
     const report = await getWeeklyReport(ws)
     expect(report.channelBreakdown.length).toBeGreaterThan(0)
-    expect(report.blendedRoas).toBeGreaterThan(0)
-    expect(report.summary).toContain('blended ROAS')
+    expect(report.blendedMer.value).toBeGreaterThan(0)
+    expect(report.headline).toContain('Blended MER')
+
+    // The window is anchored to the newest day with DATA, not the calendar week the report is
+    // filed under. A seeded workspace sits weeks in the past, so these must be allowed to differ.
+    expect(report.period).not.toBeNull()
+    expect(report.period!.to >= report.period!.from).toBe(true)
+
+    // Blended MER counts organic; paid ROAS does not. Reporting one under the other's name is
+    // what made this page disagree with the Growth Hub about the same week.
+    expect(report.blendedMer.value).toBeGreaterThan(report.paidRoas.value)
+    const organic = report.channelBreakdown.find((c) => c.channel === 'organic')
+    expect(organic?.roas).toBeNull()
 
     const [row] = await db
       .select()

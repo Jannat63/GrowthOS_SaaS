@@ -4,75 +4,141 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   GrowthOS brand — "Signal"
+
+   Ember accent on cold graphite. The warm primary is the point: every tool in
+   this category is blue or violet, and keeping the accent warm leaves green
+   free to mean "up" in a chart instead of competing with the brand.
+
+   The brand does NOT live in --primary. BrandingProvider.tsx overrides it per
+   workspace for white-labelling (an inline style, so it beats both :root and
+   .dark). Identity lives in the ink surfaces, the type, and the Exchange
+   signature — all of which a tenant cannot repaint. Treat --primary as the
+   action colour and never rely on its specific hue for legibility.
+   ───────────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --radius: 0.75rem;
+  --radius: 0.625rem;
 
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #fafaf9;
+  --foreground: #0b0f14;
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #0b0f14;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #4f46e5;
-  --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
-  --success: #10b981;
-  --success-foreground: #ffffff;
-  /* Amber, for states that are neither healthy nor broken — chiefly "this is sample data, not
-     yours". Deliberately distinct from --destructive: seeing demo figures before you've connected
-     an account is the expected path through onboarding, not an error. */
-  --warning: #d97706;
-  --warning-foreground: #ffffff;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
-  --ring: #4f46e5;
+  --popover-foreground: #0b0f14;
 
-  /* Brand ink — deep indigo for dark bands (the loop's "night" surface) */
-  --ink: #0e0c2b;
-  --ink-2: #171445;
-  --ink-foreground: #eceafe;
-  --ink-muted: #a5a1d4;
-  --ink-border: #2a2560;
+  /* Ember. Deepened from the display swatch to clear 4.5:1 on white — it is
+     used as `text-primary` for eyebrows, not just as a button fill. */
+  --primary: #ce4218;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f2f1ee;
+  --secondary-foreground: #0b0f14;
+  --muted: #f2f1ee;
+  --muted-foreground: #5c6470;
+  --accent: #f2f1ee;
+  --accent-foreground: #0b0f14;
+
+  --success: #0e9f6e;
+  --success-foreground: #ffffff;
+  /* Gold, for states that are neither healthy nor broken — chiefly "this is
+     sample data, not yours". Pushed firmly yellow: against an ember primary an
+     orange amber would read as brand chrome rather than as a caution. */
+  --warning: #a16207;
+  --warning-foreground: #ffffff;
+  /* Rose rather than red. Ember already owns orange-red; destructive has to be
+     unmistakable at badge size, so it leans pink. */
+  --destructive: #be123c;
+  --destructive-foreground: #ffffff;
+
+  --border: #e7e5e1;
+  --input: #e7e5e1;
+  --ring: #ce4218;
+
+  /* Brand ink — cold graphite. The "night" surface: landing bands, dashboard
+     left rail. This is the half of the identity white-labelling cannot touch. */
+  --ink: #0b0f14;
+  --ink-2: #141b24;
+  --ink-3: #1c242f;
+  --ink-foreground: #f4f5f7;
+  --ink-muted: #9aa6b4;
+  --ink-border: #232e3b;
+
+  /* Channel identity. The six bridges between these three are the product, so
+     each channel keeps one colour everywhere it appears — marketing and app.
+     Light values are text-safe on white; the old brand indigo lives on here as
+     Meta's hue, which is a real job rather than a default. */
+  --channel-seo: #047857;
+  --channel-google: #1d4ed8;
+  --channel-meta: #6d28d9;
+
+  /* Elevation. Warm-cast in light so shadows sit under the paper background
+     rather than greying it. */
+  --elev-1: 0 1px 2px 0 rgb(12 10 8 / 0.05);
+  --elev-2:
+    0 1px 3px 0 rgb(12 10 8 / 0.08), 0 1px 2px -1px rgb(12 10 8 / 0.06);
+  --elev-3:
+    0 4px 14px -3px rgb(12 10 8 / 0.1), 0 2px 4px -2px rgb(12 10 8 / 0.05);
+  --elev-4:
+    0 14px 32px -8px rgb(12 10 8 / 0.14), 0 4px 10px -5px rgb(12 10 8 / 0.07);
+  --elev-5: 0 28px 56px -14px rgb(12 10 8 / 0.18);
 }
 
 .dark {
-  --background: #0b1220;
-  --foreground: #f8fafc;
-  --card: #0f172a;
-  --card-foreground: #f8fafc;
-  --popover: #0f172a;
-  --popover-foreground: #f8fafc;
-  --primary: #818cf8;
-  --primary-foreground: #0b1220;
-  --secondary: #1e293b;
-  --secondary-foreground: #f8fafc;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --accent: #1e293b;
-  --accent-foreground: #f8fafc;
-  --success: #10b981;
-  --success-foreground: #0b1220;
-  /* Lifted for contrast on the dark surface — #d97706 fails against near-black. */
-  --warning: #f59e0b;
-  --warning-foreground: #0b1220;
-  --destructive: #ef4444;
-  --destructive-foreground: #f8fafc;
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #818cf8;
+  --background: #0b0f14;
+  --foreground: #f4f5f7;
+  --card: #141b24;
+  --card-foreground: #f4f5f7;
+  --popover: #141b24;
+  --popover-foreground: #f4f5f7;
 
-  --ink: #08061c;
-  --ink-2: #120f38;
-  --ink-foreground: #eceafe;
-  --ink-muted: #a5a1d4;
-  --ink-border: #2a2560;
+  /* Lifted and brightened — #ce4218 disappears against graphite. Dark text on
+     the ember reads better than white at this luminance. */
+  --primary: #ff6b41;
+  --primary-foreground: #1a0a04;
+
+  --secondary: #1c242f;
+  --secondary-foreground: #f4f5f7;
+  --muted: #1c242f;
+  --muted-foreground: #94a0b0;
+  --accent: #1c242f;
+  --accent-foreground: #f4f5f7;
+
+  --success: #34d399;
+  --success-foreground: #052e21;
+  --warning: #facc15;
+  --warning-foreground: #2a1f02;
+  --destructive: #fb7185;
+  --destructive-foreground: #2b0512;
+
+  --border: #222c38;
+  --input: #222c38;
+  --ring: #ff6b41;
+
+  /* Ink goes *below* --background here so the night bands still separate from
+     the page they sit on. */
+  --ink: #05080b;
+  --ink-2: #0e141b;
+  --ink-3: #161e27;
+  --ink-foreground: #f4f5f7;
+  --ink-muted: #9aa6b4;
+  --ink-border: #1d2731;
+
+  --channel-seo: #34d399;
+  --channel-google: #60a5fa;
+  --channel-meta: #a78bfa;
+
+  /* On dark surfaces a drop shadow alone reads as nothing; the hairline rim is
+     what actually communicates elevation. */
+  --elev-1: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+  --elev-2: 0 1px 3px 0 rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.03);
+  --elev-3:
+    0 6px 18px -4px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.04);
+  --elev-4:
+    0 18px 40px -10px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.05);
+  --elev-5:
+    0 32px 64px -16px rgb(0 0 0 / 0.85), 0 0 0 1px rgb(255 255 255 / 0.06);
 }
 
 @theme inline {
@@ -102,18 +168,34 @@
 
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
   --color-ink-foreground: var(--ink-foreground);
   --color-ink-muted: var(--ink-muted);
   --color-ink-border: var(--ink-border);
+
+  --color-channel-seo: var(--channel-seo);
+  --color-channel-google: var(--channel-google);
+  --color-channel-meta: var(--channel-meta);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 12px);
+  --radius-2xl: calc(var(--radius) + 10px);
+  --radius-3xl: calc(var(--radius) + 18px);
+
+  /* Indirected through --elev-* so shadows re-tone with the theme; a literal
+     value here would bake the light-mode shadow into dark mode. */
+  --shadow-xs: var(--elev-1);
+  --shadow-sm: var(--elev-2);
+  --shadow-md: var(--elev-3);
+  --shadow-lg: var(--elev-4);
+  --shadow-xl: var(--elev-5);
+  --shadow-2xl: var(--elev-5);
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-space-grotesk), var(--font-inter), sans-serif;
+  --font-display: var(--font-archivo), var(--font-inter), sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
 @layer base {
@@ -134,6 +216,11 @@
   }
   ::selection {
     background: color-mix(in oklab, var(--primary) 28%, transparent);
+  }
+  /* Figures are read in columns across this product — never let them jitter. */
+  .tabular,
+  [data-metric] {
+    font-variant-numeric: tabular-nums;
   }
   /* Themed, unobtrusive scrollbars */
   * {
@@ -197,6 +284,37 @@
 @media (prefers-reduced-motion: reduce) {
   .loop-flow,
   .loop-flow-rev {
+    animation: none;
+  }
+}
+
+/* Radix accordion — the primitive measures the panel and exposes it as a custom property,
+   so the height transition has something to animate to. */
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+.animate-accordion-down {
+  animation: accordion-down 0.2s ease-out;
+}
+.animate-accordion-up {
+  animation: accordion-up 0.2s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-accordion-down,
+  .animate-accordion-up {
     animation: none;
   }
 }

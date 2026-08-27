@@ -11,8 +11,6 @@ export const CHANNELS: Record<
   meta: { label: "Meta Ads", icon: Megaphone, tone: "primary" },
 };
 
-export const CHANNEL_ORDER: ChannelKey[] = ["seo", "google", "meta"];
-
 /** Map a Recommendation source/target channel string onto a channel node. */
 export function channelToKey(channel: string): ChannelKey | null {
   switch (channel) {

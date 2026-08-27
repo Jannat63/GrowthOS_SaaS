@@ -1,5 +1,6 @@
 import { getClickhouse } from './analytics.js'
 import { clusterKeywords } from '@growthos/logic'
+import { seedDates, missingSeedDates } from './seed-window.js'
 import type {
   KeywordRanking,
   OrganicPage,
@@ -11,7 +12,7 @@ import type {
 
 // SEO rank tracking (M3 P3.1, GSC-fed slice). Reads keyword positions from ClickHouse
 // `keyword_rankings` — the table P3.0's Google Search Console sync populates. Until a real GSC
-// connection syncs, a deterministic 30-day series is seeded so the tracker reads alive (same
+// connection syncs, a deterministic series is seeded so the tracker reads alive (same
 // generate-if-empty pattern as ensureAdPerformanceSeed).
 //
 // KNOWN LIMITATION (shared by every seed here): the check-count-then-insert is not atomic and the
@@ -179,13 +180,15 @@ const SEED_PAGES = [
   '/collections/keyboards',
 ]
 
-function seedOrganicRows(workspaceId: string): Record<string, unknown>[] {
-  const base = new Date('2026-06-18T00:00:00Z')
+// See seedRows in analytics.ts — `only` backfills a partial window, `day` stays the index within
+// the full one so a page's figures are stable regardless of which dates were inserted.
+function seedOrganicRows(workspaceId: string, only?: Set<string>): Record<string, unknown>[] {
   const rows: Record<string, unknown>[] = []
+  const dates = seedDates()
   SEED_PAGES.forEach((page, i) => {
-    for (let day = 0; day < 30; day++) {
-      const d = new Date(base)
-      d.setUTCDate(base.getUTCDate() + day)
+    dates.forEach((date, day) => {
+      if (only && !only.has(date)) return
+      const d = new Date(`${date}T00:00:00Z`)
       const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6
       const demand = (1 + Math.sin(day / 3 + i) * 0.2 + day * 0.01) * (weekend ? 0.8 : 1)
       const impressions = Math.round((900 - i * 80) * demand)
@@ -193,29 +196,24 @@ function seedOrganicRows(workspaceId: string): Record<string, unknown>[] {
       const ctr = 0.03 + (SEED_PAGES.length - i) * 0.004
       rows.push({
         workspace_id: workspaceId,
-        date: d.toISOString().slice(0, 10),
+        date,
         page_url: page,
         sessions: 0, // GSC has no sessions (a GA metric) — 0 until GA4 lands
         clicks: Math.max(0, Math.round(impressions * ctr)),
         impressions,
         avg_position: Math.max(1, 5 + i * 1.5 - day * 0.08),
       })
-    }
+    })
   })
   return rows
 }
 
 export async function ensureOrganicTrafficSeed(workspaceId: string): Promise<void> {
-  const rs = await getClickhouse().query({
-    query: 'SELECT count() AS c FROM organic_traffic WHERE workspace_id = {ws:String}',
-    query_params: { ws: workspaceId },
-    format: 'JSONEachRow',
-  })
-  const [row] = (await rs.json()) as { c: string }[]
-  if (row && Number(row.c) > 0) return
+  const missing = await missingSeedDates(getClickhouse(), 'organic_traffic', workspaceId)
+  if (missing.length === 0) return
   await getClickhouse().insert({
     table: 'organic_traffic',
-    values: seedOrganicRows(workspaceId),
+    values: seedOrganicRows(workspaceId, new Set(missing)),
     format: 'JSONEachRow',
   })
 }

@@ -1,20 +1,24 @@
 import { Hero } from "@/components/marketing/Hero";
-import { StatStrip } from "@/components/marketing/StatStrip";
-import { Features } from "@/components/marketing/Features";
+import { TheProblem } from "@/components/marketing/TheProblem";
+import { SixBridges } from "@/components/marketing/SixBridges";
+import { ProductSurfaces } from "@/components/marketing/ProductSurfaces";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
-import { SocialProof } from "@/components/marketing/SocialProof";
+import { WhoItsFor } from "@/components/marketing/WhoItsFor";
 import { PricingTeaser } from "@/components/marketing/PricingTeaser";
+import { FAQSection } from "@/components/marketing/FAQ";
 import { CTASection } from "@/components/marketing/CTASection";
 
 export default function LandingPage() {
   return (
     <>
       <Hero />
-      <StatStrip />
-      <Features />
+      <TheProblem />
+      <SixBridges />
+      <ProductSurfaces />
       <HowItWorks />
-      <SocialProof />
+      <WhoItsFor />
       <PricingTeaser />
+      <FAQSection />
       <CTASection />
     </>
   );

@@ -27,7 +27,18 @@ function SignUpForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { error } = await signUp.email({ name, email, password });
+
+    // See the matching note in sign-in: Better Auth throws rather than returning `{ error }` when
+    // the request never reaches the API, which would strand the button on its spinner.
+    let error: { message?: string } | null = null;
+    try {
+      ({ error } = await signUp.email({ name, email, password }));
+    } catch {
+      setLoading(false);
+      toast.error("Can't reach GrowthOS. Check your connection and try again.");
+      return;
+    }
+
     setLoading(false);
     if (error) {
       toast.error(error.message ?? "Could not create your account.");

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { GitBranch } from "lucide-react";
-import type { AttributionModel } from "@growthos/logic";
+import { channelLabel, type AttributionModel } from "@growthos/logic";
 import { Card } from "@growthos/ui/components/card";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import {
@@ -27,14 +27,6 @@ const MODELS: { key: AttributionModel; label: string }[] = [
   { key: "position_based", label: "Position-based" },
 ];
 
-const CHANNEL_LABEL: Record<string, string> = {
-  seo: "SEO",
-  organic: "Organic",
-  google_ads: "Google Ads",
-  meta_ads: "Meta Ads",
-  email: "Email",
-};
-const channelLabel = (c: string) => CHANNEL_LABEL[c] ?? c;
 const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 

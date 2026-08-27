@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LogoMark } from "@/components/brand/LogoMark";
 
 const STEPS = ["Business", "Connect", "Workspace", "Done"];
 
@@ -20,9 +21,7 @@ export function OnboardingShell({
             href="/"
             className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
-              <span className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
-            </span>
+            <LogoMark />
             <span className="font-display text-lg font-semibold tracking-tight">
               GrowthOS
             </span>

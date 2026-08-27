@@ -4,6 +4,8 @@ import type { MerDashboard, MerTrendPoint } from "@growthos/types";
 import { calculateBlendedMER } from "@growthos/logic";
 import { api } from "@/lib/api/client";
 import { liveOrMock } from "./liveOrMock";
+import { rangeKey, rangeQuery } from "./rangeQuery";
+import { rangeLength, type DateRange } from "@/lib/stores/range";
 
 // Deterministic mock trend (no ClickHouse fixture on the client) — mirrors the API's blended calc.
 function mockMer(days: number): MerDashboard {
@@ -32,13 +34,18 @@ function mockMer(days: number): MerDashboard {
   };
 }
 
-export function useMer(workspaceId: string | null | undefined, days: number) {
+export function useMer(workspaceId: string | null | undefined, range: DateRange | null) {
+  // The mock has no server to resolve a default against, so it mirrors the request's own length.
+  const days = range ? rangeLength(range) : 30;
   return useQuery<{ data: MerDashboard; source: "live" | "mock" }>({
-    queryKey: ["mer", workspaceId, days],
+    queryKey: ["mer", workspaceId, rangeKey(range)],
     enabled: Boolean(workspaceId),
     queryFn: () =>
       liveOrMock(
-        () => api.get<MerDashboard>(`/workspaces/${workspaceId}/analytics/mer?days=${days}`),
+        () =>
+          api.get<MerDashboard>(
+            `/workspaces/${workspaceId}/analytics/mer${rangeQuery(range)}`
+          ),
         () => mockMer(days)
       ),
   });

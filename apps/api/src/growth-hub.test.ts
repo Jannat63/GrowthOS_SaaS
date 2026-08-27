@@ -96,7 +96,15 @@ describe('getGrowthHub', () => {
 
   it('passes the requested window length through to the response', async () => {
     stubClickhouse(ADS, ORGANIC)
-    expect((await getGrowthHub('ws-1', 7)).windowDays).toBe(7)
+    expect((await getGrowthHub('ws-1', { days: 7 })).windowDays).toBe(7)
     expect((await getGrowthHub('ws-1')).windowDays).toBe(30)
+  })
+
+  it('honours an explicit date range over the day count', async () => {
+    stubClickhouse(ADS, ORGANIC)
+    const res = await getGrowthHub('ws-1', { from: '2026-06-01', to: '2026-06-10' })
+    expect(res.window).toEqual({ from: '2026-06-01', to: '2026-06-10' })
+    // Inclusive on both ends — 1 June through 10 June is ten days, not nine.
+    expect(res.windowDays).toBe(10)
   })
 })

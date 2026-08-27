@@ -6,6 +6,7 @@ dist/
 build/
 out/
 .next/
+.next-dev/
 .turbo/
 *.tsbuildinfo
 

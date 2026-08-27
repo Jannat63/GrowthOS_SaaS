@@ -17,13 +17,13 @@ describe('blended MER', () => {
       query_params: { ws },
     })
     await ensureAdPerformanceSeed(ws)
-    const a = await getMerTrend(ws, 30)
+    const a = await getMerTrend(ws, { days: 30 })
     expect(a.trend.length).toBeGreaterThan(0)
     expect(a.summary.blendedMER).toBeGreaterThan(0)
     expect(a.channelBreakdown.googleAdsSpend).toBeGreaterThan(0)
 
     await ensureAdPerformanceSeed(ws) // idempotent — should not double the rows
-    const b = await getMerTrend(ws, 30)
+    const b = await getMerTrend(ws, { days: 30 })
     expect(b.trend.length).toBe(a.trend.length)
   })
 })

@@ -99,6 +99,29 @@ pnpm --filter @growthos/web dev    # Next.js only       (port 3000)
 pnpm --filter @growthos/web build  # next build (verifies all pages compile)
 ```
 
+### Dev-server gotchas (each cost hours before it was pinned down)
+
+- **The API dev script must not use `tsx watch`.** Under `turbo dev` on Windows, `tsx watch` spawns a
+  grandchild to manage reloads and that spawn never survives turbo's stdio setup: the task prints its
+  command line and then hangs forever — no output, no listener, no error. `pnpm --filter @growthos/api dev`
+  masks it because it works fine outside turbo. The script is
+  `node --watch --env-file=.env --import tsx src/index.ts`, which reloads in-process and binds in ~2s.
+  Don't "restore" `tsx watch`.
+- **The API logs `Server listening at http://127.0.0.1:3001` on success.** If `pnpm dev` shows the
+  `@growthos/api:dev: $ …` line and nothing after it, the API is *not* up — that silence is the symptom,
+  not normal behaviour. Confirm with `curl localhost:3001/health`: JSON means the API owns the port,
+  HTML means something else grabbed it (Next.js auto-increments to 3001 when 3000 is busy, and on Windows
+  the second bind succeeds silently, so two processes can listen at once —
+  `netstat -ano | grep ":3001"` showing two PIDs is the tell). Kill stale dev servers before restarting;
+  overlapping `pnpm dev` runs are what turn this into a recurring mystery.
+- **`pnpm build` and `pnpm dev` no longer share an output directory — keep it that way.**
+  `apps/web/next.config.mjs` sets `distDir` to `.next-dev` in development and `.next` in production.
+  They used to both write `.next`, so running a production build while the dev server was up corrupted
+  the running server in ways that look like application bugs and are not: once the build overwrote the
+  dev CSS (every page rendered with zero styles), and once the dev server recompiled onto production
+  chunks and every request died with `__webpack_modules__[moduleId] is not a function`. If either
+  symptom appears, stop the dev server, delete both output dirs, and restart — don't debug the app.
+
 Tests use **vitest**. The engine unit suite lives in `@growthos/logic`; `apps/api` has route/integration
 tests (they need local Redis + ClickHouse via Docker, and Neon via `apps/api/.env`); `apps/web` keeps a small
 unit suite (e.g. `liveOrMock`):
@@ -122,11 +145,30 @@ To exercise an `apps/api` route without opening a port, build then use Fastify's
   (e.g. `import { buildApp } from './app.js'`) even though the source is `.ts` — required by NodeNext/ESM and
   it will fail to build otherwise. Keep `app.ts` (routes/plugins, exercisable via `inject()`) separate from
   `index.ts` (the `listen` entrypoint).
-- **`apps/web` is Tailwind v4 + shadcn** (rebuilt fresh — D5/D6). Theme tokens (color/radius/shadow/font,
-  incl. the indigo `--primary` / green `--success` / deep-indigo `--ink` brand set) live in
-  `apps/web/styles/globals.css` and are consumed as utilities — **never hardcode hex in components**.
-  Fonts: Space Grotesk (display, `font-display`) + Inter (body), via `next/font`. Shared primitives come
-  from `@growthos/ui`; app-specific compositions stay in `apps/web`.
+- **`apps/web` is Tailwind v4 + shadcn** (rebuilt fresh — D5/D6). Theme tokens (color/radius/shadow/font)
+  live in `apps/web/styles/globals.css` and are consumed as utilities — **never hardcode hex in
+  components**. Fonts: Archivo (display, `font-display`) + Inter (body) + JetBrains Mono (data,
+  `font-mono`), via `next/font`. Shared primitives come from `@growthos/ui`; app-specific compositions
+  stay in `apps/web`.
+- **The brand is "Signal"** — ember `--primary` (`#ce4218` light / `#ff6b41` dark) on cold graphite
+  `--ink`, plus `--channel-seo` / `--channel-google` / `--channel-meta` for channel identity and
+  `--elev-1..5` behind `--shadow-*`. Spec: `docs/superpowers/specs/2026-08-27-rebrand-landing-design.md`.
+  Two things to know before touching colour:
+  - **The identity is not `--primary`.** `BrandingProvider.tsx` overrides it (and `--ring`) per workspace
+    for white-labelling, with an inline style that beats `:root` and `.dark`. Identity lives in the ink
+    surfaces, the type, and the Exchange signature. Never rely on primary's hue for legibility, and add
+    any token that must move *with* the brand colour to that `useEffect` or it will silently desync.
+  - **`--warning` is gold and `--destructive` is rose on purpose.** Both were shifted off orange-red so
+    they stay unmistakable next to an ember primary. Don't quietly revert them.
+- **Marketing copy is held to what shipped.** No GEO / AI-citation tracking (P4.4b deferred), no AI
+  image/video (P4.2b), no "prediction" (it's a retrospective *scorecard*), no live ad-platform writes
+  (P4.3b), and no claim an LLM writes the copy (D4 — generation is deterministic). `PLAN_LIMITS` in
+  `@growthos/types` is the billing contract: filter features out of the *marketing* view rather than
+  editing it.
+- **Channel slugs never reach the screen.** `google_ads` / `meta_ads` / `organic` are the storage and
+  API form; anything a person reads renders through `channelLabel()` from `@growthos/logic`
+  (`packages/logic/src/channels.ts`) — including generated prose, since the weekly report is also
+  rendered into the customer PDF. Add new channels to `CHANNEL_LABELS` there, not to a local map in a page.
 - **Workspace isolation** is by `workspace_id` at the application layer (Fastify), not Postgres RLS (see D1).
   Every data endpoint is nested under `/workspaces/:id/...` and guarded by workspace membership + role.
 
@@ -183,6 +225,3 @@ frontend and legacy services already assume:
 Restructure work is on the **`shihab-restructure`** branch; `main` holds the pre-restructure state. Commits in
 this project end with:
 
-```
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-```
