@@ -1,4 +1,5 @@
 export * from './channels.js'
+export * from './text.js'
 export * from './engines/seo-scoring.js'
 export * from './engines/keyword-clustering.js'
 export * from './engines/search-terms-bridge.js'

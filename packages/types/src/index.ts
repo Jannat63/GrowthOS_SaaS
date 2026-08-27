@@ -442,7 +442,13 @@ export interface ContentBriefRecord {
   recommendationId: string | null;
   keyword: string;
   status: ContentBriefStatus;
-  brief: ContentBrief;
+  /**
+   * One jsonb column, two shapes: a ContentBrief for a paid->organic brief, a CreativeBrief for an
+   * organic->paid one. Modelled as the union it actually is — the Creative Queue used to reach the
+   * second through `as unknown as CreativeBrief`, which silenced the ambiguity instead of
+   * resolving it. Narrow with isContentBrief / isCreativeBrief from @growthos/logic.
+   */
+  brief: ContentBrief | CreativeBrief;
   /** Which bridge produced it — google_ads_search_term | organic_top_page | meta_hook | manual. */
   source: string;
   /** Set when the article ships. This is what closes the loop back to the SEO module. */
@@ -560,7 +566,20 @@ export interface ScoredCreative {
   frequency: number;
   ctrThisWeek: number;
   ctrLastWeek: number;
+  /**
+   * Week-over-week CTR change as a DECLINE: positive means CTR fell, negative means it rose.
+   *
+   * The sign is the opposite of what a reader expects from a delta, which is why the monitor
+   * rendered a recovering creative as "Δ -3%" — a number most people read as bad. Anything
+   * rendering this must state the direction in words rather than printing it as a signed delta.
+   */
   ctrDeclinePercent: number;
+  /**
+   * Hours the creative has been running. Gates the `at-risk` rule entirely (see
+   * FATIGUE_THRESHOLDS.alertWindowHours) and was missing from this type, so the UI could not
+   * explain why a creative over the frequency line was still unflagged.
+   */
+  hoursSinceLaunch: number;
   status: "fatigued" | "at-risk" | "healthy";
   message: string;
 }

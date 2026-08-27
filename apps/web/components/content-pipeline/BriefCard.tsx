@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Check, ChevronRight, Copy, ExternalLink, MoreHorizontal, X } from "lucide-react";
 import { toast } from "sonner";
 import type { ContentBriefRecord, Recommendation, ScoredSearchTerm } from "@growthos/types";
+import { isContentBrief } from "@growthos/logic";
 import { Card } from "@growthos/ui/components/card";
 import { Badge } from "@growthos/ui/components/badge";
 import { Button } from "@growthos/ui/components/button";
@@ -57,7 +58,10 @@ export function BriefCard({
   const actions = useRecommendationActions(workspaceId);
   const briefActions = useContentBriefActions(workspaceId);
 
-  const b = brief?.brief;
+  // `content_briefs.brief` holds either shape; this page renders the content one. Narrowed rather
+  // than assumed, so an organic->paid row landing here shows the empty state instead of a card of
+  // undefined fields.
+  const b = isContentBrief(brief?.brief) ? brief.brief : null;
   const stage = brief?.status ?? "draft";
   const advance = brief ? nextStage(stage) : null;
   const cpa = term ? costPerConversion(term.cost, term.conversions) : null;

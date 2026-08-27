@@ -135,6 +135,7 @@ export async function getFatigueResults(workspaceId: string): Promise<ScoredCrea
     ctrThisWeek: f.ctrThisWeek,
     ctrLastWeek: f.ctrLastWeek,
     ctrDeclinePercent: f.ctrDeclinePercent,
+    hoursSinceLaunch: f.hoursSinceLaunch,
     status: f.status,
     message: f.message,
   }))

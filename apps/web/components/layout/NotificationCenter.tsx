@@ -73,7 +73,13 @@ export function NotificationCenter({ workspaceId }: { workspaceId: string | null
                     <span className="text-xs font-medium text-muted-foreground">
                       {TYPE_LABEL[r.type] ?? r.type}
                     </span>
-                    <Badge variant="outline">Impact {r.impactScore}</Badge>
+                    {/*
+                      compositeScore, not impactScore. This list arrives in the API's order, which
+                      is composite descending — labelling it with a different field made the number
+                      contradict the order it was sitting in, the same defect the Recommendations
+                      queue carried.
+                    */}
+                    <Badge variant="outline">Priority {r.compositeScore}</Badge>
                   </div>
                   <span className="line-clamp-2 text-sm font-medium">{r.title}</span>
                 </Link>

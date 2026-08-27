@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { coreTopic, generateContentBrief, paidToOrganicRecommendation } from "./content-brief.js";
+import { generateContentBrief, paidToOrganicRecommendation } from "./content-brief.js";
+import { coreTopic } from "./text.js";
 import { analyzeSearchTerm } from "./engines/search-terms-bridge.js";
 
 describe("generateContentBrief", () => {
