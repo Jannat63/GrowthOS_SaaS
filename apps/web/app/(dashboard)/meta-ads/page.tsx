@@ -40,7 +40,7 @@ export default function MetaAdsPage() {
             summary={d.summary}
           />
           <FunnelPlanner />
-          <AdCopyStudio />
+          <AdCopyStudio workspaceId={workspaceId} />
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Megaphone className="h-3.5 w-3.5" />
             Live campaign sync &amp; publishing arrive once your Meta app clears App Review.

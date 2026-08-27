@@ -39,7 +39,7 @@ export default function GoogleAdsPage() {
             summary={d.summary}
           />
           <BudgetPlanner />
-          <RsaGenerator />
+          <RsaGenerator workspaceId={workspaceId} />
         </>
       )}
     </div>

@@ -1,6 +1,6 @@
 # P4.2 — AI Creative Automation — Progress
 
-Status: [~]  ·  Updated: 2026-08-27  ·  **In progress — P4.2a-1 done.** The plan was re-audited
+Status: [~]  ·  Updated: 2026-08-27  ·  **In progress — P4.2a-1 and P4.2a-4 done.** The plan was re-audited
 against the source before building and **two of its four slices could not be built as written**; both
 were rewritten (see the log and `plan.md`'s "Re-audit against the code"). Build order changed as a
 result. P4.2b (image/video generation) stays deferred on a paid generation API.
@@ -12,7 +12,7 @@ Listed in **execution order**, revised 2026-08-27. IDs are stable.
 | Slice | Status | Notes |
 |-------|--------|-------|
 | P4.2a-1 Brand guidelines system | [x] | **Done 2026-08-27.** `brand_guidelines` (migration `0016`) + a pure `applyBrandGuidelines` filter in `@growthos/logic`, `GET`/`PUT /workspaces/:id/brand-guidelines`, and a Settings → Brand guidelines section. 31 engine tests + 13 route tests. |
-| P4.2a-4 Server-side generation + metering | [ ] | **Re-scoped 2026-08-27 and moved out of first position.** Was "wire `recordUsage` at the generator call sites" — there are none: all four generators run in the browser, so the Scale-tier limit is unenforceable by construction. The slice is now `POST /workspaces/:id/creatives/generate`, then metering on top. Closes the last open M5 P5.2 item. |
+| P4.2a-4 Server-side generation + metering | [x] | **Done 2026-08-27.** `POST /workspaces/:id/creatives/generate` (manager+), `apps/api/src/creatives.ts`, guidelines applied server-side, `assertWithinLimit` → `recordUsage` on delivered creatives only. Both studio components switched off the browser generators — **verified absent from the built bundle**. 13 route tests, including driving the starter ceiling to a real 402. Closes the last open M5 P5.2 item. |
 | P4.2a-2 Creative scorecard | [ ] | **Re-specified 2026-08-27.** Its named primary inputs (hook rate, hold rate) do not exist in `creative_performance`, and two of its three benchmarks are for platforms nothing ingests. Rewritten around the columns that exist, with the self-median as the primary reference. |
 | P4.2a-3 Variant experiments | [ ] | **Planned**, unchanged. `creative_experiments` structure; measurement honestly gated on live ad delivery. |
 | P4.2b Image / video generation | [!] | **Deferred** — 15–25 image variants/week and storyboard rendering need a paid generation API. D4 defers paid AI. |
@@ -110,3 +110,48 @@ Listed in **execution order**, revised 2026-08-27. IDs are stable.
   problem in miniature. And `drizzle.config.ts` needed `brand.ts` added to its explicit schema list:
   the file carries a warning that a missing entry makes `generate` emit `DROP TABLE` for every table
   it cannot see, which is how the 2026-08-13 merge nearly dropped `automation_alerts`.
+
+- 2026-08-27 — **P4.2a-4 built. `aiCreativesPerMonth` binds for the first time.**
+  `POST /workspaces/:id/creatives/generate` (`manager`+, matching recommendation act/assign — the
+  other day-to-day working actions; `viewer`/`client` must not spend a workspace's paid quota),
+  `apps/api/src/creatives.ts`, and both studio components switched off the browser generators.
+  13 route tests.
+
+  **The plan section for this slice was itself wrong and was corrected first.** It said the web hook
+  should make "a live call with the established `liveOrMock` fallback, so the page still renders with
+  no backend". That is wrong three ways: `liveOrMock` is a *query* pattern and no mutation hook uses
+  it; a local fallback for a **quota-consuming** action means the quota is bypassed by disconnecting
+  from the network; and it would keep the generators in the client bundle, which is the thing this
+  slice removes. An enforcement path shipped with a documented bypass beside it is worse than none.
+  `liveOrMock`'s stated purpose is about *reading the dashboard* — an action button that needs a
+  server may fail with an error when there is no server, which is what these now do.
+
+  Decisions worth keeping visible:
+
+  - **Only delivered creatives are charged.** Metering counts what survives guideline filtering.
+    Charging for variants the workspace's own banned-terms list caused us to drop would be billing
+    them for our filter. A request whose every variant was filtered out costs nothing. Tested.
+  - **The ceiling is driven for real in the test, not asserted to exist.** starter is 10/month and
+    ad-copy yields 5 per call, so two calls exhaust it and the third must answer `402
+    PLAN_LIMIT_REACHED`. A test that only checks the helper is *called* would pass against a limiter
+    that never binds — which is precisely the failure this slice exists to fix.
+  - **Batch size is capped at 25.** Without it a single request could name `count: 5000` and drain a
+    month's quota (or, on an unlimited plan, hand back an unbounded response) in one call.
+  - **`duration` is validated to 15 | 30 | 60.** `generateUGCScript` looks those up in a record;
+    anything else falls through and returns `undefined`, which would have surfaced as a 500.
+
+  **Verified the generators actually left the browser**, rather than assuming tree-shaking: after a
+  production build, neither `"Trusted by thousands. Explore"` (RSA template) nor `"best purchase
+  this year"` (UGC template) appears in any client chunk, while a control string from the same
+  component (`"UGC script"`) still does — so the grep would have found them had they been there.
+
+  **Behaviour change worth announcing:** starter workspaces go from unlimited client-side generation
+  to 10/month (growth 100, scale unlimited; there is no free tier). That is the limit the pricing
+  page has always advertised finally taking effect, but it *is* a reduction for existing starter
+  workspaces and belongs in release notes rather than being discovered.
+
+  Also fixed here: `routes/brand-guidelines.test.ts` was committed in `cc77cd9` with a type error
+  (`payload: unknown` fails to match inject's `InjectPayload` overload, silently resolving the call
+  to the non-promise `Chain` signature). The tests passed at runtime, so only `tsc` caught it — and
+  the API typecheck had last been run *before* that file was written. Typed to
+  `Record<string, unknown>`; suite still 13/13.

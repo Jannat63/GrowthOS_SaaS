@@ -62,7 +62,9 @@ describe('brand guidelines routes', () => {
   const get = (cookie: string) =>
     app.inject({ method: 'GET', url: `/api/v1/workspaces/${workspaceId}/brand-guidelines`, headers: { cookie } })
 
-  const put = (payload: unknown, cookie = ownerCookie) =>
+  // `Record<string, unknown>`, not `unknown`: `unknown` fails to match inject's `InjectPayload`
+  // overload, which silently resolves the call to the Chain (non-promise) signature.
+  const put = (payload: Record<string, unknown>, cookie = ownerCookie) =>
     app.inject({
       method: 'PUT',
       url: `/api/v1/workspaces/${workspaceId}/brand-guidelines`,

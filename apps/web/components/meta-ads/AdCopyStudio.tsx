@@ -1,35 +1,54 @@
 "use client";
 import { useState } from "react";
 import { Clapperboard, Wand2 } from "lucide-react";
-import {
-  generateAdCopyVariants,
-  generateUGCScript,
-  type AdCopyVariant,
-  type UGCDuration,
-  type UGCScript,
-} from "@growthos/logic";
+import type { AdCopyVariant, UGCDuration, UGCScript } from "@growthos/logic";
 import { Card } from "@growthos/ui/components/card";
 import { Button } from "@growthos/ui/components/button";
 import { Input } from "@growthos/ui/components/input";
 import { Label } from "@growthos/ui/components/label";
 import { cn } from "@/lib/utils/cn";
+import { useCreativeGeneration } from "@/lib/hooks/useCreativeGeneration";
 
 const DURATIONS: UGCDuration[] = [15, 30, 60];
 
-// Fully client-side: runs the @growthos/logic ad-copy + UGC generators (templating, no LLM).
-export function AdCopyStudio() {
+// Generation runs on the SERVER (M4 P4.2a-4), not here. It used to run in this component, which
+// made `aiCreativesPerMonth` a plan limit that could not bind and left the workspace's brand
+// guidelines — a server-held record — unable to constrain anything. The imports above are
+// type-only; no generator code reaches the bundle.
+export function AdCopyStudio({ workspaceId }: { workspaceId: string | null }) {
   const [product, setProduct] = useState("Ergonomic Chair");
   const [benefit, setBenefit] = useState("all-day comfort");
   const [painPoint, setPainPoint] = useState("back pain");
   const [duration, setDuration] = useState<UGCDuration>(30);
   const [variants, setVariants] = useState<AdCopyVariant[] | null>(null);
   const [script, setScript] = useState<UGCScript | null>(null);
+  const [dropped, setDropped] = useState<number>(0);
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  const generateCopy = useCreativeGeneration(workspaceId);
+  const generateScript = useCreativeGeneration(workspaceId);
+  const pending = generateCopy.isPending || generateScript.isPending;
+  const error = generateCopy.error ?? generateScript.error;
 
   function generate() {
     const p = product.trim();
-    if (!p) return;
-    setVariants(generateAdCopyVariants(p, benefit.trim(), painPoint.trim()));
-    setScript(generateUGCScript(p, duration));
+    if (!p || !workspaceId) return;
+
+    generateCopy.mutate(
+      { kind: "ad-copy", product: p, benefit: benefit.trim(), painPoint: painPoint.trim() },
+      {
+        onSuccess: (res) => {
+          setVariants(res.adCopy ?? []);
+          setDropped(res.dropped.length);
+          setRemaining(res.remaining);
+        },
+      }
+    );
+
+    generateScript.mutate(
+      { kind: "ugc-script", product: p, duration },
+      { onSuccess: (res) => setScript(res.script ?? null) }
+    );
   }
 
   return (
@@ -58,8 +77,8 @@ export function AdCopyStudio() {
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Button onClick={generate} disabled={!product.trim()}>
-          Generate
+        <Button onClick={generate} disabled={!product.trim() || !workspaceId || pending}>
+          {pending ? "Generating…" : "Generate"}
         </Button>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">UGC length:</span>
@@ -79,6 +98,25 @@ export function AdCopyStudio() {
           ))}
         </div>
       </div>
+
+      {/* A 402 from the plan limit surfaces here as the API's own message ("You've reached your
+          starter plan's limit…"), rather than being swallowed and replaced with local output. */}
+      {error && (
+        <p className="mt-3 text-sm text-destructive">
+          {error instanceof Error ? error.message : "Could not generate creatives."}
+        </p>
+      )}
+
+      {(remaining !== null || dropped > 0) && !error && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          {remaining !== null && <>{remaining} creatives left this month. </>}
+          {dropped > 0 && (
+            <>
+              {dropped} variant{dropped === 1 ? "" : "s"} dropped by your brand guidelines.
+            </>
+          )}
+        </p>
+      )}
 
       {variants && (
         <div className="mt-6 grid gap-6 lg:grid-cols-2">

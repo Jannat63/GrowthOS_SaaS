@@ -30,6 +30,7 @@ import {
   revokeInvitation,
 } from '../invitations.js'
 import { getBrandGuidelinesForDisplay, upsertBrandGuidelines } from '../brand.js'
+import { generateCreatives } from '../creatives.js'
 import { BRAND_TONES } from '@growthos/logic'
 import { enqueue } from '../jobs/enqueue.js'
 import { listRecommendations } from '../recommendations.js'
@@ -769,6 +770,46 @@ export async function registerV1Routes(app: FastifyInstance) {
       request,
     )
     return { config }
+  })
+
+  // Creative generation (M4 P4.2a-4). `manager`+, matching recommendation act/assign — the other
+  // day-to-day working actions. viewer/client must not consume a workspace's paid quota.
+  //
+  // This route existing at all IS the slice: generation used to run only in the browser, which made
+  // `aiCreativesPerMonth` a limit that could not bind. See creatives.ts.
+  app.post('/api/v1/workspaces/:id/creatives/generate', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+
+    const body = z
+      .discriminatedUnion('kind', [
+        z.object({
+          kind: z.literal('ad-copy'),
+          product: z.string().min(1).max(120),
+          benefit: z.string().min(1).max(200),
+          painPoint: z.string().min(1).max(200),
+          count: z.number().int().min(1).max(25).optional(),
+        }),
+        z.object({
+          kind: z.literal('ugc-script'),
+          product: z.string().min(1).max(120),
+          // 15 | 30 | 60 — the only durations generateUGCScript has scripts for. Anything else
+          // would fall through its lookup and return undefined.
+          duration: z.union([z.literal(15), z.literal(30), z.literal(60)]).optional(),
+        }),
+        z.object({
+          kind: z.literal('rsa'),
+          keyword: z.string().min(1).max(120),
+          audience: z.string().max(120).optional(),
+        }),
+      ])
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    return generateCreatives(id, body.data)
   })
 
   // Brand guidelines (M4 P4.2a-1). Read is viewer+ (anyone who can see generated copy benefits from

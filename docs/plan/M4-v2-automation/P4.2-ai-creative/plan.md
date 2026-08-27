@@ -262,16 +262,53 @@ Metering follows `recommendations.ts:167–172` exactly: `getRemainingAllowance`
 `recordUsage(workspaceId, 'ai_creatives_generated', produced)` with the count actually produced —
 after guideline filtering, since dropped variants are not delivered value.
 
+### Authorization and quota
+
+`requireWorkspaceMember(user.id, id, 'manager')` — matching recommendation act/dismiss/assign, which
+are the other day-to-day working actions. `viewer` and `client` must not consume a workspace's paid
+quota.
+
+Quota comes from `PLAN_LIMITS[plan].aiCreativesPerMonth`: **starter 10, growth 100, scale
+unlimited**, and there is no free tier (`Plan = "starter" | "growth" | "scale"`). Over the ceiling
+the route answers `402 PLAN_LIMIT_REACHED` via `assertWithinLimit`, not a silent empty list.
+
+**This is a deliberate behaviour change for starter, and it should be called by its name:** today
+starter workspaces generate unlimited creatives because generation is free client-side computation.
+After this slice they get 10 a month. That is the limit the pricing page has always advertised
+finally taking effect — but it *is* a reduction in what an existing starter workspace can do, and it
+belongs in release notes rather than being discovered.
+
+### Correction 2026-08-27 — this slice must NOT use `liveOrMock`
+
+An earlier draft of this section said the web hook should make "a live call with the established
+`liveOrMock` fallback, so the page still renders with no backend". **That is wrong on three counts**
+and would have quietly cancelled the point of the slice:
+
+1. **It is not the convention.** `liveOrMock` is a *query* pattern. No mutation hook in
+   `apps/web/lib/hooks/` uses it — `useCollaborationActions`, `useBrandingActions` and
+   `useBrandGuidelinesActions` all call `api.*` directly and let the error surface.
+2. **It would defeat the metering by design, not merely by devtools.** A local fallback for a
+   quota-consuming action means the quota is bypassed by disconnecting from the network. Building an
+   enforcement path with a documented bypass beside it is worse than not building it.
+3. **It would keep the generators in the client bundle.** Removing the last browser import of
+   `generateAdCopyVariants` / `generateUGCScript` / `generateRsaHeadlines` /
+   `generateRsaDescriptions` is what actually moves the capability server-side.
+
+`liveOrMock`'s stated purpose — "the app renders when there is no backend" — is about *reading the
+dashboard*. An action button that needs a server is allowed to fail with an error when there is no
+server, and that is what these will do.
+
+(Worth recording as already-correct: `liveOrMock` re-throws 4xx rather than falling back, so the
+402 surfaces to the user instead of being answered with invented data. Reads elsewhere are unaffected
+by this slice.)
+
 ### Files
 
-- `apps/api/src/creatives.ts` + `routes/v1.ts` wiring, and a route test asserting the limit binds
-- `apps/web/lib/hooks/useCreativeGeneration.ts` — live call with the established `liveOrMock`
-  fallback, so the page still renders with no backend
-- `AdCopyStudio.tsx` / `RsaGenerator.tsx` switch from direct `@growthos/logic` calls to the hook
-
-Keeping the `liveOrMock` fallback means the browser path stays as the *offline* path, which is what
-the pattern is for; the difference is that the metered, guideline-constrained result now comes from
-the server whenever there is one.
+- `apps/api/src/creatives.ts` + `routes/v1.ts` wiring, and a route test asserting the limit actually
+  binds — driven to the ceiling, not merely asserted to exist
+- `apps/web/lib/hooks/useCreativeGeneration.ts` — a plain mutation, no `liveOrMock`
+- `AdCopyStudio.tsx` / `RsaGenerator.tsx` switch from direct `@growthos/logic` calls to the hook,
+  removing the generators from the browser bundle
 
 This closes the last open metering item from M5 P5.2.
 

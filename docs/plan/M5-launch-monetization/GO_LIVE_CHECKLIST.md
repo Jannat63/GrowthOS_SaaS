@@ -36,9 +36,15 @@ and how to verify it, not just a checkbox to tick.
       (`apps/api/src/api-keys.ts`). The first-run onboarding batch (`before === 0`) is deliberately
       left unmetered — see `docs/AUDIT-2026-08-13-codebase.md`. Starter customers are now held to
       the 5/week the pricing page advertises, so this no longer gates launch.
-- [ ] **`ai_creatives_generated` is still unmetered.** The metric and its plan mapping exist
-      (`apps/api/src/plan-limits.ts`), but nothing calls `recordUsage` for it. M4 P4.2 is the phase
-      that would generate the creatives worth metering, so this only matters once that ships.
+- [x] **`ai_creatives_generated` is metered — done 2026-08-27 (M4 P4.2a-4).** The reason nothing
+      called `recordUsage` turned out to be worse than "the feature doesn't exist yet": the
+      generators ran **entirely in the browser**, so `aiCreativesPerMonth` was a limit that could not
+      bind on any plan. `POST /workspaces/:id/creatives/generate` moves generation server-side,
+      where `assertWithinLimit` → `recordUsage` now runs on delivered creatives only. Verified by
+      driving a starter workspace to its 10/month ceiling and getting a real 402, and by confirming
+      the generator templates are absent from the built client bundle.
+      **Release-note item:** starter workspaces go from unlimited generation to the advertised
+      10/month. Growth 100, scale unlimited; there is no free tier.
 
 ## 2. Real third-party integrations — blocks the features that depend on them
 
