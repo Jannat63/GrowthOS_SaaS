@@ -8,6 +8,7 @@ import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { ConnectionsSection } from "@/components/settings/ConnectionsSection";
 import { ActivitySection } from "@/components/settings/ActivitySection";
 import { BrandingSection } from "@/components/settings/BrandingSection";
+import { BrandGuidelinesSection } from "@/components/settings/BrandGuidelinesSection";
 import { BillingSection } from "@/components/settings/BillingSection";
 import { ApiKeysSection } from "@/components/settings/ApiKeysSection";
 import { WebhooksSection } from "@/components/settings/WebhooksSection";
@@ -62,6 +63,10 @@ export default function SettingsPage() {
       </Suspense>
 
       {isAdmin && <BrandingSection workspaceId={workspaceId} />}
+
+      {/* Directly after Branding: both answer "what does our brand look and sound like", and a
+          reader who has just set the agency name is the reader who wants the copy rules. */}
+      {isAdmin && <BrandGuidelinesSection workspaceId={workspaceId} />}
 
       {isAdmin && <ApiKeysSection workspaceId={workspaceId} />}
 

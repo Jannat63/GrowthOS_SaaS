@@ -25,3 +25,5 @@ export * from './api-keys.js';
 export * from './webhooks.js';
 // Autonomous automation loop — alert de-dupe + scheduler run log (M4).
 export * from './automation.js';
+// Per-workspace brand guidelines for the copy generators (M4 · P4.2a-1).
+export * from './brand.js';

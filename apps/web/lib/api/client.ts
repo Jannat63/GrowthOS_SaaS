@@ -71,5 +71,9 @@ export const api = {
     request<T>(path, { method: "POST", body: JSON.stringify(body) }),
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
+  // PUT, distinct from PATCH, for endpoints that replace a resource wholesale rather than merging
+  // fields — brand guidelines being the first (M4 P4.2a-1).
+  put: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };

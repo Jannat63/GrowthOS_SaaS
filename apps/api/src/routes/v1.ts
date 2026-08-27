@@ -29,6 +29,8 @@ import {
   listInvitations,
   revokeInvitation,
 } from '../invitations.js'
+import { getBrandGuidelinesForDisplay, upsertBrandGuidelines } from '../brand.js'
+import { BRAND_TONES } from '@growthos/logic'
 import { enqueue } from '../jobs/enqueue.js'
 import { listRecommendations } from '../recommendations.js'
 import { parsePage } from '../pagination.js'
@@ -767,6 +769,51 @@ export async function registerV1Routes(app: FastifyInstance) {
       request,
     )
     return { config }
+  })
+
+  // Brand guidelines (M4 P4.2a-1). Read is viewer+ (anyone who can see generated copy benefits from
+  // knowing the constraints it was produced under); write is admin+, like branding. Not plan-gated —
+  // see brand.ts for why the gate belongs at generation instead.
+  app.get('/api/v1/workspaces/:id/brand-guidelines', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'viewer')
+    return { guidelines: await getBrandGuidelinesForDisplay(id) }
+  })
+
+  app.put('/api/v1/workspaces/:id/brand-guidelines', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+
+    const body = z
+      .object({
+        tone: z.enum(BRAND_TONES as unknown as [string, ...string[]]).optional(),
+        bannedTerms: z.array(z.string()).max(100).optional(),
+        requiredDisclaimers: z.array(z.string()).max(100).optional(),
+        valueProps: z.array(z.string()).max(100).optional(),
+        targetPersona: z.string().max(280).nullable().optional(),
+        // Grade level. Bounded because the filter compares against it: an unbounded value makes the
+        // reading-level rule either inert (huge) or a total block (negative).
+        readingLevel: z.number().int().min(1).max(20).nullable().optional(),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    const guidelines = await upsertBrandGuidelines(id, body.data)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'brand_guidelines.updated',
+        entityType: 'workspace',
+        entityId: id,
+      },
+      request,
+    )
+    return { guidelines }
   })
 
   // White-labeled PDF report (M3 P3.5 Slice C2). Generated on demand and streamed straight back —
