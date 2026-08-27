@@ -47,7 +47,14 @@ export function CampaignInsightsPanel({
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Tile label="Total spend" value={usd(summary.totalSpend)} />
-        <Tile label="Blended ROAS" value={`${summary.blendedRoas.toFixed(2)}x`} />
+        {/*
+          NOT "Blended ROAS". This is one channel's revenue over one channel's spend — the panel is
+          shared by the Google Ads and Meta Ads pages and reports only the campaigns beside it.
+          "Blended" already means something specific and different in this product: the Intelligence
+          report's `blendedMer` is ALL revenue over ad spend, and the two figures differ by
+          REVENUE_FACTOR. Using the same word for both is the exact confusion that audit fixed.
+        */}
+        <Tile label="Account ROAS" value={`${summary.blendedRoas.toFixed(2)}x`} />
         <Tile label="Wasted campaigns" value={summary.wastedCount} />
         <Tile label="Scale opportunities" value={summary.scaleCount} />
       </div>

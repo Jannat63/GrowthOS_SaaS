@@ -23,7 +23,7 @@ export default function GoogleAdsPage() {
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight">Google Ads</h1>
           <p className="text-sm text-muted-foreground">
-            Campaign efficiency, wasted-spend detection, and ad copy — all deterministic, no AI.
+            Where your Google Ads budget is working, where it is being wasted, and the numbers your targets should hit.
           </p>
         </div>
         {insights && <DataSourceBadge source={insights.source} platform={MODULE_PLATFORMS.googleAds} />}

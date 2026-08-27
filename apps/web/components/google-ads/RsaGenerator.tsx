@@ -46,8 +46,7 @@ export function RsaGenerator({ workspaceId }: { workspaceId: string | null }) {
         <h2 className="font-display text-lg font-semibold tracking-tight">RSA copy generator</h2>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Responsive Search Ad headlines &amp; descriptions from templates — within Google&apos;s
-        character limits, no AI required.
+        Responsive Search Ad headlines and descriptions, built to Google&apos;s character limits.
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">

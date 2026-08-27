@@ -32,12 +32,23 @@ const CHANNEL_LABEL: Record<string, string> = {
 export function BudgetPlanner() {
   const [budget, setBudget] = useState(3000);
   const [stage, setStage] = useState<BusinessStage>("growth");
-  const [margin, setMargin] = useState(50);
   const [price, setPrice] = useState(120);
   const [cogs, setCogs] = useState(48);
 
+  /**
+   * Margin is derived, not entered.
+   *
+   * It used to be a third input alongside price and cost of goods, and the two disagreed from the
+   * moment the page loaded: the defaults were margin 50, price 120, cost 48 — but 120 − 48 is 72.
+   * The two output tiles then answered from different definitions of the same fact, because
+   * `calculateTargetCpa` reads the typed margin while `calculateMinimumRoas` computes its own from
+   * price and cost. Target CPA said the margin was $50 and Minimum ROAS said it was $72, side by
+   * side, and nothing could ever reconcile them.
+   */
+  const margin = Math.max(0, price - cogs);
+
   const allocation = useMemo(() => allocateBudget(budget || 0, stage), [budget, stage]);
-  const targetCpa = calculateTargetCpa(margin || 0);
+  const targetCpa = calculateTargetCpa(margin);
   const minRoas = calculateMinimumRoas(price || 0, cogs || 0);
 
   return (
@@ -56,10 +67,6 @@ export function BudgetPlanner() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
-              <Label htmlFor="margin">Product margin ($)</Label>
-              <Input id="margin" type="number" min={0} value={margin} onChange={(e) => setMargin(+e.target.value)} />
-            </div>
-            <div className="grid gap-1.5">
               <Label htmlFor="price">Price ($)</Label>
               <Input id="price" type="number" min={0} value={price} onChange={(e) => setPrice(+e.target.value)} />
             </div>
@@ -67,6 +74,17 @@ export function BudgetPlanner() {
               <Label htmlFor="cogs">Cost of goods ($)</Label>
               <Input id="cogs" type="number" min={0} value={cogs} onChange={(e) => setCogs(+e.target.value)} />
             </div>
+            <div className="col-span-2 flex items-baseline justify-between rounded-md border bg-secondary/40 px-3 py-2">
+              <span className="text-sm text-muted-foreground">Margin per sale</span>
+              <span className="font-mono text-sm font-semibold tabular-nums">
+                {margin > 0 ? usd(margin) : "—"}
+              </span>
+            </div>
+            {margin <= 0 && (
+              <p className="col-span-2 text-xs text-destructive">
+                Cost of goods is at or above the price, so there is no margin to spend on ads.
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg border bg-secondary/30 p-4">
