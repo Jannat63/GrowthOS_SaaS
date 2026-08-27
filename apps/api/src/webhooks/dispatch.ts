@@ -3,6 +3,7 @@ import { db, schema } from '@growthos/db'
 import { decryptToken } from '../crypto.js'
 import { moduleLogger } from '../logger.js'
 import { buildSignedRequest } from './signing.js'
+import { isDeliverableUrl } from './url-guard.js'
 import type { WsEvent } from '../ws.js'
 
 const log = moduleLogger('webhooks')
@@ -110,17 +111,34 @@ async function attemptDelivery(
   // consumer that de-duplicates on it processes the event once even if we deliver it twice.
   const signed = buildSignedRequest(secret, payload, deliveryId)
 
+  // Re-checked here, not just at creation. A hostname that resolved publicly when the endpoint was
+  // created can resolve to an internal address now (DNS rebinding), and a row could reach this
+  // table without passing through the create path at all.
+  if (!(await isDeliverableUrl(url))) {
+    return { ok: false, statusCode: null, error: 'Refusing to deliver: URL does not resolve to a public https address' }
+  }
+
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: signed.headers,
       body: signed.body,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      // Redirects are NOT followed. `fetch` would otherwise chase a 3xx without re-running the SSRF
+      // check, so a public URL answering `302 Location: http://169.254.169.254/...` walks straight
+      // past the guard above. A webhook has no business redirecting anyway: with `manual`, a 3xx
+      // arrives here as a non-ok status and is recorded as a failure like any other.
+      redirect: 'manual',
     })
+    const redirected = response.status >= 300 && response.status < 400
     return {
       ok: response.ok, // 2xx only
       statusCode: response.status,
-      error: response.ok ? null : `HTTP ${response.status}`,
+      error: response.ok
+        ? null
+        : redirected
+          ? `HTTP ${response.status} (redirects are not followed)`
+          : `HTTP ${response.status}`,
     }
   } catch (err) {
     return { ok: false, statusCode: null, error: err instanceof Error ? err.message : String(err) }

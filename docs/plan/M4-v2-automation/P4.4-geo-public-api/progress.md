@@ -107,3 +107,57 @@ credentials.
   Standard Webhooks vectors were not available offline, and inventing one and labelling it official
   would be worse than not having it. They recompute the HMAC independently instead, and verify our
   own output through an independent `verify()` implementation.
+
+- 2026-08-27 — **P4.4a-2 follow-up: the SSRF hole the webhook slice opened is closed.**
+
+  Outbound webhooks are, structurally, the textbook SSRF shape: **the customer chooses a URL and
+  our server makes the request to it, from inside our own network.** As shipped, `endpoints.ts`
+  validated only that the URL parsed and used https. A Scale-tier admin could therefore point an
+  endpoint at `https://169.254.169.254/...` (cloud metadata), at RFC1918 space, or at loopback, and
+  read the internal network through delivery success/failure as an oracle — plus reach any internal
+  service that acts on an unauthenticated POST. "It takes an authenticated paying admin" is not a
+  defence; that is one compromised account away.
+
+  `webhooks/url-guard.ts` now gates both ends, and the two-place check is the point:
+
+  - **At creation** (`assertDeliverableUrl`), and **again immediately before every delivery
+    attempt** (`isDeliverableUrl` in `dispatch.ts`). Creation-time-only validation is defeated by
+    **DNS rebinding** — a hostname that resolves publicly when checked and privately when fetched —
+    and by any row that reaches the table without going through the create path.
+  - `lookup(host, { all: true })`: a hostname is safe only if **every** A/AAAA record is public.
+    Checking the first record lets an attacker publish one public address alongside an internal one
+    and win whichever the resolver returns at delivery time.
+  - IPv4-mapped IPv6 (`::ffff:10.0.0.1`) is decided on the **embedded v4 address**, or it walks
+    straight past the v6 checks. Unresolvable hosts and non-IP strings **fail closed**.
+  - **`redirect: 'manual'` in `dispatch.ts`** — this one is easy to miss. Guarding the URL is
+    useless if `fetch` then chases a `302 Location: http://169.254.169.254/...` without re-running
+    the check. A webhook has no business redirecting; a 3xx is now recorded as an ordinary failure.
+
+  **Two defects were found in the interrupted draft of this work and fixed:**
+
+  - `assertDeliverableUrl` called `privateTargetsAllowed()`, a function that does not exist (it is
+    `localDevTargetsAllowed`). `TS2304` — the package did not compile, so **the guard could not have
+    been running at all.**
+  - **The escape hatch was ordered so that it could never be used.** `WEBHOOK_ALLOW_PRIVATE_TARGETS`
+    exists so a developer can deliver to a local listener, but the https check sat *before* it, so
+    plain http was refused unconditionally — while the file's own doc comment said the hatch relaxes
+    **both** rules, and `dispatch.test.ts` delivers to real `http://127.0.0.1:<port>` servers. The
+    hatch is now consulted first and relaxes both. Non-http(s) schemes are still refused either way,
+    so it cannot be walked into a `file://` read. A half-usable escape hatch is worse than none: it
+    gets replaced by someone disabling the guard properly.
+
+  **The hatch is now enforced from the deployed side, not by comment.** `validateEnv` throws at boot
+  if `NODE_ENV=production` and the flag is `true`, and only the exact string `'true'` enables it, so
+  a deployment that never sets it is safe by default rather than safe by remembering.
+
+  Verified: `pnpm --filter @growthos/api exec tsc --noEmit` clean; **42 url-guard tests** (address
+  ranges, both boundary sides of 172.16/12 and CGNAT, the DNS path via `localhost`, hatch
+  behaviour), **10 env tests**, **16 dispatch tests** and **17 webhook-route tests** all pass
+  against real Neon. The route tests assert the guard is wired into the create path rather than
+  sitting in a module nothing calls; the dispatch test inserts an internal-address row **directly**,
+  bypassing creation, to prove the delivery-time re-check is real.
+
+  Not covered, and worth stating: the guard resolves DNS and then `fetch` resolves it **again**, so
+  a sub-second rebind between those two lookups is still theoretically live. Closing that needs
+  pinning the connection to the validated IP via a custom agent. The remaining window is far
+  narrower than the one this closes.

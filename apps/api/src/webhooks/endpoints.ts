@@ -4,6 +4,7 @@ import { db, schema } from '@growthos/db'
 import { AppError } from '../errors.js'
 import { encryptToken } from '../crypto.js'
 import { assertFeatureEnabled } from '../plan-limits.js'
+import { assertDeliverableUrl } from './url-guard.js'
 import type { WsEventType } from '../ws.js'
 
 /**
@@ -47,25 +48,6 @@ export interface WebhookEndpointSummary {
   createdAt: Date
 }
 
-/**
- * Rejects anything that is not a plain https URL.
- *
- * http is refused rather than upgraded: the payload carries a workspace's business data, and
- * silently "fixing" a customer's http URL to https would either break delivery or, worse, appear to
- * work while their listener never received anything.
- */
-function assertValidUrl(url: string): void {
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    throw new AppError('VALIDATION_ERROR', 'Webhook URL must be a valid absolute URL.')
-  }
-  if (parsed.protocol !== 'https:') {
-    throw new AppError('VALIDATION_ERROR', 'Webhook URL must use https.')
-  }
-}
-
 function assertValidEventTypes(eventTypes: string[]): void {
   if (eventTypes.length === 0) {
     throw new AppError('VALIDATION_ERROR', 'Subscribe to at least one event type, or use "*".')
@@ -88,7 +70,10 @@ export async function createWebhookEndpoint(
   createdBy: string,
 ): Promise<CreatedWebhookEndpoint> {
   await assertFeatureEnabled(workspaceId, 'apiAccess')
-  assertValidUrl(url)
+  // https + not an internal address. See url-guard.ts: this is the SSRF control, and it is
+  // re-checked at delivery time too, because a creation-time check alone is defeated by DNS
+  // rebinding.
+  await assertDeliverableUrl(url)
   assertValidEventTypes(eventTypes)
 
   const secret = `${SECRET_PREFIX}${randomBytes(24).toString('base64url')}`

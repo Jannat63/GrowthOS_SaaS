@@ -99,12 +99,18 @@ async function makeAllDue(): Promise<void> {
 }
 
 describe('webhook dispatch', () => {
+  const originalAllowPrivate = process.env.WEBHOOK_ALLOW_PRIVATE_TARGETS
+
   beforeAll(async () => {
     // TOKEN_ENCRYPTION_KEY is required by crypto.ts; the dev .env supplies it, but fail loudly
     // rather than encrypting under a silently-absent key.
     if (!process.env.TOKEN_ENCRYPTION_KEY) {
       throw new Error('TOKEN_ENCRYPTION_KEY must be set to run webhook dispatch tests')
     }
+    // These tests deliver to real listeners on 127.0.0.1, which the SSRF guard blocks by design.
+    // The guard itself is covered in url-guard.test.ts, including that this flag only opens for the
+    // exact string "true"; here it is turned on so the DELIVERY logic can be exercised at all.
+    process.env.WEBHOOK_ALLOW_PRIVATE_TARGETS = 'true'
   })
 
   afterEach(async () => {
@@ -113,9 +119,31 @@ describe('webhook dispatch', () => {
   })
 
   afterAll(async () => {
+    if (originalAllowPrivate === undefined) delete process.env.WEBHOOK_ALLOW_PRIVATE_TARGETS
+    else process.env.WEBHOOK_ALLOW_PRIVATE_TARGETS = originalAllowPrivate
     await db.delete(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.workspaceId, ws))
     await db.delete(schema.webhookEndpoints).where(eq(schema.webhookEndpoints.workspaceId, ws))
   })
+
+  it('refuses to deliver to an internal address even when a row names one', async () => {
+    // The row bypasses the create-time guard entirely — which is the point. Delivery re-checks,
+    // so a row inserted by any other path (or a hostname that has since rebound to an internal
+    // address) is still refused.
+    process.env.WEBHOOK_ALLOW_PRIVATE_TARGETS = 'false'
+    try {
+      const endpointId = await insertEndpoint('https://169.254.169.254/latest/meta-data/')
+      await enqueueWebhookDeliveries({ type: 'job:complete', workspaceId: ws })
+
+      const result = await runWebhookDeliverySweep()
+      expect(result.failed).toBe(1)
+
+      const [row] = await deliveriesFor(endpointId)
+      expect(row!.lastError).toMatch(/Refusing to deliver/)
+      expect(row!.lastStatusCode).toBeNull()
+    } finally {
+      process.env.WEBHOOK_ALLOW_PRIVATE_TARGETS = 'true'
+    }
+  }, 30000)
 
   describe('enqueue', () => {
     it('writes one pending row per subscribed endpoint and none for unsubscribed types', async () => {

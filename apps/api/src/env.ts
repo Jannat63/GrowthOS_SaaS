@@ -75,6 +75,17 @@ export function validateEnv(env: NodeJS.ProcessEnv = process.env): void {
   if (messages.length > 0) {
     throw new Error(`Missing required environment variables:\n${messages.join('\n')}`)
   }
+
+  // The webhook SSRF guard's dev escape hatch must never be on in production — with it set, any
+  // paying admin can point a webhook at cloud metadata or an internal service and have our own
+  // server fetch it. `webhooks/url-guard.ts` documents it as "never set this in a deployed
+  // environment"; this makes that a boot failure rather than a comment nobody re-reads.
+  if (env.NODE_ENV === 'production' && env.WEBHOOK_ALLOW_PRIVATE_TARGETS === 'true') {
+    throw new Error(
+      'WEBHOOK_ALLOW_PRIVATE_TARGETS=true is a local-development escape hatch that disables the ' +
+        'webhook SSRF guard. It must not be set in production. Unset it and restart.',
+    )
+  }
 }
 
 /** Logs (never throws) which optional integrations are unconfigured, so it's visible at boot rather than discovered via a 409 later. */

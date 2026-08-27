@@ -82,13 +82,13 @@ describe('webhook endpoint routes', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/workspaces/${workspaceId}/webhooks`,
-      payload: { url: 'https://example.test/hooks/growthos', eventTypes: ['recommendation:new'] },
+      payload: { url: 'https://example.com/hooks/growthos', eventTypes: ['recommendation:new'] },
       headers: { cookie: ownerCookie, 'content-type': 'application/json' },
     })
 
     expect(res.statusCode).toBe(200)
     const body = JSON.parse(res.body)
-    expect(body.url).toBe('https://example.test/hooks/growthos')
+    expect(body.url).toBe('https://example.com/hooks/growthos')
     expect(body.eventTypes).toEqual(['recommendation:new'])
     expect(body.secret).toMatch(/^whsec_/)
 
@@ -135,14 +135,29 @@ describe('webhook endpoint routes', () => {
     })
 
     it('refuses an unknown event type instead of accepting a subscription that can never fire', async () => {
-      const res = await create({ url: 'https://example.test/x', eventTypes: ['recommendation:nwe'] })
+      const res = await create({ url: 'https://example.com/x', eventTypes: ['recommendation:nwe'] })
       expect(res.statusCode).toBe(400)
       expect(JSON.parse(res.body).error.message).toContain('recommendation:nwe')
     })
 
     it('refuses an empty subscription list', async () => {
-      const res = await create({ url: 'https://example.test/x', eventTypes: [] })
+      const res = await create({ url: 'https://example.com/x', eventTypes: [] })
       expect(res.statusCode).toBe(400)
+    })
+
+    // SSRF: the customer picks the URL and OUR server makes the request, from inside our network.
+    // Full coverage of the address ranges lives in webhooks/url-guard.test.ts; these assert the
+    // guard is actually wired into the create route rather than sitting in a module nothing calls.
+    it.each([
+      ['https://169.254.169.254/latest/meta-data/', 'cloud metadata'],
+      ['https://127.0.0.1/hook', 'loopback'],
+      ['https://10.0.0.5/hook', 'RFC1918'],
+      ['https://[::1]/hook', 'IPv6 loopback'],
+      ['https://localhost/hook', 'a hostname that resolves to loopback'],
+    ])('refuses %s (%s)', async (url) => {
+      const res = await create({ url, eventTypes: ['*'] })
+      expect(res.statusCode).toBe(400)
+      expect(JSON.parse(res.body).error.code).toBe('VALIDATION_ERROR')
     })
   })
 
@@ -236,7 +251,7 @@ describe('webhook endpoint routes', () => {
     const res = await app.inject({
       method: 'POST',
       url: `/api/v1/workspaces/${workspaceId}/webhooks`,
-      payload: { url: 'https://example.test/gated', eventTypes: ['*'] },
+      payload: { url: 'https://example.com/gated', eventTypes: ['*'] },
       headers: { cookie: ownerCookie, 'content-type': 'application/json' },
     })
 
