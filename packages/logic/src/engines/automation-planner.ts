@@ -134,16 +134,106 @@ export function targetKey(actionType: AutomationActionType, target: ActionTarget
   return `${actionType}:${target.platform}:${subject}`;
 }
 
-const DEFAULT_MAX_CHANGE_PERCENT = 20;
+/**
+ * The thresholds a rule falls back to when nobody has tuned it.
+ *
+ * Exported because the UI has to tell an operator what a rule will actually do before they switch
+ * it on — "Pause wasted campaigns" is not a description of anything until you know it means
+ * "spent $50 or more". Every one of these numbers used to exist only as a `?? 50` buried in a
+ * planner function, so the screen either said nothing or said something it had re-typed by hand.
+ * `ruleTerms()` below reads exactly these, so what a rule promises and what it does cannot drift.
+ */
+export const RULE_DEFAULTS = {
+  /** pause_campaign: a campaign must have wasted at least this much. */
+  minWastedSpend: 50,
+  /** adjust_budget: only scale campaigns at or above this ROAS. */
+  minRoas: 3,
+  /** adjust_budget: how much to raise, before caps. */
+  budgetIncreasePercent: 20,
+  /** adjust_budget: hard ceiling on any single budget move, in percent. */
+  maxChangePercent: 20,
+  /** queue_content: minimum paid conversions before a term earns a brief. */
+  minConversions: 1,
+} as const;
+
+const DEFAULT_MAX_CHANGE_PERCENT = RULE_DEFAULTS.maxChangePercent;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `$${round2(n).toLocaleString("en-US")}`;
+
+/** What a rule watches for, what it does about it, and whether that overwrites anything. */
+export interface RuleTerms {
+  /** The condition that makes this rule propose something, with its live thresholds filled in. */
+  condition: string;
+  /** What it proposes when the condition holds. */
+  effect: string;
+  /** A short verb phrase for "it may ___", used to build the summary sentence. */
+  permission: string;
+  /** True when approving changes existing state rather than only creating a record. */
+  mutating: boolean;
+}
+
+/**
+ * The plain-English terms of one rule, with the numbers that are actually in force.
+ *
+ * Reads the rule's own threshold/caps where set and `RULE_DEFAULTS` where not, so a workspace that
+ * raised `minRoas` to 5 sees "returning 5x or better" rather than the stock sentence. `refresh_creative`
+ * carries no numbers on purpose: the planner filters on `status === "fatigued"`, a verdict the
+ * fatigue engine reaches on its own, so quoting a threshold here would invent one.
+ */
+export function ruleTerms(
+  actionType: AutomationActionType,
+  rule?: { threshold?: AutomationThreshold | null | undefined; caps?: AutomationCaps | null | undefined } | null,
+): RuleTerms {
+  const t = rule?.threshold;
+  const mutating = requiresPreviousValue(actionType);
+
+  switch (actionType) {
+    case "pause_campaign": {
+      const min = t?.minWastedSpend ?? RULE_DEFAULTS.minWastedSpend;
+      return {
+        condition: `A campaign has spent ${money(min)} or more and is not returning it.`,
+        effect: "Pause it.",
+        permission: `pause campaigns that spent ${money(min)} or more without returning it`,
+        mutating,
+      };
+    }
+    case "adjust_budget": {
+      const minRoas = t?.minRoas ?? RULE_DEFAULTS.minRoas;
+      const requested = t?.budgetIncreasePercent ?? RULE_DEFAULTS.budgetIncreasePercent;
+      const ceiling = rule?.caps?.maxChangePercent ?? RULE_DEFAULTS.maxChangePercent;
+      const move = Math.min(requested, ceiling);
+      return {
+        condition: `A campaign is returning ${round2(minRoas)}x or better.`,
+        effect: `Raise its daily budget ${move}% — never more than ${ceiling}% in one move.`,
+        permission: `raise budgets ${move}% on campaigns returning ${round2(minRoas)}x or better`,
+        mutating,
+      };
+    }
+    case "refresh_creative":
+      return {
+        condition: "A creative's click-through rate has collapsed against its own recent average.",
+        effect: "Flag it for replacement.",
+        permission: "flag creatives whose click-through rate has collapsed",
+        mutating,
+      };
+    case "queue_content": {
+      const min = t?.minConversions ?? RULE_DEFAULTS.minConversions;
+      return {
+        condition: `A paid search term converted ${min} time${min === 1 ? "" : "s"} or more with no organic page behind it.`,
+        effect: "Write a content brief for it.",
+        permission: "turn converting paid search terms into content briefs",
+        mutating,
+      };
+    }
+  }
+}
 
 function planPauseCampaign(
   rule: AutomationRule,
   campaigns: CampaignInsight[],
   platform: ActionPlatform,
 ): ProposedAction[] {
-  const minWastedSpend = rule.threshold?.minWastedSpend ?? 50;
+  const minWastedSpend = rule.threshold?.minWastedSpend ?? RULE_DEFAULTS.minWastedSpend;
   return campaigns
     .filter((c) => c.status === "wasted" && c.cost >= minWastedSpend)
     .map((c) => ({
@@ -166,8 +256,8 @@ function planAdjustBudget(
   campaigns: CampaignInsight[],
   platform: ActionPlatform,
 ): ProposedAction[] {
-  const minRoas = rule.threshold?.minRoas ?? 3;
-  const requested = rule.threshold?.budgetIncreasePercent ?? DEFAULT_MAX_CHANGE_PERCENT;
+  const minRoas = rule.threshold?.minRoas ?? RULE_DEFAULTS.minRoas;
+  const requested = rule.threshold?.budgetIncreasePercent ?? RULE_DEFAULTS.budgetIncreasePercent;
   const ceiling = rule.caps?.maxChangePercent ?? DEFAULT_MAX_CHANGE_PERCENT;
   // Clamp at planning time so the queue shows the real number a human is approving.
   const changePercent = Math.min(requested, ceiling);
@@ -204,7 +294,7 @@ function planRefreshCreative(rule: AutomationRule, creatives: FatigueSignal[]): 
 }
 
 function planQueueContent(rule: AutomationRule, terms: AnalyzedSearchTerm[]): ProposedAction[] {
-  const minConversions = rule.threshold?.minConversions ?? 1;
+  const minConversions = rule.threshold?.minConversions ?? RULE_DEFAULTS.minConversions;
   return terms
     .filter(
       (t) =>

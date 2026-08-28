@@ -1,247 +1,242 @@
 "use client";
-import { Bot, Check, X, ShieldAlert, PauseCircle, TrendingUp, RefreshCw, FileText } from "lucide-react";
+import { useMemo } from "react";
+import { ShieldAlert } from "lucide-react";
+import { toast } from "sonner";
 import { Card } from "@growthos/ui/components/card";
-import { Badge } from "@growthos/ui/components/badge";
-import { Button } from "@growthos/ui/components/button";
 import { Skeleton } from "@growthos/ui/components/skeleton";
-import { cn } from "@/lib/utils/cn";
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
+import { useAutomation, useSchedulerRuns } from "@/lib/hooks/useAutomation";
 import {
+  useActionDecision,
   useAutomationQueue,
   useAutomationRules,
-  useActionDecision,
+  useRunAutomationPlan,
   useUpdateAutomationRule,
-  type AutomationActionRecord,
-  type AutomationActionType,
 } from "@/lib/hooks/useAutomationQueue";
+import { AuthorityStrip } from "@/components/automation/AuthorityStrip";
+import { ActivityLedger } from "@/components/automation/ActivityLedger";
+import { ProposalCard } from "@/components/automation/ProposalCard";
+import { RuleCard } from "@/components/automation/RuleCard";
+import { ACTIONS, ACTION_BY_KEY, type RuleState } from "@/components/automation/rules";
+
+const LEDGER_LIMIT = 12;
 
 /**
- * Automation (M4 · P4.3a) — the approval queue and the rules that feed it.
+ * Automation — the standing orders you have given the platform, and what it did with them.
  *
- * The page leads with what is waiting for a decision, because that is the only part with a deadline.
- * Every proposal shows its reason and, for anything that overwrites existing state, what it would
- * overwrite — nobody should have to approve a change they cannot see the shape of.
+ * The page is ordered by obligation. Proposals have a deadline, so when any exist they come first;
+ * with an empty queue there is nothing to decide and the page opens instead on the question an
+ * operator actually arrives with — *how much authority does this thing have right now?* That
+ * question had no answer anywhere on the previous version, which opened on a 200px panel whose
+ * entire content was the number 0.
+ *
+ * One accent rule, as elsewhere in the app: **ember means live authority or a live obligation**
+ * (a rule that asks first, a proposal awaiting you), **gold means it acts unattended**, and
+ * everything idle stays graphite. So the amount of colour on screen is a direct read on how much
+ * the platform is currently allowed to do on its own.
  */
-
-const ACTION_META: Record<AutomationActionType, { label: string; hint: string; icon: typeof Bot }> = {
-  pause_campaign: {
-    label: "Pause wasted campaigns",
-    hint: "Pause campaigns spending without returning",
-    icon: PauseCircle,
-  },
-  adjust_budget: {
-    label: "Scale winning campaigns",
-    hint: "Raise budget on high-ROAS campaigns",
-    icon: TrendingUp,
-  },
-  refresh_creative: {
-    label: "Refresh fatigued creatives",
-    hint: "Flag creatives whose CTR has collapsed",
-    icon: RefreshCw,
-  },
-  queue_content: {
-    label: "Queue content from search terms",
-    hint: "Turn converting paid terms into content briefs",
-    icon: FileText,
-  },
-};
-
-const STATUS_VARIANT: Record<string, "default" | "muted" | "outline"> = {
-  proposed: "default",
-  approved: "default",
-  executed: "muted",
-  rejected: "outline",
-  failed: "outline",
-  expired: "outline",
-};
-
 export default function AutomationPage() {
   const { data: me } = useWorkspace();
   const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
-  const memberships = me?.data.memberships ?? [];
+  const memberships = useMemo(() => me?.data.memberships ?? [], [me]);
   const workspaceId = activeId ?? memberships[0]?.workspaceId ?? null;
   const membership = memberships.find((m) => m.workspaceId === workspaceId);
   const isAdmin = membership?.role === "owner" || membership?.role === "admin";
 
   const { data: pending, isLoading: pendingLoading } = useAutomationQueue(workspaceId, "proposed");
   const { data: history } = useAutomationQueue(workspaceId);
-  const { data: rules } = useAutomationRules(workspaceId);
+  const { data: rules, isLoading: rulesLoading } = useAutomationRules(workspaceId);
+  const { data: automation } = useAutomation(workspaceId);
+  const { data: runs } = useSchedulerRuns(workspaceId);
+
   const { approve, reject } = useActionDecision(workspaceId);
   const updateRule = useUpdateAutomationRule(workspaceId);
+  const runPlan = useRunAutomationPlan(workspaceId);
 
   const proposals = pending?.data ?? [];
-  const decided = (history?.data ?? []).filter((a) => a.status !== "proposed").slice(0, 10);
-  const ruleByType = new Map((rules?.data ?? []).map((r) => [r.actionType, r]));
-  const busy = approve.isPending || reject.isPending;
+  const decided = (history?.data ?? []).filter((a) => a.status !== "proposed");
+  const ruleByType = useMemo(
+    () => new Map((rules?.data ?? []).map((r) => [r.actionType, r])),
+    [rules],
+  );
+
+  /**
+   * When this workspace was last planned.
+   *
+   * A scheduler run is a global tick, but `details.refreshed` names the workspaces that tick
+   * actually touched — so the most recent run containing this workspace is the honest answer, and
+   * the interval between ticks is not. Non-admins get 403 on the runs endpoint and fall back to an
+   * empty list, in which case the strip simply omits the timing rather than guessing at it.
+   */
+  const lastCheckedAt = useMemo(() => {
+    if (!workspaceId) return null;
+    const hit = (runs?.data ?? []).find((r) => r.details?.refreshed?.includes(workspaceId));
+    return hit?.startedAt ?? null;
+  }, [runs, workspaceId]);
+
+  function onRuleChange(actionType: (typeof ACTIONS)[number]["key"], next: RuleState) {
+    const label = ACTION_BY_KEY.get(actionType)!.label;
+    updateRule.mutate(
+      {
+        actionType,
+        enabled: next !== "off",
+        mode: next === "auto" ? "auto" : "suggest",
+      },
+      {
+        onSuccess: () =>
+          toast.success(
+            next === "off"
+              ? `${label} is off.`
+              : next === "auto"
+                ? `${label} will now act without asking.`
+                : `${label} will queue proposals for your approval.`,
+          ),
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Could not save that rule."),
+      },
+    );
+  }
+
+  function onCheckNow() {
+    runPlan.mutate(undefined, {
+      onSuccess: (r) =>
+        toast.success(
+          r.proposed === 0
+            ? "Checked. Nothing met the conditions of your standing orders."
+            : `Checked. ${r.proposed} proposal${r.proposed === 1 ? "" : "s"}${
+                r.autoExecuted > 0 ? `, ${r.autoExecuted} run automatically` : ""
+              }.`,
+        ),
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Could not run the check."),
+    });
+  }
+
+  const loading = pendingLoading || rulesLoading;
 
   return (
     <div className="animate-rise space-y-6">
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight">Automation</h1>
-        <p className="text-sm text-muted-foreground">
-          What the platform proposes to do on its own — and what it has already done.
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          The standing orders you have given the platform, and what it did with them.
+        </p>
+
+        {/* Was a full-width alert card competing with the content for attention, and it named the
+            wrong cause: it blamed a missing connection, but `resolveAdapter` never consults one —
+            there is no registered platform adapter yet (P4.3b), so campaign actions are recorded
+            whether or not an account is connected. Stating the real reason matters, because the old
+            wording implied that connecting Google Ads would make this go live. It would not. */}
+        <p className="mt-3 flex items-start gap-2 text-xs text-muted-foreground">
+          <ShieldAlert className="mt-px h-3.5 w-3.5 shrink-0 text-primary" />
+          <span>
+            <span className="font-medium text-foreground">Dry run.</span> GrowthOS has no write
+            integration with Google Ads or Meta yet, so approving a campaign action records exactly
+            what would have been sent and changes nothing in your account. Content briefs are the
+            exception — those are created for real.
+          </span>
         </p>
       </div>
 
-      {/* Until a platform connection exists, everything except content queueing is recorded rather
-          than sent. Saying so plainly matters more than a tidy UI: an operator must never believe a
-          campaign changed when it did not. */}
-      <Card className="flex items-start gap-3 border-primary/30 bg-primary/5 p-4">
-        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-        <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">Dry run.</span> No advertising platform is
-          connected with write access, so approving a campaign action records exactly what would have
-          been sent without changing anything. Content briefs are the exception — those are created
-          for real.
-        </p>
-      </Card>
-
-      <Card className="p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg font-semibold tracking-tight">Awaiting approval</h2>
-          <Badge variant="muted">{proposals.length}</Badge>
+      {loading ? (
+        <div className="space-y-6">
+          <Skeleton className="h-64 w-full rounded-lg" />
+          <Skeleton className="h-72 w-full rounded-lg" />
         </div>
+      ) : (
+        <>
+          {proposals.length > 0 && (
+            <Card className="p-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
+                    Waiting on you
+                  </p>
+                  <h2 className="mt-1.5 font-display text-lg font-semibold tracking-tight">
+                    {proposals.length} proposal{proposals.length === 1 ? "" : "s"} to decide
+                  </h2>
+                </div>
+                {!isAdmin && (
+                  <p className="text-xs text-muted-foreground">
+                    Approving needs an admin. You can see everything here.
+                  </p>
+                )}
+              </div>
+              <ul className="mt-4 space-y-3">
+                {proposals.map((action) => (
+                  <ProposalCard
+                    key={action.id}
+                    action={action}
+                    canDecide={isAdmin}
+                    // Per row, not per page: a single global `busy` flag disabled every button in
+                    // the queue while one request was in flight, and named none of them.
+                    deciding={
+                      approve.isPending && approve.variables === action.id
+                        ? "approve"
+                        : reject.isPending && reject.variables === action.id
+                          ? "reject"
+                          : null
+                    }
+                    onApprove={() =>
+                      approve.mutate(action.id, {
+                        onSuccess: () => toast.success("Approved and recorded."),
+                        onError: (e) =>
+                          toast.error(e instanceof Error ? e.message : "Could not approve that."),
+                      })
+                    }
+                    onReject={() =>
+                      reject.mutate(action.id, {
+                        onSuccess: () => toast.success("Rejected."),
+                        onError: (e) =>
+                          toast.error(e instanceof Error ? e.message : "Could not reject that."),
+                      })
+                    }
+                  />
+                ))}
+              </ul>
+            </Card>
+          )}
 
-        <div className="mt-4">
-          {pendingLoading ? (
-            <Skeleton className="h-32 w-full" />
-          ) : proposals.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Nothing waiting. Proposals appear here as the hourly run finds them.
+          <AuthorityStrip
+            rules={ruleByType}
+            pendingCount={proposals.length}
+            scheduled={automation?.data.enabled ?? true}
+            cadenceMs={automation?.data.cadenceMs ?? 7 * 24 * 60 * 60 * 1000}
+            lastCheckedAt={lastCheckedAt}
+            canRun={isAdmin}
+            onRun={onCheckNow}
+            running={runPlan.isPending}
+          />
+
+          <Card className="p-6">
+            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+              The dial
             </p>
-          ) : (
-            <ul className="flex flex-col divide-y">
-              {proposals.map((action) => (
-                <ProposalRow
-                  key={action.id}
-                  action={action}
-                  isAdmin={isAdmin}
-                  busy={busy}
-                  onApprove={() => approve.mutate(action.id)}
-                  onReject={() => reject.mutate(action.id)}
+            <h2 className="mt-1.5 font-display text-lg font-semibold tracking-tight">
+              What it may do
+            </h2>
+            <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">
+              Each order is off until you switch it on. <span className="text-foreground">Ask first</span>{" "}
+              queues a proposal for you; <span className="text-foreground">act alone</span> runs it
+              without asking, within its caps.
+            </p>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {ACTIONS.map((a) => (
+                <RuleCard
+                  key={a.key}
+                  actionType={a.key}
+                  rule={ruleByType.get(a.key)}
+                  canEdit={isAdmin}
+                  pending={updateRule.isPending && updateRule.variables?.actionType === a.key}
+                  onChange={(next) => onRuleChange(a.key, next)}
                 />
               ))}
-            </ul>
-          )}
-        </div>
-      </Card>
+            </div>
+          </Card>
 
-      <Card className="p-6">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Rules</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Automation is off until you turn it on. <span className="font-medium">Suggest</span> queues
-          proposals for approval; <span className="font-medium">auto</span> runs them within their caps.
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {(Object.keys(ACTION_META) as AutomationActionType[]).map((actionType) => {
-            const meta = ACTION_META[actionType];
-            const rule = ruleByType.get(actionType);
-            const Icon = meta.icon;
-            return (
-              <div key={actionType} className="flex items-start gap-3 rounded-lg border p-4">
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{meta.label}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{meta.hint}</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Badge variant={rule?.enabled ? "default" : "outline"}>
-                      {rule?.enabled ? rule.mode : "off"}
-                    </Badge>
-                    {isAdmin && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={updateRule.isPending}
-                        onClick={() =>
-                          updateRule.mutate({
-                            actionType,
-                            enabled: !rule?.enabled,
-                            mode: rule?.mode ?? "suggest",
-                          })
-                        }
-                      >
-                        {rule?.enabled ? "Turn off" : "Turn on"}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      {decided.length > 0 && (
-        <Card className="p-6">
-          <h2 className="font-display text-lg font-semibold tracking-tight">Recent activity</h2>
-          <ul className="mt-4 flex flex-col divide-y">
-            {decided.map((action) => (
-              <li key={action.id} className="flex items-center gap-3 py-2.5 text-sm">
-                <Badge variant={STATUS_VARIANT[action.status] ?? "outline"} className="capitalize">
-                  {action.status}
-                </Badge>
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">{action.reason}</span>
-                {action.error && (
-                  <span className="shrink-0 text-xs text-destructive">{action.error}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Card>
+          <ActivityLedger actions={decided.slice(0, LEDGER_LIMIT)} total={decided.length} />
+        </>
       )}
     </div>
-  );
-}
-
-function ProposalRow({
-  action,
-  isAdmin,
-  busy,
-  onApprove,
-  onReject,
-}: {
-  action: AutomationActionRecord;
-  isAdmin: boolean;
-  busy: boolean;
-  onApprove: () => void;
-  onReject: () => void;
-}) {
-  const meta = ACTION_META[action.actionType];
-  const subject =
-    action.target.campaignName ?? action.target.creativeName ?? action.target.keyword ?? "—";
-
-  return (
-    <li className="flex flex-wrap items-start gap-3 py-4">
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium">{meta?.label ?? action.actionType}</span>
-          <Badge variant="outline">{subject}</Badge>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">{action.reason}</p>
-
-        {/* What it would overwrite, shown next to what it would become. */}
-        {action.previousValue && (
-          <p className="mt-1.5 font-mono text-xs text-muted-foreground">
-            {JSON.stringify(action.previousValue)}
-            <span className="mx-1.5 text-foreground">→</span>
-            {JSON.stringify(action.payload)}
-          </p>
-        )}
-      </div>
-
-      {isAdmin && (
-        <div className="flex shrink-0 gap-2">
-          <Button size="sm" disabled={busy} onClick={onApprove}>
-            <Check className={cn("mr-1 h-3.5 w-3.5")} /> Approve
-          </Button>
-          <Button size="sm" variant="outline" disabled={busy} onClick={onReject}>
-            <X className="mr-1 h-3.5 w-3.5" /> Reject
-          </Button>
-        </div>
-      )}
-    </li>
   );
 }

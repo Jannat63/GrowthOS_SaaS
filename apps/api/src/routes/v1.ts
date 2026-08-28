@@ -73,7 +73,7 @@ import {
 } from '../webhooks/endpoints.js'
 import { listSchedulerRuns } from '../scheduler/queries.js'
 import { listRules, upsertRule, deleteRule } from '../automation/rules.js'
-import { listActions, approveAction, rejectAction } from '../automation/actions.js'
+import { listActions, approveAction, rejectAction, runAutomationForWorkspace } from '../automation/actions.js'
 
 // Default autonomous-loop config when a workspace has never customized it.
 const DEFAULT_AUTOMATION: AutomationConfig = { enabled: true, cadenceMs: 7 * 24 * 60 * 60 * 1000 }
@@ -1283,6 +1283,38 @@ export async function registerV1Routes(app: FastifyInstance) {
       request,
     )
     return { deleted: true }
+  })
+
+  /**
+   * Run the planner now, instead of waiting for this workspace's next scheduled tick.
+   *
+   * Added because the queue had no other way to fill. The scheduler's cron fires hourly but only
+   * plans a workspace whose report is older than its own `automation_config.cadenceMs`, which
+   * defaults to a *week* — so switching a rule on and watching an empty queue was the expected
+   * experience, with nothing on screen to say how long the wait would be. A subsystem you cannot
+   * exercise is one nobody can tell is working.
+   *
+   * Safe to press twice: `planForWorkspace` excludes targets that already have an open action and
+   * respects `maxActionsPerDay`, so a second run within the same window proposes nothing new rather
+   * than duplicating the first. Admin+, and audited, because in `auto` mode this executes.
+   */
+  app.post('/api/v1/workspaces/:id/automation/plan', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const outcome = await runAutomationForWorkspace(id)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'automation.plan_run',
+        entityType: 'workspace',
+        entityId: id,
+        metadata: { ...outcome },
+      },
+      request,
+    )
+    return outcome
   })
 
   // The approval queue. Readable by any member — an automated change to someone's campaigns should

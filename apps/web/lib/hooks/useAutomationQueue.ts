@@ -98,3 +98,22 @@ export function useUpdateAutomationRule(workspaceId: string | null | undefined) 
     onSuccess: () => qc.invalidateQueries({ queryKey: ["automation-rules", workspaceId] }),
   });
 }
+
+/**
+ * Run the planner now rather than waiting for this workspace's next scheduled tick.
+ *
+ * The cron fires hourly but only plans a workspace whose last run is older than its own cadence —
+ * a week by default — so without this the only way to fill the queue was to wait an amount of time
+ * the page never disclosed. Pressing it twice is safe: the planner skips targets that already have
+ * an open action, so a second run proposes nothing new instead of duplicating the first.
+ */
+export function useRunAutomationPlan(workspaceId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation<{ proposed: number; autoExecuted: number; failed: number }>({
+    mutationFn: () => api.post(`/workspaces/${workspaceId}/automation/plan`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["automation-actions", workspaceId] });
+      qc.invalidateQueries({ queryKey: ["scheduler-runs", workspaceId] });
+    },
+  });
+}

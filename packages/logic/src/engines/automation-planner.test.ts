@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   planActions,
   requiresPreviousValue,
+  ruleTerms,
   targetKey,
+  RULE_DEFAULTS,
+  type AutomationActionType,
   type AutomationRule,
   type PlannerSignals,
 } from "./automation-planner.js";
@@ -224,5 +227,65 @@ describe("planActions", () => {
     expect(requiresPreviousValue("pause_campaign")).toBe(true);
     expect(requiresPreviousValue("adjust_budget")).toBe(true);
     expect(requiresPreviousValue("refresh_creative")).toBe(true);
+  });
+});
+
+/**
+ * The terms a rule states on screen have to be the terms the planner enforces. These tests exist
+ * because the page used to describe "Pause wasted campaigns" with no number at all, and the only
+ * way to keep a description honest is to derive it from the same constant the filter reads.
+ */
+describe("rule terms", () => {
+  const ALL: AutomationActionType[] = [
+    "pause_campaign",
+    "adjust_budget",
+    "refresh_creative",
+    "queue_content",
+  ];
+
+  it("gives every action type a condition, an effect and a permission phrase", () => {
+    for (const actionType of ALL) {
+      const terms = ruleTerms(actionType);
+      expect(terms.condition.length).toBeGreaterThan(0);
+      expect(terms.effect.length).toBeGreaterThan(0);
+      expect(terms.permission.length).toBeGreaterThan(0);
+      expect(terms.mutating).toBe(requiresPreviousValue(actionType));
+    }
+  });
+
+  it("quotes the default thresholds when a rule has tuned nothing", () => {
+    expect(ruleTerms("pause_campaign").condition).toContain(`$${RULE_DEFAULTS.minWastedSpend}`);
+    expect(ruleTerms("adjust_budget").condition).toContain(`${RULE_DEFAULTS.minRoas}x`);
+    expect(ruleTerms("queue_content").condition).toContain("converted 1 time or more");
+  });
+
+  it("quotes the workspace's own thresholds once they are set", () => {
+    const terms = ruleTerms("pause_campaign", { threshold: { minWastedSpend: 250 } });
+    expect(terms.condition).toContain("$250");
+    expect(terms.condition).not.toContain("$50");
+  });
+
+  // The planner clamps the requested increase to the cap before proposing, so the sentence has to
+  // clamp identically — promising 40% and sending 20% is the exact mismatch this page is for.
+  it("states the clamped budget move, not the requested one", () => {
+    const terms = ruleTerms("adjust_budget", {
+      threshold: { budgetIncreasePercent: 40 },
+      caps: { maxChangePercent: 15 },
+    });
+    expect(terms.effect).toContain("15%");
+    expect(terms.effect).not.toContain("40%");
+    expect(terms.permission).toContain("15%");
+  });
+
+  // The fatigue engine decides what "fatigued" means; inventing a number here would describe a
+  // filter that does not exist.
+  it("quotes no threshold for refresh_creative, because the planner applies none", () => {
+    expect(ruleTerms("refresh_creative").condition).not.toMatch(/\d/);
+  });
+
+  it("pluralises the conversion threshold", () => {
+    expect(ruleTerms("queue_content", { threshold: { minConversions: 3 } }).condition).toContain(
+      "converted 3 times or more",
+    );
   });
 });
