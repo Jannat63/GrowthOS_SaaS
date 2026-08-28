@@ -41,6 +41,13 @@ const PLAN_BLURB: Record<Plan, string[]> = {
   scale: ["Unlimited workspaces", "10,000 tracked keywords", "Unlimited everything", "API access"],
 };
 
+/**
+ * Cheapest to dearest. Used only to tell an upgrade from a downgrade — both offered a button
+ * reading "Switch plan", so moving *down* a tier and losing white-label, GEO tracking or API access
+ * looked exactly like moving up one. The direction of a plan change is the whole decision.
+ */
+const PLAN_ORDER: Plan[] = ["starter", "growth", "scale"];
+
 function daysLeft(iso: string | null): number | null {
   if (!iso) return null;
   const ms = new Date(iso).getTime() - Date.now();
@@ -70,7 +77,10 @@ export function BillingSection({
   useEffect(() => {
     if (searchParams.get("checkout") === "success") {
       trackEvent("checkout_completed");
-      router.replace("/settings");
+      // Back to the pane the purchase came from. Stripe's success_url returns here with the query
+      // param, and dropping the reader at the top of an eight-pane settings page with no sign of
+      // what just happened was the old behaviour.
+      router.replace("/settings?tab=billing");
     }
   }, [searchParams, router]);
 
@@ -127,7 +137,11 @@ export function BillingSection({
                   {isAdmin && (
                     <Button
                       className="mt-4"
-                      variant={isCurrent ? "outline" : "default"}
+                      variant={
+                        isCurrent || PLAN_ORDER.indexOf(plan) < PLAN_ORDER.indexOf(sub.plan)
+                          ? "outline"
+                          : "default"
+                      }
                       disabled={isCurrent || checkout.isPending}
                       onClick={() => checkout.mutate(plan)}
                     >
@@ -135,7 +149,9 @@ export function BillingSection({
                         ? "Current plan"
                         : checkout.isPending && checkout.variables === plan
                           ? "Redirecting…"
-                          : "Switch plan"}
+                          : PLAN_ORDER.indexOf(plan) > PLAN_ORDER.indexOf(sub.plan)
+                            ? "Upgrade"
+                            : "Downgrade"}
                     </Button>
                   )}
                 </div>

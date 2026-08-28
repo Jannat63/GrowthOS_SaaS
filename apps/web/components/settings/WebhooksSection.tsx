@@ -24,6 +24,8 @@ const EVENT_TYPES = [
   { value: "job:complete", label: "Job completed" },
   { value: "job:failed", label: "Job failed" },
 ];
+import { cn } from "@/lib/utils/cn";
+import { UpgradeNotice, useApiAccess } from "./PlanGate";
 
 export function WebhooksSection({ workspaceId }: { workspaceId: string | null }) {
   const { data, isLoading } = useWebhooks(workspaceId);
@@ -31,6 +33,7 @@ export function WebhooksSection({ workspaceId }: { workspaceId: string | null })
   const remove = useDeleteWebhook(workspaceId);
   const enable = useEnableWebhook(workspaceId);
 
+  const unlocked = useApiAccess(workspaceId);
   const [url, setUrl] = useState("");
   const [selected, setSelected] = useState<string[]>(["recommendation:new"]);
   const [justCreated, setJustCreated] = useState<string | null>(null);
@@ -66,7 +69,7 @@ export function WebhooksSection({ workspaceId }: { workspaceId: string | null })
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         Get events pushed to your own server the moment they happen, instead of polling the API for
-        them. Requires the Scale plan. Every request is signed with the{" "}
+        them. Every request is signed with the{" "}
         <a
           href="https://www.standardwebhooks.com"
           target="_blank"
@@ -102,7 +105,9 @@ export function WebhooksSection({ workspaceId }: { workspaceId: string | null })
         </div>
       )}
 
-      <div className="mt-4 space-y-3">
+      {!unlocked && <UpgradeNotice what="Webhook endpoints" />}
+
+      <div className={cn("mt-4 space-y-3", !unlocked && "hidden")}>
         <Input
           placeholder="https://your-server.example.com/hooks/growthos"
           value={url}
