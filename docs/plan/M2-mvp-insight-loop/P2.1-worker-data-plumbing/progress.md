@@ -12,7 +12,7 @@ Prerequisites: **all met.** ✅ Neon URL (live since M1); ✅ Python 3.12.10 (in
 | Job pattern (enqueue → worker → Neon → `202 {jobId}` + `/jobs/:jobId`) | [x] | Redis list `jobs:queue`; versioned JSON envelope. Status route guarded. |
 | `background_jobs` table | [x] | Drizzle migration `0001` applied to Neon; smoke-tested. |
 | ClickHouse local Docker + load schema | [x] | `docker-compose.yml` + `infra/clickhouse/schema/`; 5 tables auto-loaded, healthy. |
-| ClickHouse **seed** fixture `ad_performance` rows (for P2.6) | [x] | 60 rows seeded via `seeds/clickhouse_seed.py`. |
+| ClickHouse **seed** fixture `ad_performance` rows (for P2.6) | [x] | 60 rows seeded via `seeds/clickhouse_seed.py` — that script is now **retired** (2026-08-28): the API seeds `ad_performance` itself from `packages/logic/src/fixtures/seed.ts`, over a wider window, and running both double-inserts. |
 | `platform_connections` seeded stub rows (no live OAuth in M2) | [x] | 3 stub rows, idempotent seed script. Real OAuth → M3 P3.0. |
 
 ## Log
