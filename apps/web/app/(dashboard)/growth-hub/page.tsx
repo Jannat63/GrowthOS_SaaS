@@ -398,12 +398,12 @@ function MerTile({
   return (
     <Card className={cn("relative overflow-hidden p-5 ring-1 ring-primary/15", className)}>
       <div className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-primary">
-        <TrendingUp className="h-3.5 w-3.5" /> Blended efficiency
+      <div className="flex min-h-8 items-start gap-2 text-xs font-medium uppercase tracking-wide text-primary">
+        <TrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Blended efficiency
       </div>
       {mer ? (
         <>
-          <div className="mt-2 flex flex-wrap items-end gap-x-2 gap-y-1">
+          <div className="mt-1 flex flex-wrap items-end gap-x-2 gap-y-1">
             <span className="font-display text-4xl font-semibold tabular-nums leading-none">
               {mer.data.summary.blendedMER.toFixed(2)}×
             </span>
@@ -468,17 +468,26 @@ function StatTile({
   series?: number[];
 }) {
   const body = (
-    <Card className={cn("flex h-full flex-col p-5", href && "transition-colors hover:border-primary/40 hover:bg-secondary/40")}>
-      <div className={cn("flex items-center gap-2 text-xs font-medium uppercase tracking-wide", tone === "warn" ? "text-destructive" : "text-muted-foreground")}>
-        <Icon className="h-3.5 w-3.5" /> {label}
+    <Card className={cn("@container flex h-full flex-col p-5", href && "transition-colors hover:border-primary/40 hover:bg-secondary/40")}>
+      {/* Two lines reserved whether the label needs them or not. At six columns "Organic clicks
+          (30d)" wraps while "Revenue (30d)" does not, which pushed half the row's values a line
+          lower than the other half and broke the one thing a row of tiles is for — comparing them
+          at a glance. */}
+      <div className={cn("flex min-h-8 items-start gap-2 text-xs font-medium uppercase tracking-wide", tone === "warn" ? "text-destructive" : "text-muted-foreground")}>
+        <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {label}
       </div>
       {value !== undefined ? (
-        <div className="mt-2 flex items-baseline gap-2">
-          <p className="font-display text-3xl font-semibold tabular-nums">{value}</p>
+        // The delta used to sit outside the card: a `text-3xl` currency value plus a percentage
+        // does not fit a sixth of the row, and neither flex item could shrink, so the overflow went
+        // straight past the border. The size now follows the *card's* width rather than the
+        // viewport's — at six columns the viewport is wide and the tile is not, so a breakpoint
+        // cannot see this. `flex-wrap` is the backstop for a value longer than any of these.
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <p className="font-display text-2xl font-semibold tabular-nums @[15rem]:text-3xl">{value}</p>
           {deltaPct != null && (
             <span
               className={cn(
-                "text-xs font-medium tabular-nums",
+                "shrink-0 text-xs font-medium tabular-nums",
                 deltaPct > 0 ? "text-success" : deltaPct < 0 ? "text-destructive" : "text-muted-foreground"
               )}
             >
