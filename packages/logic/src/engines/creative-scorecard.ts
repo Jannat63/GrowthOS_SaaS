@@ -154,12 +154,23 @@ export function scoreCreatives(creatives: ScorecardInput[]): ScorecardResult {
     };
     const vs = `${Math.abs(ctrVsMedianPercent).toFixed(0)}% ${ctrVsMedianPercent >= 0 ? "above" : "below"} this account's median (${medianCtr.toFixed(2)}%)`;
 
+    /**
+     * The reason is the interpretation, never the measurements.
+     *
+     * Every reason used to open `CTR 1.80% — …` and the saturated one also carried `at frequency
+     * 4.2`, while the row rendering it printed `CTR 1.80%` and `Frequency 4.2` directly underneath.
+     * Both numbers appeared twice on every row. They are on `CreativeScore` already (`ctr`,
+     * `frequency`, `cpm`, `medianCtr`), so the sentence states what they mean and the row states
+     * what they are.
+     */
+    const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
     if (ctrVsMedianPercent > NEAR_MEDIAN_BAND) {
       return {
         ...shared,
         band: "strong",
         driver: "above-median",
-        reason: `CTR ${c.ctrThisWeek.toFixed(2)}% — ${vs}.`,
+        reason: `${sentence(vs)}.`,
       };
     }
 
@@ -168,7 +179,7 @@ export function scoreCreatives(creatives: ScorecardInput[]): ScorecardResult {
         ...shared,
         band: "average",
         driver: "near-median",
-        reason: `CTR ${c.ctrThisWeek.toFixed(2)}% — typical for this account (median ${medianCtr.toFixed(2)}%).`,
+        reason: `Typical for this account (median ${medianCtr.toFixed(2)}%).`,
       };
     }
 
@@ -179,7 +190,7 @@ export function scoreCreatives(creatives: ScorecardInput[]): ScorecardResult {
         ...shared,
         band: "underperforming",
         driver: "saturated",
-        reason: `CTR ${c.ctrThisWeek.toFixed(2)}% — ${vs}, at frequency ${c.frequency.toFixed(1)}. The audience has seen this too often; widen targeting before rewriting the creative.`,
+        reason: `${sentence(vs)}. The audience has seen this too often — widen targeting before rewriting the creative.`,
       };
     }
 
@@ -188,7 +199,7 @@ export function scoreCreatives(creatives: ScorecardInput[]): ScorecardResult {
         ...shared,
         band: "underperforming",
         driver: "fatiguing",
-        reason: `CTR ${c.ctrThisWeek.toFixed(2)}% — ${vs}, and down ${fatigue.ctrDeclinePercent.toFixed(0)}% week-over-week. It worked before, so refresh rather than replace.`,
+        reason: `${sentence(vs)}, and down ${fatigue.ctrDeclinePercent.toFixed(0)}% week-over-week. It worked before, so refresh rather than replace.`,
       };
     }
 
@@ -196,7 +207,7 @@ export function scoreCreatives(creatives: ScorecardInput[]): ScorecardResult {
       ...shared,
       band: "underperforming",
       driver: "weak",
-      reason: `CTR ${c.ctrThisWeek.toFixed(2)}% — ${vs}, at low frequency and without a week-over-week decline. This one has not connected.`,
+      reason: `${sentence(vs)}, at low frequency and without a week-over-week decline. This one has not connected.`,
     };
   });
 

@@ -79,8 +79,14 @@ export function BriefCard({
     }
   }
 
+  // A spaced card, not a row in a dense list, so it takes a border shift rather than a background
+  // flood — the pointer is never ambiguous between two of these, and repainting a block this size
+  // on hover is heavier than the feedback is worth.
   return (
-    <Card id={briefAnchorId(rec.id)} className="scroll-mt-24 overflow-hidden p-0">
+    <Card
+      id={briefAnchorId(rec.id)}
+      className="scroll-mt-24 overflow-hidden p-0 transition-colors hover:border-foreground/20"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3 p-5 pb-4">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold leading-snug">{rec.title}</h3>

@@ -466,6 +466,16 @@ export interface ContentBriefRecord {
 }
 
 // Organic-to-Paid (M2 P2.4) — Meta creative briefs from top organic pages.
+/**
+ * How the ad should open, decided by the organic position the keyword holds.
+ *
+ * `own` is top of page one (1-3), a position the site demonstrably holds, so the ad extends reach.
+ * `claim` is page one below the fold (4-10), where the ad has to earn a click the ranking is not
+ * winning on its own. Derived by `creativePlay()` in `@growthos/logic`, which is the only place
+ * the thresholds are defined.
+ */
+export type CreativePlay = "own" | "claim";
+
 export interface CreativeBrief {
   hook: string;
   primaryText: string;
@@ -473,6 +483,15 @@ export interface CreativeBrief {
   format: string;
   audience: string;
   callToAction: string;
+  /**
+   * Which play this brief runs, and the evidence for it.
+   *
+   * Optional because `content_briefs.brief` is jsonb and holds rows written before plays existed.
+   * Those rows still satisfy `isCreativeBrief` and must still render, so consumers treat these as
+   * absent-able rather than assuming a backfill that has not run.
+   */
+  play?: CreativePlay;
+  rationale?: string;
 }
 
 export interface TopOrganicPage {

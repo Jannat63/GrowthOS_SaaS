@@ -11,8 +11,23 @@ const page: TopOrganicPage = {
 };
 
 describe("creativeBriefToText", () => {
-  const brief = generateCreativeBrief("office chair");
+  // The generator reads the keyword's position and paid history, not just its name — two
+  // opportunities in different positions get different ads. Mirrors `page` so the two agree.
+  const brief = generateCreativeBrief({
+    keyword: "office chair",
+    volume: 18000,
+    currentPosition: 6,
+    paidProvenConversions: 42,
+  });
   const out = creativeBriefToText('Amplify "office chair" with a Meta campaign', brief, page);
+
+  it("carries the play and the evidence for it", () => {
+    // The play is why the ad opens the way it does; a handoff that drops it hands over copy with
+    // no reasoning attached.
+    expect(out).toContain("THE PLAY");
+    expect(out).toContain("Earn the click");
+    expect(out).toContain(brief.rationale!);
+  });
 
   it("carries every field the composer asks for", () => {
     // `headline` was the field the old card dropped entirely — it must survive the handoff too.

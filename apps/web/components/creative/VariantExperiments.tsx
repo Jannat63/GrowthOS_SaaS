@@ -181,8 +181,9 @@ function ExperimentRow({
   // Mirrors the engine rule: "we could not tell" is only useful if it says what was seen.
   const notesRequired = winner === "inconclusive" && !notes.trim();
 
+  // Carries its own conclude controls, so it takes the same hover as the other action rows.
   return (
-    <li className="rounded-lg border bg-secondary/30 p-4">
+    <li className="rounded-lg border bg-secondary/30 p-4 transition-colors hover:bg-secondary/50 focus-within:bg-secondary/50">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <p className="text-sm font-medium">{experiment.hypothesis}</p>
         <Badge variant={STATUS_VARIANT[experiment.status]}>{experiment.status}</Badge>

@@ -104,11 +104,18 @@ export function RecommendationRow({
   return (
     <li
       className={cn(
-        "px-5 py-4 transition-colors",
+        "group relative px-5 py-4 transition-colors",
         // A row on its way out of the queue reads as settled rather than active. Acting is the
         // page's whole purpose, so finishing something should visibly change it.
         rec.status === "acted" && "bg-success/[0.04]",
-        rec.status !== "pending" && rec.status !== "acted" && "opacity-70"
+        rec.status !== "pending" && rec.status !== "acted" && "opacity-70",
+        /*
+          Hover. The queue is a list of rows carrying per-row controls, and nothing responded to
+          the pointer — so which row an action belonged to was only knowable by aiming carefully.
+          `focus-within` gives keyboard users the same anchor, which the pointer-only version left
+          out. Both sit above the status tints above, so an acted row still reads as acted.
+        */
+        "hover:bg-secondary/40 focus-within:bg-secondary/40"
       )}
     >
       {/* Scan line: the same four facts in the same order on every row, so the eye can run down

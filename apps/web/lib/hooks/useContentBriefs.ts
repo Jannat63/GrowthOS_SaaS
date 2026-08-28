@@ -54,7 +54,7 @@ function mockBriefs(workspaceId: string): ContentBriefRecord[] {
       recommendationId: `o2p:${k.keyword}`,
       keyword: k.keyword,
       status: "draft" as ContentBriefStatus,
-      brief: generateCreativeBrief(k.keyword),
+      brief: generateCreativeBrief(k),
       source: "organic_top_page",
       publishedUrl: null,
       createdAt: null,
