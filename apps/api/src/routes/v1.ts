@@ -55,8 +55,7 @@ import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
 import { getKeywordClusters, getKeywordRankings, getOrganicTraffic } from '../seo.js'
 import { generateSchemaMarkup } from '../schema-markup-lookup.js'
 import { getInternalLinkRecommendations } from '../internal-links.js'
-import { getCampaignInsights } from '../google-ads.js'
-import { getMetaCampaignInsights } from '../meta-ads.js'
+import { getCampaignInsights } from '../campaign-insights.js'
 import { getAttribution } from '../attribution.js'
 import { getGrowthHub } from '../growth-hub.js'
 import { getArchivedReport, getWeeklyReport, listReportPeriods } from '../intelligence.js'
@@ -474,11 +473,16 @@ export async function registerV1Routes(app: FastifyInstance) {
 
   // Google Ads campaign insights (M3 P3.2 slice) — advisor over ClickHouse ad_performance
   // (seeded until a real Google Ads connection syncs; live API push is gated on the dev token).
+  //
+  // Both campaign endpoints take the same date window as every other data route. They used to take
+  // none at all and sum the whole table, so their totals were all-time figures rendered next to
+  // windowed ones with nothing on screen to tell them apart.
   app.get('/api/v1/workspaces/:id/google-ads/campaigns', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    return getCampaignInsights(id)
+    const q = z.object(DATE_WINDOW_QUERY).safeParse(request.query)
+    return getCampaignInsights(id, 'google_ads', q.success ? q.data : {})
   })
 
   // Meta Ads campaign insights (M3 P3.3 slice) — advisor over ClickHouse ad_performance (meta_ads;
@@ -487,7 +491,8 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    return getMetaCampaignInsights(id)
+    const q = z.object(DATE_WINDOW_QUERY).safeParse(request.query)
+    return getCampaignInsights(id, 'meta_ads', q.success ? q.data : {})
   })
 
   // Paid-to-organic search-terms surface — scores seeded terms + ensures recs/briefs exist.

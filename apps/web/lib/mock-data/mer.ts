@@ -1,121 +1,60 @@
 import type { MerDashboard, MerTrendPoint } from "@growthos/types";
 import { calculateBlendedMER } from "@growthos/logic";
+import { REVENUE_FACTOR, seedPlatformDays } from "@growthos/logic/fixtures";
+import { seedWindow } from "./seed-window";
 
 /**
- * Offline MER dashboard, mirroring what `apps/api/src/analytics.ts` computes from its seed.
+ * Offline MER dashboard, built from the SAME generator the API seeds ClickHouse with.
  *
- * The previous mock used the API's base constants with every variance factor dropped:
+ * It used to re-implement that generator by hand — `apps/web` cannot import from `apps/api`, so the
+ * weekend dip, the sinusoidal swing, the drift term and the window constants were all copied across
+ * and kept in step by a test. That was the best available at the time and it was explicitly flagged
+ * as known duplication. The generator now lives in `@growthos/logic/fixtures/seed`, which both sides
+ * import, so live and offline agree by construction rather than by vigilance.
  *
- *     const googleSpend = 45.5;                        // no spendFactor
- *     const metaSpend   = 90.25;                       // no spendFactor
+ * Before either fix, the mock used the API's base constants with every variance factor dropped:
+ *
+ *     const googleSpend = 45.5;                          // no spendFactor
+ *     const metaSpend   = 90.25;                         // no spendFactor
  *     const revenue     = Math.round((320 + 210) * 2.2); // no revFactor
  *
- * Identical every day, so the "MER trend" chart was a perfectly horizontal line at 8.59x on every
- * render — a trend chart structurally incapable of showing a trend — and `anomaly` was the literal
- * `{ detected: false, changePercent: 0 }` rather than the computed week-over-week figure. Against
- * the same window the API returns 27.43x swinging between 21.59x and 39.31x, so connecting a
- * backend moved the headline number by 219% with no visible cause. `liveOrMock` promises the same
- * shape *and the same content*; a fallback this far from live breaks that.
- *
- * KEPT IN STEP BY HAND. These constants are copied from `apps/api/src/analytics.ts` (`seedRows`,
- * `REVENUE_FACTOR`) and `apps/api/src/seed-window.ts` (`SEED_DAYS`, `SEED_LAST_DAY`); apps/web
- * cannot import from apps/api. `mer.test.ts` pins the relationship this file is supposed to hold,
- * so a drift shows up as a failing test rather than as a quietly different offline product.
+ * Identical every day, so the "MER trend" chart drew a perfectly horizontal line at 8.59x on every
+ * render, and `anomaly` was the literal `{ detected: false, changePercent: 0 }`. Against the same
+ * window the API returned 27.43x swinging between 21.59x and 39.31x.
  */
-const SEED_DAYS = 180;
-const SEED_LAST_DAY = "2026-07-17";
-const REVENUE_FACTOR = 2.2;
-
-const BASE = {
-  googleSpend: 45.5,
-  metaSpend: 90.25,
-  googleValue: 320,
-  metaValue: 210,
-} as const;
-
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-function iso(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
+export function merMock(range: { from: string; to: string } | null, days: number): MerDashboard {
+  const dates = new Set(seedWindow(range, days));
+  const rows = new Map<string, { googleSpend: number; metaSpend: number; convValue: number }>();
 
-/** Every seeded date, oldest first — mirrors `seedDates()`. */
-function seedDates(): string[] {
-  const end = new Date(`${SEED_LAST_DAY}T00:00:00Z`);
-  return Array.from({ length: SEED_DAYS }, (_, i) => {
-    const d = new Date(end);
-    d.setUTCDate(end.getUTCDate() - (SEED_DAYS - 1 - i));
-    return iso(d);
-  });
-}
+  for (const d of seedPlatformDays()) {
+    if (!dates.has(d.date)) continue;
+    const row = rows.get(d.date) ?? { googleSpend: 0, metaSpend: 0, convValue: 0 };
+    if (d.platform === "google_ads") row.googleSpend += d.spend;
+    else row.metaSpend += d.spend;
+    row.convValue += d.conversionValue;
+    rows.set(d.date, row);
+  }
 
-/**
- * One seeded day.
- *
- * `day` is the index within the FULL seed window, not within the requested range — same as the API,
- * where a row's figures never depend on which subset happened to be queried.
- */
-function seedDay(date: string, day: number) {
-  const d = new Date(`${date}T00:00:00Z`);
-  const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6;
-  const spendFactor = (weekend ? 0.7 : 1) * (1 + Math.sin(day / 3) * 0.12);
-  // Drift is a fraction of the whole window, not a per-day constant — see `drift()` in
-  // apps/api/src/analytics.ts. The per-day form compounded six times over when SEED_DAYS went to
-  // 180, taking blended MER to 27x.
-  const revFactor =
-    1 + Math.sin(day / 2.5 + 1) * 0.28 + (day / SEED_DAYS) * 0.36 + (weekend ? 0.08 : 0);
-  return {
-    date,
-    googleSpend: round2(BASE.googleSpend * spendFactor),
-    metaSpend: round2(BASE.metaSpend * spendFactor),
-    convValue: round2(BASE.googleValue * revFactor) + round2(BASE.metaValue * revFactor),
-  };
-}
-
-/**
- * The seeded window for a request, mirroring `resolveWindow`.
- *
- * With no explicit range the API returns the last N days of AVAILABLE data, not the last N days
- * before today — the fixtures end at `SEED_LAST_DAY` and every preset anchors there. The old mock
- * instead counted forward from a hardcoded `2026-06-18`, which only lined up for a 30-day request:
- * 7 days showed the wrong week, and 90 days invented two months of dates past the end of the seed.
- */
-function windowFor(range: { from: string; to: string } | null, days: number): string[] {
-  const all = seedDates();
-  if (!range) return all.slice(-days);
-  const from = new Date(`${range.from}T00:00:00Z`).getTime();
-  const to = new Date(`${range.to}T00:00:00Z`).getTime();
-  return all.filter((d) => {
-    const t = new Date(`${d}T00:00:00Z`).getTime();
-    return t >= from && t <= to;
-  });
-}
-
-export function merMock(
-  range: { from: string; to: string } | null,
-  days: number
-): MerDashboard {
-  const index = new Map(seedDates().map((d, i) => [d, i]));
-  const rows = windowFor(range, days).map((d) => seedDay(d, index.get(d)!));
-
-  const trend: MerTrendPoint[] = rows.map((r) => {
+  const trend: MerTrendPoint[] = [...rows.entries()].map(([date, r]) => {
     const revenue = Math.round(r.convValue * REVENUE_FACTOR);
-    const spend = r.googleSpend + r.metaSpend;
     return {
-      date: r.date,
+      date,
       mer: calculateBlendedMER({
         totalRevenue: revenue,
         googleAdsSpend: r.googleSpend,
         metaAdsSpend: r.metaSpend,
       }).blendedMER,
-      spend: round2(spend),
+      spend: round2(r.googleSpend + r.metaSpend),
       revenue,
     };
   });
 
-  const googleAdsSpend = rows.reduce((s, r) => s + r.googleSpend, 0);
-  const metaAdsSpend = rows.reduce((s, r) => s + r.metaSpend, 0);
-  const totalRevenue = rows.reduce((s, r) => s + r.convValue * REVENUE_FACTOR, 0);
+  const all = [...rows.values()];
+  const googleAdsSpend = all.reduce((s, r) => s + r.googleSpend, 0);
+  const metaAdsSpend = all.reduce((s, r) => s + r.metaSpend, 0);
+  const totalRevenue = all.reduce((s, r) => s + r.convValue * REVENUE_FACTOR, 0);
 
   return {
     trend,

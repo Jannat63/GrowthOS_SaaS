@@ -13,8 +13,7 @@ import {
 import { searchTerms } from '@growthos/logic/fixtures'
 import { AppError } from '../errors.js'
 import type { Page, Paged } from '../pagination.js'
-import { getCampaignInsights } from '../google-ads.js'
-import { getMetaCampaignInsights } from '../meta-ads.js'
+import { getCampaignInsights } from '../campaign-insights.js'
 import { getFatigueResults } from '../fatigue.js'
 import { executeAction } from './executor.js'
 import type { ActionTargetShape, StoredAction } from './types.js'
@@ -126,9 +125,14 @@ export async function planForWorkspace(
   )
   if (rules.filter((r) => r.enabled).length === 0) return []
 
+  // Rules are evaluated over the DEFAULT dashboard window (the last 30 days of available data),
+  // not over all of history. Both calls previously summed every row in the table, so a campaign that
+  // was fixed two months ago could still be proposed for a pause on the strength of figures nobody
+  // can see on screen. An automation acting on data the dashboard does not display cannot be
+  // explained to the person who has to approve it.
   const [google, meta, state] = await Promise.all([
-    getCampaignInsights(workspaceId),
-    getMetaCampaignInsights(workspaceId),
+    getCampaignInsights(workspaceId, 'google_ads'),
+    getCampaignInsights(workspaceId, 'meta_ads'),
     loadPlannerState(workspaceId, now),
   ])
 

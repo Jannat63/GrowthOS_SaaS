@@ -1,7 +1,8 @@
 import { createClient, type ClickHouseClient } from '@clickhouse/client'
 import { calculateBlendedMER } from '@growthos/logic'
+import { REVENUE_FACTOR as SEED_REVENUE_FACTOR, seedAdRows } from '@growthos/logic/fixtures'
 import type { MerDashboard, MerTrendPoint } from '@growthos/types'
-import { SEED_DAYS, seedDates, missingSeedDates } from './seed-window.js'
+import { missingSeedDates } from './seed-window.js'
 import { getDataBounds, resolveWindow, type DateWindowQuery } from './date-window.js'
 
 let client: ClickHouseClient | null = null
@@ -13,64 +14,80 @@ export function getClickhouse(): ClickHouseClient {
   return client
 }
 
-// Blended-revenue stand-in until real Shopify data (M3): ad-attributed value scaled up for organic.
-// Exported so every surface that reports "revenue" (MER dashboard, Growth Hub) derives it the same
-// way — two copies of this constant would let /analytics and the hub quietly disagree.
-export const REVENUE_FACTOR = 2.2
-
-// `only` limits which dates are generated, so a workspace missing part of the window backfills
-// just the gap. `day` stays the index within the FULL window, so a row's figures never depend on
-// which subset happened to be inserted.
 /**
- * Total drift across the WHOLE seed window, spread evenly over it.
+ * Blended-revenue stand-in until real Shopify data (M3): ad-attributed value scaled up for organic.
  *
- * The drift terms used to be `day * 0.012` (revenue) and `day * 0.008` (conversions) — per-day
- * constants calibrated when the seed was 30 days long. `day` indexes the full window, so when
- * SEED_DAYS became 180 the same constants compounded six times as far: revenue inflated 216% across
- * the window while spend has no drift at all, which pushed blended MER from 10.85x over the first
- * 30 days to 27.43x over the last 30 and would climb again on any future widening. Conversions
- * doubled over the window for the same reason.
- *
- * Expressed as a fraction of the window, the lift stays what it was meant to be whatever SEED_DAYS
- * becomes — the same shape of hazard `seed-window.ts` already documents for its 2x invariant.
- * The drift itself stays: it exists so period-over-period deltas are non-zero, and at these values
- * a 30-day window still moves ~4% on revenue and ~6% on conversions.
+ * Re-exported from the shared seed module rather than declared here, so /analytics, the Growth Hub
+ * and the browser's offline fallback cannot drift apart on it.
  */
-const drift = (day: number, totalOverWindow: number) => (day / SEED_DAYS) * totalOverWindow
+export const REVENUE_FACTOR = SEED_REVENUE_FACTOR
 
+/**
+ * The seeded rows, in ClickHouse's column names.
+ *
+ * The generator itself moved to `@growthos/logic/fixtures/seed` — see that module for why, and for
+ * the campaign roster it now writes. This is only the adapter from its camelCase shape to the
+ * table's snake_case columns.
+ *
+ * `only` limits which dates are inserted so a workspace missing part of the window backfills just
+ * the gap; the generator still computes the whole window and filters, so a row's figures never
+ * depend on which subset happened to be asked for.
+ */
 function seedRows(workspaceId: string, only?: Set<string>) {
-  const round2 = (n: number) => Math.round(n * 100) / 100
-  const rows: Record<string, unknown>[] = []
-  seedDates().forEach((date, day) => {
-    if (only && !only.has(date)) return
-    const d = new Date(`${date}T00:00:00Z`)
-    // Deterministic day-to-day variance so the MER trend reads as alive (weekend dip in
-    // spend, sinusoidal swing in revenue, mild upward drift). Seeded stand-in until M3.
-    const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6
-    const spendFactor = (weekend ? 0.7 : 1) * (1 + Math.sin(day / 3) * 0.12)
-    const revFactor = 1 + Math.sin(day / 2.5 + 1) * 0.28 + drift(day, 0.36) + (weekend ? 0.08 : 0)
-    // Conversions drift too. They used to be a flat 6/4 every single day, which meant the
-    // Conversions tile reported a permanent 0% change once period-over-period deltas started
-    // rendering — a headline KPI that never moves reads as a broken tile, not a stable business.
-    const convOf = (b: number) => Math.max(1, Math.round(b * (1 + Math.sin(day / 3.5) * 0.18 + drift(day, 0.24))))
-    rows.push({
-      workspace_id: workspaceId, platform: 'google_ads', campaign_id: 'g-1',
-      campaign_name: 'Search - Brand', date, impressions: 1000 + day * 10,
-      clicks: 80 + day, spend: round2(45.5 * spendFactor), conversions: convOf(6),
-      conversion_value: round2(320 * revFactor),
-    })
-    rows.push({
-      workspace_id: workspaceId, platform: 'meta_ads', campaign_id: 'm-1',
-      campaign_name: 'Prospecting - Lookalike', date, impressions: 5000 + day * 20,
-      clicks: 120 + day, spend: round2(90.25 * spendFactor), conversions: convOf(4),
-      conversion_value: round2(210 * revFactor),
-    })
-  })
-  return rows
+  return seedAdRows(only).map((r) => ({
+    workspace_id: workspaceId,
+    platform: r.platform,
+    campaign_id: r.campaignId,
+    campaign_name: r.campaignName,
+    date: r.date,
+    impressions: r.impressions,
+    clicks: r.clicks,
+    spend: r.spend,
+    conversions: r.conversions,
+    conversion_value: r.conversionValue,
+  }))
 }
 
-// Seed the workspace's ad_performance rows if it has none (generate-if-empty, like ensureRecommendations).
+/**
+ * The one-campaign-per-platform shape this seed used to write.
+ *
+ * `missingSeedDates` heals a widened WINDOW but not a changed SHAPE: a workspace seeded before the
+ * roster split has a row for every date, so nothing reads as missing and it would keep its single
+ * `g-1` / `m-1` campaign forever — the campaign pages would still show a one-row table while every
+ * newly created workspace showed five. Prune by id and re-seed.
+ *
+ * By id, and only these two ids, on purpose. A general "delete campaigns the roster doesn't know"
+ * sweep would delete a customer's real campaigns the moment a live Google/Meta sync lands. These
+ * two were only ever produced by this seeder.
+ */
+const LEGACY_SEED_CAMPAIGN_IDS = ['g-1', 'm-1']
+
+async function pruneLegacySeedShape(workspaceId: string): Promise<void> {
+  const rs = await getClickhouse().query({
+    query: `
+      SELECT count() AS n FROM ad_performance
+      WHERE workspace_id = {ws:String} AND campaign_id IN {ids:Array(String)}`,
+    query_params: { ws: workspaceId, ids: LEGACY_SEED_CAMPAIGN_IDS },
+    format: 'JSONEachRow',
+  })
+  const [row] = (await rs.json()) as { n: string | number }[]
+  if (Number(row?.n ?? 0) === 0) return
+
+  await getClickhouse().command({
+    query: `
+      ALTER TABLE ad_performance DELETE
+      WHERE workspace_id = {ws:String} AND campaign_id IN {ids:Array(String)}`,
+    query_params: { ws: workspaceId, ids: LEGACY_SEED_CAMPAIGN_IDS },
+    // Wait for the mutation to actually apply. Without this the DELETE is queued and the
+    // `missingSeedDates` call below still sees the old rows, reports nothing missing, and leaves
+    // the workspace with no ad data at all — strictly worse than the stale shape it replaced.
+    clickhouse_settings: { mutations_sync: '2' },
+  })
+}
+
+/** Seed the workspace's ad_performance rows if it has none (generate-if-empty, like ensureRecommendations). */
 export async function ensureAdPerformanceSeed(workspaceId: string): Promise<void> {
+  await pruneLegacySeedShape(workspaceId)
   const missing = await missingSeedDates(getClickhouse(), 'ad_performance', workspaceId)
   if (missing.length === 0) return
   await getClickhouse().insert({

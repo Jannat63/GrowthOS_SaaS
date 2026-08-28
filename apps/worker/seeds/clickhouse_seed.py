@@ -1,34 +1,36 @@
-"""Seed local ClickHouse with fixture ad_performance rows so P2.6 (Blended MER) has data.
-Run: cd apps/worker && .venv/Scripts/python -m seeds.clickhouse_seed
+"""RETIRED. The API seeds ad_performance itself — do not run this.
+
+This script was P2.1's way of getting rows into ClickHouse so P2.6 (Blended MER) had something to
+read. `apps/api` has owned that job since `ensureAdPerformanceSeed` landed, and the two disagree in
+every respect that matters:
+
+* Window. This wrote 30 flat days from 2026-07-01; the API writes 180 ending 2026-07-17. The two
+  windows OVERLAP, and `ad_performance` is a plain MergeTree with no de-duplication, so running this
+  against a workspace the API has already seeded silently doubles seventeen days of spend and
+  revenue. Nothing would report an error — the dashboard would just be wrong.
+* Shape. This wrote one campaign per platform (`g-1`, `m-1`). The API writes the full campaign
+  roster, and treats those two ids as a stale shape to be pruned on sight.
+* Values. Every row here is a constant, so there is no weekend dip, no revenue swing and no drift —
+  the same flatness that made the MER trend chart a horizontal line for as long as the browser's
+  offline fallback copied it.
+
+The generator now lives in ONE place, `packages/logic/src/fixtures/seed.ts`, which `apps/api` inserts
+from and `apps/web` reads for its offline fallback. A Python copy could not import it, and a fourth
+hand-maintained copy of the same arithmetic is what this comment exists to prevent.
+
+To seed a workspace: start the API and open any dashboard page. `ensureAdPerformanceSeed` runs on
+first read, backfills only the dates that are missing, and is idempotent.
 """
-import datetime as dt
-import clickhouse_connect
-from app.config import settings
 
-WORKSPACE_ID = "00000000-0000-0000-0000-0000000000aa"  # matches the seeded demo workspace
+import sys
 
-
-def _rows() -> list[list]:
-    base = dt.date(2026, 7, 1)
-    rows: list[list] = []
-    for day in range(30):
-        d = base + dt.timedelta(days=day)
-        # (workspace_id, platform, campaign_id, campaign_name, date, impressions, clicks, spend, conversions, conversion_value)
-        rows.append([WORKSPACE_ID, "google_ads", "g-1", "Search - Brand", d, 1000 + day * 10, 80 + day, 45.50, 6, 320.0])
-        rows.append([WORKSPACE_ID, "meta_ads", "m-1", "Prospecting - Lookalike", d, 5000 + day * 20, 120 + day, 90.25, 4, 210.0])
-    return rows
+MESSAGE = __doc__
 
 
 def seed() -> int:
-    client = clickhouse_connect.get_client(host=settings.clickhouse_host, port=settings.clickhouse_port)
-    columns = ["workspace_id", "platform", "campaign_id", "campaign_name", "date",
-               "impressions", "clicks", "spend", "conversions", "conversion_value"]
-    client.insert("ad_performance", _rows(), column_names=columns)
-    count = client.query("SELECT count() FROM ad_performance WHERE workspace_id = %(w)s",
-                         parameters={"w": WORKSPACE_ID}).result_rows[0][0]
-    print(f"OK: ad_performance rows for workspace = {count}")
-    return count
+    raise RuntimeError(MESSAGE)
 
 
 if __name__ == "__main__":
-    assert seed() >= 60
+    print(MESSAGE, file=sys.stderr)
+    sys.exit(1)

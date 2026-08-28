@@ -1,7 +1,15 @@
 import type { ClickHouseClient } from '@clickhouse/client'
+import { SEED_DAYS, SEED_LAST_DAY, seedDates } from '@growthos/logic/fixtures'
 
 /**
  * The shape of every seeded ClickHouse window (ad_performance, organic_traffic).
+ *
+ * The window itself — SEED_DAYS, SEED_LAST_DAY and the date list — now lives in
+ * `@growthos/logic/fixtures/seed`, because `apps/web` has to generate the identical window for its
+ * offline fallback and cannot import from `apps/api`. It used to be copied by hand into
+ * `apps/web/lib/mock-data/mer.ts`. Re-exported here so this module stays the one place the API
+ * asks about the seeded window, and so the invariant below keeps a home next to the query that
+ * depends on it.
  *
  * THE INVARIANT: SEED_DAYS >= 2 x the largest range a dashboard offers (90 today, in
  * lib/stores/range.ts and the analytics page). The Growth Hub compares a window against the one
@@ -15,22 +23,7 @@ import type { ClickHouseClient } from '@clickhouse/client'
  * moving "now". Everything keyed off `max(date)` — the MER trend, both aggregate queries, the
  * weekly report — keeps behaving identically.
  */
-export const SEED_DAYS = 180
-
-/** Last seeded day. Fixed rather than `today()` so seeded figures are reproducible across runs. */
-export const SEED_LAST_DAY = '2026-07-17'
-
-/** Every date in the seed window, oldest first, as `YYYY-MM-DD`. */
-export function seedDates(): string[] {
-  const end = new Date(`${SEED_LAST_DAY}T00:00:00Z`)
-  const dates: string[] = []
-  for (let i = SEED_DAYS - 1; i >= 0; i--) {
-    const d = new Date(end)
-    d.setUTCDate(end.getUTCDate() - i)
-    dates.push(d.toISOString().slice(0, 10))
-  }
-  return dates
-}
+export { SEED_DAYS, SEED_LAST_DAY, seedDates }
 
 /**
  * Which seed dates a workspace is missing from `table`.

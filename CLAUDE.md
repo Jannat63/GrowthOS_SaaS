@@ -72,14 +72,26 @@ root (live). Reusing legacy logic means porting/copying it into the new structur
 - `packages/config` — shared TypeScript base config only.
 - `apps/worker` — **exists (M2 P2.1 done).** Plain **Python** worker (not Celery) driven by a Redis job-bridge
   (JSON envelope): `app/consumer.py`, `app/dispatch.py`, `app/envelope.py`, handlers in `app/handlers/`,
-  `app/strategy.py`, and `seeds/clickhouse_seed.py`. Pytest suite in `tests/`. Local Redis + ClickHouse via
-  `docker-compose.yml`. Check `docs/plan/` for current phase status before assuming anything else.
+  and `app/strategy.py`. Pytest suite in `tests/`. Local Redis + ClickHouse via `docker-compose.yml`.
+  `seeds/clickhouse_seed.py` is **retired and must not be run** — the API seeds `ad_performance`
+  itself, over a different window, and the two overlap into silently doubled rows. Check
+  `docs/plan/` for current phase status before assuming anything else.
 
 The canonical business logic lives in **`packages/logic/src/*`** (the `@growthos/logic` package — pure, tested
 TS engines in `engines/`: `seo-scoring`, `search-terms-bridge`, `creative-fatigue`, `cross-channel-engine`,
 `blended-mer`, `goal-simulator`, `google-ads-advisor`, `meta-ads-advisor`, `attribution`; plus top-level
 brief/recommendation/intelligence helpers). Consumed by both `apps/api` and `apps/web` via `workspace:*`. The
 same logic is duplicated as ports inside `/legacy` services — treat the `@growthos/logic` copies as canonical.
+
+**The seeded demo account is defined once, in `packages/logic/src/fixtures/seed.ts`.** The window
+(`SEED_DAYS`, `SEED_LAST_DAY`), `REVENUE_FACTOR`, the per-day variance and the campaign roster all
+live there, because `apps/api` inserts from it into ClickHouse and `apps/web` reads it for the
+offline `liveOrMock` fallback — and `apps/web` cannot import from `apps/api`. Every past copy of that
+arithmetic drifted and produced a visibly different product offline (a flat MER line at 8.59x
+against a live 27.43x; a one-row campaign table against a four-row one). **Do not re-derive seeded
+figures anywhere else** — import them. Its own suite pins the invariant that a change to the campaign
+split cannot move a platform's daily totals, since MER, the Growth Hub, the weekly report and the
+intelligence report all read those totals.
 
 ## Commands
 
