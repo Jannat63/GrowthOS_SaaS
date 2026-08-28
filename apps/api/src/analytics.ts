@@ -1,7 +1,7 @@
 import { createClient, type ClickHouseClient } from '@clickhouse/client'
 import { calculateBlendedMER } from '@growthos/logic'
 import type { MerDashboard, MerTrendPoint } from '@growthos/types'
-import { seedDates, missingSeedDates } from './seed-window.js'
+import { SEED_DAYS, seedDates, missingSeedDates } from './seed-window.js'
 import { getDataBounds, resolveWindow, type DateWindowQuery } from './date-window.js'
 
 let client: ClickHouseClient | null = null
@@ -21,6 +21,23 @@ export const REVENUE_FACTOR = 2.2
 // `only` limits which dates are generated, so a workspace missing part of the window backfills
 // just the gap. `day` stays the index within the FULL window, so a row's figures never depend on
 // which subset happened to be inserted.
+/**
+ * Total drift across the WHOLE seed window, spread evenly over it.
+ *
+ * The drift terms used to be `day * 0.012` (revenue) and `day * 0.008` (conversions) — per-day
+ * constants calibrated when the seed was 30 days long. `day` indexes the full window, so when
+ * SEED_DAYS became 180 the same constants compounded six times as far: revenue inflated 216% across
+ * the window while spend has no drift at all, which pushed blended MER from 10.85x over the first
+ * 30 days to 27.43x over the last 30 and would climb again on any future widening. Conversions
+ * doubled over the window for the same reason.
+ *
+ * Expressed as a fraction of the window, the lift stays what it was meant to be whatever SEED_DAYS
+ * becomes — the same shape of hazard `seed-window.ts` already documents for its 2x invariant.
+ * The drift itself stays: it exists so period-over-period deltas are non-zero, and at these values
+ * a 30-day window still moves ~4% on revenue and ~6% on conversions.
+ */
+const drift = (day: number, totalOverWindow: number) => (day / SEED_DAYS) * totalOverWindow
+
 function seedRows(workspaceId: string, only?: Set<string>) {
   const round2 = (n: number) => Math.round(n * 100) / 100
   const rows: Record<string, unknown>[] = []
@@ -31,11 +48,11 @@ function seedRows(workspaceId: string, only?: Set<string>) {
     // spend, sinusoidal swing in revenue, mild upward drift). Seeded stand-in until M3.
     const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6
     const spendFactor = (weekend ? 0.7 : 1) * (1 + Math.sin(day / 3) * 0.12)
-    const revFactor = 1 + Math.sin(day / 2.5 + 1) * 0.28 + day * 0.012 + (weekend ? 0.08 : 0)
+    const revFactor = 1 + Math.sin(day / 2.5 + 1) * 0.28 + drift(day, 0.36) + (weekend ? 0.08 : 0)
     // Conversions drift too. They used to be a flat 6/4 every single day, which meant the
     // Conversions tile reported a permanent 0% change once period-over-period deltas started
     // rendering — a headline KPI that never moves reads as a broken tile, not a stable business.
-    const convOf = (b: number) => Math.max(1, Math.round(b * (1 + Math.sin(day / 3.5) * 0.18 + day * 0.008)))
+    const convOf = (b: number) => Math.max(1, Math.round(b * (1 + Math.sin(day / 3.5) * 0.18 + drift(day, 0.24))))
     rows.push({
       workspace_id: workspaceId, platform: 'google_ads', campaign_id: 'g-1',
       campaign_name: 'Search - Brand', date, impressions: 1000 + day * 10,
