@@ -1,35 +1,38 @@
 "use client";
-import { useState } from "react";
-import { GitBranch } from "lucide-react";
-import { channelLabel, type AttributionModel } from "@growthos/logic";
+import { useMemo, useState } from "react";
+import {
+  attributionSpread,
+  channelRoles,
+  pathsRevenue,
+  type AttributionModel,
+} from "@growthos/logic";
 import { Card } from "@growthos/ui/components/card";
 import { Skeleton } from "@growthos/ui/components/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@growthos/ui/components/table";
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useAttribution } from "@/lib/hooks/useAttribution";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
-import { cn } from "@/lib/utils/cn";
+import { CreditSpread } from "@/components/attribution/CreditSpread";
+import { ModelPicker } from "@/components/attribution/ModelPicker";
+import { ModelMatrix } from "@/components/attribution/ModelMatrix";
+import { PathLedger } from "@/components/attribution/PathLedger";
+import { usd } from "@/components/attribution/models";
 
-const MODELS: { key: AttributionModel; label: string }[] = [
-  { key: "last_click", label: "Last click" },
-  { key: "first_click", label: "First click" },
-  { key: "linear", label: "Linear" },
-  { key: "time_decay", label: "Time decay" },
-  { key: "position_based", label: "Position-based" },
-];
-
-const usd = (n: number) =>
-  n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-
+/**
+ * Cross-channel attribution.
+ *
+ * The page is built around one question — *how much of a channel's credit is a
+ * property of the model rather than of the business* — because that is the only
+ * question the five models together can answer. Any single model's numbers are
+ * available from the platform that reported them; the disagreement between them
+ * is not, and it is what decides whether a budget split is trustworthy.
+ *
+ * Everything below re-expresses one piece of state, the selected model: the
+ * marker positions in the chart, the weights printed on each path, and the lit
+ * column in the table. That is why the accent colour is spent on the selection
+ * and on nothing else.
+ */
 export default function AttributionPage() {
   const { data: me } = useWorkspace();
   const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -37,115 +40,93 @@ export default function AttributionPage() {
 
   const { data: attribution } = useAttribution(workspaceId);
   const a = attribution?.data;
+  // Linear is the default because it is the only model that takes no position on
+  // which touch mattered; the page's argument is that the choice is a choice.
   const [selected, setSelected] = useState<AttributionModel>("linear");
+
+  const paths = useMemo(() => a?.paths ?? [], [a]);
+
+  // From the paths, so rounding in the per-channel credits cannot make the totals
+  // row disagree with itself between columns. The fallback covers a response
+  // cached before the endpoint returned paths: summing a model's credits lands a
+  // cent off the true pot, which is invisible at whole-dollar precision and much
+  // better than a page that divides by zero.
+  const totalRevenue = useMemo(() => {
+    const fromPaths = pathsRevenue(paths);
+    if (fromPaths > 0) return fromPaths;
+    return a?.models.linear.reduce((sum, c) => sum + c.revenue, 0) ?? 0;
+  }, [paths, a]);
+
+  const spread = useMemo(
+    () => (a ? attributionSpread(a.models, totalRevenue) : []),
+    [a, totalRevenue],
+  );
+  const roles = useMemo(() => channelRoles(paths), [paths]);
 
   return (
     <div className="animate-rise space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight">
             Cross-channel attribution
           </h1>
-          <p className="text-sm text-muted-foreground">
-            How revenue credit shifts across channels under different attribution models.
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            The same conversions, divided five ways. Where the models disagree is where a budget
+            decision is least safe.
           </p>
+          {spread.length > 0 && (
+            <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+              {paths.length || "—"} conversion paths · {usd(totalRevenue)} · {spread.length} channels
+            </p>
+          )}
         </div>
-        {attribution && <DataSourceBadge source={attribution.source} platform={MODULE_PLATFORMS.attribution} />}
+        {attribution && (
+          <DataSourceBadge
+            source={attribution.source}
+            platform={MODULE_PLATFORMS.attribution}
+          />
+        )}
       </div>
 
       {!a ? (
-        <Skeleton className="h-64 w-full rounded-lg" />
+        <div className="space-y-6">
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-96 w-full rounded-lg" />
+          <Skeleton className="h-64 w-full rounded-lg" />
+        </div>
+      ) : spread.length === 0 ? (
+        <Card className="p-6">
+          <h2 className="font-display text-lg font-semibold tracking-tight">
+            No conversion paths yet
+          </h2>
+          <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">
+            Attribution needs conversions that touched at least one channel. Paths appear here as
+            your connected channels start reporting them — connect a channel in Settings to begin
+            collecting.
+          </p>
+        </Card>
       ) : (
         <>
-          {/* Comparison matrix: each channel's attributed revenue under every model */}
-          <section className="space-y-3">
-            <h2 className="font-display text-lg font-semibold tracking-tight">Model comparison</h2>
-            <Card className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Channel</TableHead>
-                      {MODELS.map((m) => (
-                        <TableHead key={m.key} className="text-right">
-                          {m.label}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {a.channels.map((channel) => (
-                      <TableRow key={channel}>
-                        <TableCell className="font-medium">{channelLabel(channel)}</TableCell>
-                        {MODELS.map((m) => {
-                          const credit = a.models[m.key].find((c) => c.channel === channel);
-                          return (
-                            <TableCell key={m.key} className="text-right tabular-nums">
-                              {usd(credit?.revenue ?? 0)}
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </Card>
-            <p className="text-xs text-muted-foreground">
-              Last/first-click credit a single touch; linear splits evenly; time-decay favors closing
-              touches; position-based weights the first and last at 40% each.
-            </p>
-          </section>
+          <Card className="p-5">
+            <ModelPicker selected={selected} onSelect={setSelected} />
+          </Card>
 
-          {/* Focused single-model view */}
-          <section className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {MODELS.map((m) => (
-                <button
-                  key={m.key}
-                  onClick={() => setSelected(m.key)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
-                    selected === m.key
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:bg-secondary/60"
-                  )}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-            <Card className="space-y-3 p-6">
-              {(() => {
-                const credits = [...a.models[selected]].sort((x, y) => y.revenue - x.revenue);
-                const max = Math.max(...credits.map((c) => c.revenue), 1);
-                return credits.map((c) => (
-                  <div key={c.channel} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{channelLabel(c.channel)}</span>
-                      <span className="tabular-nums">
-                        {usd(c.revenue)}{" "}
-                        <span className="text-muted-foreground">
-                          · {c.conversions.toFixed(1)} conv.
-                        </span>
-                      </span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-secondary">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${(c.revenue / max) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ));
-              })()}
-            </Card>
-          </section>
+          <CreditSpread
+            spread={spread}
+            roles={roles}
+            selected={selected}
+            totalRevenue={totalRevenue}
+            pathCount={paths.length}
+          />
 
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <GitBranch className="h-3.5 w-3.5" />
-            Sample multi-touch paths — real paths populate as connected channels report conversions.
-          </p>
+          {paths.length > 0 && <PathLedger paths={paths} selected={selected} />}
+
+          <ModelMatrix
+            spread={spread}
+            selected={selected}
+            onSelect={setSelected}
+            totalRevenue={totalRevenue}
+          />
         </>
       )}
     </div>

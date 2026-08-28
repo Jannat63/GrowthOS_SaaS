@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   attribute,
   attributeAll,
+  attributionSpread,
+  channelRoles,
   modelWeights,
+  pathsRevenue,
   ATTRIBUTION_MODELS,
   type ConversionPath,
 } from "./attribution.js";
@@ -89,5 +92,94 @@ describe("attribute", () => {
         expect(credit[i - 1]!.revenue).toBeGreaterThanOrEqual(credit[i]!.revenue);
       }
     }
+  });
+});
+
+describe("attribution spread", () => {
+  const models = attributeAll(paths);
+  const total = pathsRevenue(paths);
+
+  it("totals the paths, not the rounded per-channel credits", () => {
+    expect(total).toBe(300);
+    // Summing linear's credits lands on 300.00999… over the seeded fixture; the
+    // spread's denominator must not inherit that drift.
+    expect(pathsRevenue([])).toBe(0);
+  });
+
+  it("orders channels by widest disagreement first", () => {
+    const spread = attributionSpread(models, total);
+    for (let i = 1; i < spread.length; i++) {
+      expect(spread[i - 1]!.swing).toBeGreaterThanOrEqual(spread[i]!.swing);
+    }
+  });
+
+  it("swing is the distance between the most and least generous model", () => {
+    const seo = attributionSpread(models, total).find((s) => s.channel === "seo")!;
+    // seo opens c1 ($100) and never closes: everything under first-click, nothing
+    // under last-click.
+    expect(seo.byModel.first_click).toBe(100);
+    expect(seo.byModel.last_click).toBe(0);
+    expect(seo.swing).toBe(100);
+    expect(seo.swingShare).toBeCloseTo(100 / 300, 6);
+  });
+
+  it("keeps a channel that earns nothing under some model", () => {
+    const spread = attributionSpread(models, total);
+    expect(spread.map((s) => s.channel).sort()).toEqual(["google_ads", "meta_ads", "seo"]);
+    expect(spread.every((s) => s.min <= s.max)).toBe(true);
+  });
+
+  it("reports no swing when every model agrees", () => {
+    // A single-touch path gives that channel 100% under every model.
+    const solo = attributeAll([{ id: "s", conversionValue: 50, touchpoints: [{ channel: "email", order: 0 }] }]);
+    const [spread] = attributionSpread(solo, 50);
+    expect(spread!.swing).toBe(0);
+    expect(spread!.swingShare).toBe(0);
+    expect(spread!.min).toBe(50);
+  });
+
+  it("divides by nothing safely when there is no revenue", () => {
+    const free = attributeAll([{ id: "z", conversionValue: 0, touchpoints: [{ channel: "seo", order: 0 }] }]);
+    expect(attributionSpread(free, 0)[0]!.swingShare).toBe(0);
+  });
+});
+
+describe("channel roles", () => {
+  it("counts openers and closers separately", () => {
+    const roles = channelRoles(paths);
+    expect(roles.seo).toMatchObject({ opens: 1, closes: 0, paths: 1 });
+    expect(roles.meta_ads).toMatchObject({ opens: 1, closes: 1, paths: 2 });
+    expect(roles.google_ads).toMatchObject({ opens: 0, closes: 1, paths: 2 });
+  });
+
+  it("counts a repeated channel once per path", () => {
+    const roles = channelRoles([
+      {
+        id: "r",
+        conversionValue: 10,
+        touchpoints: [
+          { channel: "meta_ads", order: 0 },
+          { channel: "meta_ads", order: 1 },
+        ],
+      },
+    ]);
+    expect(roles.meta_ads).toMatchObject({ opens: 1, closes: 1, paths: 1 });
+  });
+
+  it("reads touch order rather than array order", () => {
+    const roles = channelRoles([
+      {
+        id: "u",
+        conversionValue: 10,
+        touchpoints: [
+          { channel: "google_ads", order: 2 },
+          { channel: "seo", order: 0 },
+          { channel: "email", order: 1 },
+        ],
+      },
+    ]);
+    expect(roles.seo!.opens).toBe(1);
+    expect(roles.google_ads!.closes).toBe(1);
+    expect(roles.email).toMatchObject({ opens: 0, closes: 0, paths: 1 });
   });
 });

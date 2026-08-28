@@ -35,6 +35,22 @@ const TableBody = React.forwardRef<
 ));
 TableBody.displayName = "TableBody";
 
+// shadcn's canonical footer section. A totals row is `<tfoot>`, not a last `<tr>`
+// in the body: assistive technology announces it as a summary of the column
+// rather than as one more data row, and the browser keeps it with the table when
+// the body scrolls.
+const TableFooter = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <tfoot
+    ref={ref}
+    className={cn("border-t bg-muted/40 font-medium [&>tr]:last:border-b-0", className)}
+    {...props}
+  />
+));
+TableFooter.displayName = "TableFooter";
+
 const TableRow = React.forwardRef<
   HTMLTableRowElement,
   React.HTMLAttributes<HTMLTableRowElement>
@@ -77,4 +93,4 @@ const TableCell = React.forwardRef<
 ));
 TableCell.displayName = "TableCell";
 
-export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell };
+export { Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell };

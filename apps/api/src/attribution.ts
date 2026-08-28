@@ -11,6 +11,15 @@ import { getClickhouse } from './analytics.js'
 export interface AttributionResponse {
   models: Record<AttributionModel, ChannelCredit[]>
   channels: string[]
+  /** The paths the credit was divided over.
+   *
+   * Returned, not just consumed: the aggregates alone are unfalsifiable — a
+   * reader is asked to accept that SEO earns $0 under last click without ever
+   * seeing that it opens three paths and closes none. The UI prints each path
+   * with the selected model's weights on it, which is also the only honest way
+   * to show that position-based falls back to an even split on a two-touch path
+   * rather than the 40/40 its name implies. */
+  paths: ConversionPath[]
 }
 
 // The attribution touchpoint table isn't in the base ClickHouse init (added in M4) — create it on
@@ -90,7 +99,7 @@ export async function getAttribution(workspaceId: string): Promise<AttributionRe
   const models = attributeAll(paths)
   // Consistent channel set across models (linear touches every channel).
   const channels = [...new Set(models.linear.map((c) => c.channel))].sort()
-  return { models, channels }
+  return { models, channels, paths }
 }
 
 export { ATTRIBUTION_MODELS }
