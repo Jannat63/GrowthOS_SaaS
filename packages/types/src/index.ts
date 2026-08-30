@@ -12,6 +12,11 @@ export const ERROR_STATUS = {
   INTEGRATION_NOT_CONNECTED: 409,
   RATE_LIMITED: 429,
   JOB_QUEUED: 202,
+  // A real third-party service (e.g. Google PageSpeed Insights) was reachable but failed or
+  // errored — distinct from INTERNAL_ERROR (our own bug) and INTEGRATION_NOT_CONNECTED (nothing
+  // was even configured). 502 Bad Gateway: this server, acting as a gateway, got an invalid
+  // response from the upstream server it was calling.
+  UPSTREAM_ERROR: 502,
   INTERNAL_ERROR: 500,
 } as const;
 
@@ -241,6 +246,48 @@ export interface InternalLinkRecommendation {
 export interface InternalLinkRecommendationsResponse {
   recommendations: InternalLinkRecommendation[];
   summary: { opportunities: number; highPriority: number };
+}
+
+// Site audit (SEO extras — M4, real feature). A genuine crawl over real HTTP, run as a background
+// job (apps/worker's `site_audit` handler) since it can take a while against a real domain. No
+// third-party API — this is GrowthOS's own crawler, restored from the pre-rebuild implementation.
+export interface SiteAuditPageResult {
+  url: string;
+  statusCode: number | null;
+  title: string | null;
+  metaDescription: string | null;
+  h1Count: number;
+  wordCount: number;
+  hasCanonical: boolean;
+  internalLinks: string[];
+  issues: string[];
+}
+export interface SiteAuditResult {
+  startUrl: string;
+  pagesCrawled: number;
+  totalIssues: number;
+  healthyPages: number;
+  pages: SiteAuditPageResult[];
+}
+export interface SiteAuditStatusResponse {
+  jobId: string;
+  status: JobStatus;
+  progress: number;
+  result?: SiteAuditResult;
+  error?: string;
+}
+
+// Core Web Vitals (SEO extras, real feature) — a direct, synchronous call to Google's PageSpeed
+// Insights API (see apps/api/src/core-web-vitals.ts). Real field/lab data, not seeded.
+export interface CoreWebVitalsResponse {
+  url: string;
+  strategy: "mobile" | "desktop";
+  performanceScore: number | null;
+  lcpMs: number | null;
+  clsScore: number | null;
+  inpMs: number | null;
+  ttfbMs: number | null;
+  fetchedAt: string;
 }
 
 // An entry in a workspace's audit log (M3 P3.5).

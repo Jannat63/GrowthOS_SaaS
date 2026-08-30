@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { fromNodeHeaders } from 'better-auth/node'
 import { db, schema } from '@growthos/db'
@@ -42,6 +42,7 @@ import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
 import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
 import { getKeywordRankings, getOrganicTraffic } from '../seo.js'
+import { getCoreWebVitals } from '../core-web-vitals.js'
 import { generateSchemaMarkup } from '../schema-markup-lookup.js'
 import { getInternalLinkRecommendations } from '../internal-links.js'
 import { getCampaignInsights } from '../google-ads.js'
@@ -511,6 +512,107 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     return getInternalLinkRecommendations(id)
+  })
+
+  // Site audit (SEO extras, real feature) — crawls a real URL over real HTTP via the `site_audit`
+  // worker job. No third-party API. Defaults to the workspace's own websiteUrl if none is given.
+  // Idempotent the same way onboarding_analyze is: an in-flight audit is returned, not duplicated.
+  const siteAuditBody = z.object({
+    url: z.string().url().optional(),
+    maxPages: z.number().int().min(1).max(50).optional(),
+  })
+  app.post('/api/v1/workspaces/:id/seo/site-audit', async (request, reply) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+
+    const body = siteAuditBody.safeParse(request.body ?? {})
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    let url = body.data.url
+    if (!url) {
+      const [ws] = await db
+        .select({ websiteUrl: schema.workspaces.websiteUrl })
+        .from(schema.workspaces)
+        .where(eq(schema.workspaces.id, id))
+      if (!ws?.websiteUrl) {
+        throw new AppError(
+          'VALIDATION_ERROR',
+          'No URL given and this workspace has no website URL on file — pass one explicitly.',
+        )
+      }
+      url = ws.websiteUrl
+    }
+
+    const [inflight] = await db
+      .select({ id: schema.backgroundJobs.id })
+      .from(schema.backgroundJobs)
+      .where(
+        and(
+          eq(schema.backgroundJobs.workspaceId, id),
+          eq(schema.backgroundJobs.type, 'site_audit'),
+          inArray(schema.backgroundJobs.status, ['queued', 'processing']),
+        ),
+      )
+      .limit(1)
+
+    reply.status(202)
+    if (inflight) {
+      return { jobId: inflight.id, statusUrl: `/api/v1/workspaces/${id}/jobs/${inflight.id}` }
+    }
+    return enqueue({
+      workspaceId: id,
+      type: 'site_audit',
+      payload: { url, ...(body.data.maxPages ? { maxPages: body.data.maxPages } : {}) },
+    })
+  })
+
+  // Most recent site-audit job for this workspace (queued/processing/complete/failed) — lets the
+  // page show the last real result on load without the client needing to remember a jobId.
+  app.get('/api/v1/workspaces/:id/seo/site-audit', async (request, reply) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+
+    const [job] = await db
+      .select()
+      .from(schema.backgroundJobs)
+      .where(and(eq(schema.backgroundJobs.workspaceId, id), eq(schema.backgroundJobs.type, 'site_audit')))
+      .orderBy(desc(schema.backgroundJobs.queuedAt))
+      .limit(1)
+
+    if (!job) {
+      reply.status(404)
+      return { error: { code: 'NOT_FOUND', message: 'No site audit has been run yet.', statusCode: 404 } }
+    }
+    return {
+      jobId: job.id,
+      status: job.status as JobStatusResponse['status'],
+      progress: job.progress,
+      ...(job.result != null ? { result: job.result } : {}),
+      ...(job.error != null ? { error: job.error } : {}),
+    }
+  })
+
+  // Core Web Vitals (SEO extras, real feature) — a direct call to Google's PageSpeed Insights API,
+  // no worker job needed since it responds in a few seconds. Genuinely free; see
+  // core-web-vitals.ts for the (optional) API key note.
+  const coreWebVitalsQuery = z.object({
+    url: z.string().url(),
+    strategy: z.enum(['mobile', 'desktop']).optional(),
+  })
+  app.get('/api/v1/workspaces/:id/seo/core-web-vitals', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+
+    const query = coreWebVitalsQuery.safeParse(request.query)
+    if (!query.success) {
+      throw new AppError('VALIDATION_ERROR', query.error.issues[0]?.message ?? 'A valid ?url= is required.')
+    }
+    return getCoreWebVitals(query.data.url, query.data.strategy)
   })
 
   // Organic-to-paid — top organic pages worth amplifying with Meta (+ generate recs/creative briefs).
