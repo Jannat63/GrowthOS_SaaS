@@ -290,6 +290,19 @@ export interface CoreWebVitalsResponse {
   fetchedAt: string;
 }
 
+// Keyword clustering (SEO extras, real feature) — a pure Jaccard-similarity algorithm
+// (@growthos/logic's clusterKeywords) run over this workspace's already-tracked keywords. Real
+// whenever the tracked keywords themselves are real (a live Search Console sync); same-shaped
+// sample output otherwise, per the usual three-state provenance rule.
+export interface KeywordClusterGroup {
+  clusterName: string;
+  keywords: string[];
+}
+export interface KeywordClustersResponse {
+  clusters: KeywordClusterGroup[];
+  totalKeywords: number;
+}
+
 // An entry in a workspace's audit log (M3 P3.5).
 export interface AuditLogEntry {
   id: string;

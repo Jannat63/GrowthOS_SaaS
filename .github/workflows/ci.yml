@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main, shihab-restructure]
+  pull_request:
+
+# This is the project's first CI pipeline (see docs/plan/M5-launch-monetization/GO_LIVE_CHECKLIST.md
+# — "no CI/CD pipeline" was an open item). It mirrors docker-compose.local.yml's exact service
+# versions so "passes in CI" means the same thing as "passes against Local Demo Mode", not a
+# fictional third environment.
+#
+# I wrote this against the actual scripts and configs in this repo (turbo.json, drizzle.config.ts,
+# scripts/local/setup.mjs, apps/worker/requirements.txt) but couldn't run it end-to-end myself —
+# my sandbox has no Docker/service-container support. Watch the first real run closely and adjust
+# env vars or versions if something's off; nothing here is verified against a live GitHub runner.
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: growthos
+          POSTGRES_PASSWORD: growthos_ci
+          POSTGRES_DB: growthos
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U growthos -d growthos"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      clickhouse:
+        image: clickhouse/clickhouse-server:24
+        ports: ["8123:8123", "9000:9000"]
+        options: >-
+          --health-cmd "clickhouse-client --query 'SELECT 1'"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      # CI-only dummy values — none of these are real secrets, and nothing here talks to a real
+      # Google/Stripe/Resend account. See apps/api/.env.example for what each one is for.
+      DATABASE_URL: postgresql://growthos:growthos_ci@localhost:5432/growthos
+      REDIS_URL: redis://localhost:6379
+      CLICKHOUSE_URL: http://localhost:8123
+      API_PORT: "3001"
+      WEB_ORIGIN: http://localhost:3000
+      BETTER_AUTH_SECRET: ci-dummy-secret-not-real
+      BETTER_AUTH_URL: http://localhost:3001
+      TOKEN_ENCRYPTION_KEY: n08f5mGv74HWpUQUsvKi60PBGg15IxfWuc9SIl4VdMw=
+      OAUTH_STATE_SECRET: ci-dummy-secret-not-real
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
+
+      - name: Build shared packages
+        run: pnpm --filter @growthos/types --filter @growthos/logic --filter @growthos/db --filter @growthos/ui --filter @growthos/config build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Apply DB schema to the CI Postgres
+        # db:migrate is Neon-only (neon-http driver) — see packages/db/scripts/migrate.ts. CI uses
+        # a plain Postgres container, same as Local Demo Mode, so it uses the same drizzle-kit
+        # push approach scripts/local/setup.mjs uses for that, not the Neon migration script.
+        run: pnpm --filter @growthos/db exec drizzle-kit push --force
+
+      - name: Run JS/TS test suites
+        run: pnpm test
+
+      - name: Build web app
+        run: pnpm --filter @growthos/web build
+
+  worker:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: growthos
+          POSTGRES_PASSWORD: growthos_ci
+          POSTGRES_DB: growthos
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U growthos -d growthos"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://growthos:growthos_ci@localhost:5432/growthos
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/worker/requirements.txt
+
+      - name: Install worker dependencies
+        run: pip install -r apps/worker/requirements.txt
+
+      - name: Run worker test suite
+        run: python -m pytest apps/worker/tests -v

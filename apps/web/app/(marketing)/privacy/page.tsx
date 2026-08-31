@@ -101,9 +101,12 @@ export default function PrivacyPage() {
         <section>
           <h2 className="font-display text-lg font-semibold">8. Cookies</h2>
           <p className="mt-2 text-muted-foreground">
-            We use essential cookies to keep you signed in and to remember basic preferences. If
-            we add analytics or marketing cookies, we&apos;ll disclose them here along with how to
-            opt out. [Update this section once your analytics/cookie stack is finalized.]
+            We use an essential cookie to keep you signed in, and — only where enabled for this
+            deployment — an analytics cookie to understand feature usage. See our{" "}
+            <a href="/cookies" className="underline underline-offset-4 hover:text-foreground">
+              Cookie Policy
+            </a>{" "}
+            for the full list and how to control them.
           </p>
         </section>
 

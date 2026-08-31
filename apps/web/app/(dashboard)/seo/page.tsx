@@ -9,6 +9,7 @@ import { SchemaMarkupGenerator } from "@/components/seo/SchemaMarkupGenerator";
 import { InternalLinkOptimizer } from "@/components/seo/InternalLinkOptimizer";
 import { SiteAuditPanel } from "@/components/seo/SiteAuditPanel";
 import { CoreWebVitalsCard } from "@/components/seo/CoreWebVitalsCard";
+import { KeywordClustersCard } from "@/components/seo/KeywordClustersCard";
 
 export default function SeoPage() {
   const { data: me } = useWorkspace();
@@ -32,8 +33,9 @@ export default function SeoPage() {
           <TabsTrigger value="schema">Schema markup</TabsTrigger>
           <TabsTrigger value="links">Internal links</TabsTrigger>
         </TabsList>
-        <TabsContent value="rankings">
+        <TabsContent value="rankings" className="space-y-6">
           <RankTracker workspaceId={workspaceId} />
+          <KeywordClustersCard workspaceId={workspaceId} />
         </TabsContent>
         <TabsContent value="traffic">
           <OrganicTraffic workspaceId={workspaceId} />

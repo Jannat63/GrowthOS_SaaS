@@ -2,8 +2,8 @@ import Link from "next/link";
 
 const GROUPS = [
   { title: "Product", links: [{ label: "Features", href: "/#features" }, { label: "Pricing", href: "/pricing" }, { label: "How it works", href: "/#how" }] },
-  { title: "Company", links: [{ label: "About", href: "#" }, { label: "Blog", href: "#" }, { label: "Careers", href: "#" }] },
-  { title: "Legal", links: [{ label: "Privacy", href: "/privacy" }, { label: "Terms", href: "/terms" }, { label: "Security", href: "#" }] },
+  { title: "Support", links: [{ label: "FAQ", href: "/faq" }, { label: "About", href: "#" }, { label: "Blog", href: "#" }] },
+  { title: "Legal", links: [{ label: "Privacy", href: "/privacy" }, { label: "Terms", href: "/terms" }, { label: "Cookies", href: "/cookies" }] },
 ];
 
 export function SiteFooter() {

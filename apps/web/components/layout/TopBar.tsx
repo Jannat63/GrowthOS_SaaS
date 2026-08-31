@@ -18,6 +18,7 @@ import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationCenter } from "@/components/layout/NotificationCenter";
+import { MobileNav } from "@/components/layout/MobileNav";
 
 export function TopBar() {
   const router = useRouter();
@@ -52,6 +53,10 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 w-full max-w-[1800px] items-center justify-between gap-4 px-4 md:px-8 xl:px-10">
+      {/* Mobile nav trigger — hidden md:up since Sidebar takes over there */}
+      <div className="flex items-center gap-2">
+        <MobileNav />
+
       {/* Workspace switcher */}
       <DropdownMenu>
         <DropdownMenuTrigger className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -80,6 +85,7 @@ export function TopBar() {
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
 
       {/* Right side */}
       <div className="flex items-center gap-2.5">

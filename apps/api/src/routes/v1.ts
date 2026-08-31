@@ -43,6 +43,7 @@ import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
 import { getKeywordRankings, getOrganicTraffic } from '../seo.js'
 import { getCoreWebVitals } from '../core-web-vitals.js'
+import { clusterKeywords } from '@growthos/logic'
 import { generateSchemaMarkup } from '../schema-markup-lookup.js'
 import { getInternalLinkRecommendations } from '../internal-links.js'
 import { getCampaignInsights } from '../google-ads.js'
@@ -459,13 +460,13 @@ export async function registerV1Routes(app: FastifyInstance) {
     return getMetaCampaignInsights(id)
   })
 
-  // Paid-to-organic search-terms surface — scores seeded terms + ensures recs/briefs exist.
+  // Paid-to-organic search-terms surface — scores workspace-varied fixture terms + ensures recs/briefs exist.
   app.get('/api/v1/workspaces/:id/google-ads/search-terms', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     await ensurePaidToOrganic(id)
-    const data = getScoredSearchTerms()
+    const data = getScoredSearchTerms(id)
     return { searchTerms: data, total: data.length }
   })
 
@@ -613,6 +614,20 @@ export async function registerV1Routes(app: FastifyInstance) {
       throw new AppError('VALIDATION_ERROR', query.error.issues[0]?.message ?? 'A valid ?url= is required.')
     }
     return getCoreWebVitals(query.data.url, query.data.strategy)
+  })
+
+  // Keyword clustering (SEO extras, real feature) — pure algorithm over this workspace's already-
+  // tracked keywords (real once Search Console is connected; same-shaped sample data otherwise,
+  // exactly like the rank tracker itself already reports). No worker job needed — synchronous.
+  app.get('/api/v1/workspaces/:id/seo/keyword-clusters', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+
+    const rankings = await getKeywordRankings(id)
+    const keywords = rankings.keywords.map((k) => k.keyword)
+    const clusters = clusterKeywords(keywords)
+    return { clusters, totalKeywords: keywords.length }
   })
 
   // Organic-to-paid — top organic pages worth amplifying with Meta (+ generate recs/creative briefs).

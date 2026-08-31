@@ -6,6 +6,7 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
+    "test": "turbo test",
     "typecheck": "turbo typecheck",
     "setup:local": "node scripts/local/setup.mjs",
     "local": "node scripts/local/start.mjs",

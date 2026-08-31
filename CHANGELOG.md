@@ -1,5 +1,17 @@
 # Development Log
 
+> **This documents the pre-rebuild implementation, now archived under `/legacy`.**
+> The current app (`apps/web` + `apps/api` + `apps/worker`, tracked in
+> `docs/plan/PROGRESS.md`) was rebuilt from scratch and does not include most of
+> what's described below yet. As of this note, three items have been restored
+> into the current app for real — the site crawler, Core Web Vitals, and
+> keyword clustering — each ported and, in the crawler's case, hardened
+> further (SSRF protection, size limits) since it now runs against real
+> user-supplied URLs rather than a fixed demo one. Everything else on this
+> page is real only in `/legacy`, which is kept for reference and is never
+> run or edited. Don't take a feature listed here as evidence it exists in
+> the current app — check `docs/plan/PROGRESS.md` instead.
+
 This documents the actual build process, including real bugs found and
 fixed along the way — kept for transparency about what's been verified and
 how, rather than just asserting things work.

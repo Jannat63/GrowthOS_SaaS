@@ -30,12 +30,14 @@ import { useBranding } from "@/lib/hooks/useBranding";
 const INK_ICON_BTN =
   "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground focus-visible:ring-primary/60 focus-visible:ring-offset-0";
 
-type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; ready: boolean };
-type NavGroup = { label: string | null; items: NavItem[] };
+export type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; ready: boolean };
+export type NavGroup = { label: string | null; items: NavItem[] };
 
 // Ungrouped items (label: null) render at the top with no section header — the loop's core
 // surfaces. Everything else is grouped to match the product's actual shape rather than a flat list.
-const NAV_GROUPS: NavGroup[] = [
+// Exported so MobileNav renders the identical structure below `md` rather than a second,
+// hand-maintained copy that could drift from this one.
+export const NAV_GROUPS: NavGroup[] = [
   {
     label: null,
     items: [
