@@ -22,6 +22,14 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  user: {
+    additionalFields: {
+      // Platform-wide admin access (Super Admin panel), separate from per-workspace `role` on
+      // workspace_members. `input: false` — deliberately not settable via any signup/profile
+      // form; only ever set directly in the database by someone who already has DB access.
+      platformRole: { type: 'string', required: false, input: false },
+    },
+  },
   plugins: [
     organization({
       schema: {

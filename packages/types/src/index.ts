@@ -512,7 +512,64 @@ export interface ScoredCreative {
 
 // ── Billing (M5 P5.1) ─────────────────────────────────────────────────────────
 
+// Super Admin panel — platform-wide administration, entirely separate from workspace-scoped Role.
+// See apps/api/src/admin.ts / docs/growthos-modular-packages-and-admin.md §3 for the design.
+export type PlatformRole = "support_agent" | "super_admin";
+
 export type Plan = "starter" | "growth" | "scale";
+
+export interface AdminWorkspaceSummary {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  subscriptionStatus: string;
+  memberCount: number;
+  connectedPlatformCount: number;
+  createdAt: string;
+}
+export interface AdminWorkspaceDetail {
+  id: string;
+  name: string;
+  slug: string;
+  websiteUrl: string | null;
+  createdAt: string;
+  subscription: {
+    plan: Plan;
+    status: SubscriptionStatus;
+    trialEndsAt: string | null;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    cancelAt: string | null;
+  };
+  members: { userId: string; name: string; email: string; role: string }[];
+  connections: { platform: string; accountName: string | null; isActive: boolean | null; lastSyncedAt: string | null }[];
+}
+export interface AdminUserSummary {
+  id: string;
+  name: string;
+  email: string;
+  platformRole: string | null;
+  workspaceCount: number;
+  createdAt: string;
+}
+export interface PlatformHealth {
+  totalWorkspaces: number;
+  totalUsers: number;
+  workspacesByPlan: { plan: string; count: number }[];
+  trialsEndingSoonCount: number;
+}
+export interface AdminAuditLogEntry {
+  id: string;
+  actorUserId: string;
+  actorName: string | null;
+  actorEmail: string | null;
+  action: string;
+  targetType: string;
+  targetId: string;
+  metadata: unknown;
+  createdAt: string;
+}
 
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled";
 

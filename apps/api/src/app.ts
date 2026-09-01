@@ -15,6 +15,7 @@ import { registerConnectionRoutes } from './routes/connections.js'
 import { registerBillingRoutes } from './routes/billing.js'
 import { registerPublicApiRoutes } from './routes/public-api.js'
 import { registerWsRoutes } from './routes/ws.js'
+import { registerAdminRoutes } from './routes/admin.js'
 
 interface HealthCheck {
   name: string
@@ -178,6 +179,9 @@ export function buildApp() {
   // Real-time WebSocket transport — recommendation:new, job:complete/failed, meta:fatigue_alert,
   // analytics:mer_alert, intelligence:report_ready.
   app.register(registerWsRoutes)
+  // Super Admin panel — platform-wide, no workspace membership required (deliberately separate
+  // authorization path, see routes/admin.ts's own doc comment).
+  app.register(registerAdminRoutes)
 
   // Better Auth (D1) owns /api/auth/* — sign-up/in, sessions, and the organization
   // (workspace) endpoints. Convert Fastify's req/reply to the Web Request/Response

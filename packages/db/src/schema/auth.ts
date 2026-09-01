@@ -16,6 +16,11 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
+  // Platform-wide admin access (Super Admin panel) — see apps/api/src/guards.ts's
+  // requirePlatformRole. null | 'support_agent' | 'super_admin'. Entirely separate from the
+  // per-workspace `role` on workspace_members below; a platform admin isn't a member of every
+  // workspace, they bypass workspace membership checks entirely.
+  platformRole: text("platform_role"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

@@ -23,3 +23,6 @@ export * from './billing.js';
 export * from './api-keys.js';
 // Autonomous automation loop — alert de-dupe + scheduler run log (M4).
 export * from './automation.js';
+// Super Admin panel — platform-wide admin audit log (cross-workspace; distinct from the
+// per-workspace audit_logs in ./audit.js).
+export * from './admin.js';
