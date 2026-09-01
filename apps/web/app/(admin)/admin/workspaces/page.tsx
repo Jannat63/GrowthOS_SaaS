@@ -26,6 +26,7 @@ export default function AdminWorkspacesPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name…"
+          aria-label="Search workspaces"
           className="h-9 w-full rounded-md border border-neutral-800 bg-neutral-900 pl-9 pr-3 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
         />
       </div>

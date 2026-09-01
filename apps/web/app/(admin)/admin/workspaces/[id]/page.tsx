@@ -82,6 +82,7 @@ export default function AdminWorkspaceDetailPage({ params }: { params: Promise<{
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Reason for this override (required, 10+ characters)…"
+                  aria-label="Reason for plan override"
                   rows={2}
                   className="w-full rounded-md border border-neutral-800 bg-neutral-950 p-2 text-xs text-neutral-100 placeholder:text-neutral-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
                 />

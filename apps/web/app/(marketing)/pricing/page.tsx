@@ -1,6 +1,13 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Check, Minus } from "lucide-react";
 import { Button } from "@growthos/ui/components/button";
+
+export const metadata: Metadata = {
+  title: "Pricing",
+  description:
+    "Starter, Growth, and Scale plans for GrowthOS — one loop across SEO, Google Ads, and Meta Ads. 14-day free trial on Growth, no credit card required.",
+};
 import { PLAN_LIMITS, type Plan } from "@growthos/types";
 
 // Every number on this page reads from @growthos/types PLAN_LIMITS — the same source

@@ -4,7 +4,7 @@
  */
 import type { ApiErrorBody, ErrorCode } from "@growthos/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 /**
  * Requests are given a generous ceiling rather than a snappy one.

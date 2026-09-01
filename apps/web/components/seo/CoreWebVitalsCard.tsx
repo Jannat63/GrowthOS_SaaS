@@ -61,6 +61,7 @@ export function CoreWebVitalsCard({ workspaceId }: { workspaceId: string | null 
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://yoursite.com/page-to-check"
+          aria-label="Page URL to check"
           required
           className="h-9 min-w-64 flex-1 rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         />

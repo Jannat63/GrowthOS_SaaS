@@ -1,3 +1,10 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "FAQ",
+  description: "Answers to common questions about GrowthOS — plans, billing, security, and how the SEO, Google Ads, and Meta Ads loop works together.",
+};
+
 const FAQS: { question: string; answer: string }[] = [
   {
     question: "What is GrowthOS?",

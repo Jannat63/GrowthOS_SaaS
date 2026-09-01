@@ -40,6 +40,7 @@ export function SiteAuditPanel({ workspaceId }: { workspaceId: string | null }) 
           value={urlOverride}
           onChange={(e) => setUrlOverride(e.target.value)}
           placeholder="https://yoursite.com (defaults to your workspace's site)"
+          aria-label="Website URL to audit"
           disabled={running}
           className="h-9 min-w-64 flex-1 rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         />

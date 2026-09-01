@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
+
 const LAST_UPDATED = "[DATE — set when this is reviewed and published]";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description: "How GrowthOS collects, uses, and protects your data.",
+};
 
 export default function PrivacyPage() {
   return (

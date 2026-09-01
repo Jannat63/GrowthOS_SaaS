@@ -1,5 +1,6 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type {
   AdminAuditLogEntry,
   AdminUserSummary,
@@ -55,9 +56,13 @@ export function usePlanOverride(workspaceId: string | null) {
   return useMutation({
     mutationFn: (input: { plan: Plan; reason: string }) =>
       api.post<{ success: boolean }>(`/admin/workspaces/${workspaceId}/plan-override`, input),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "workspace", workspaceId] });
       queryClient.invalidateQueries({ queryKey: ["admin", "workspaces"] });
+      toast.success(`Plan overridden to ${variables.plan}.`);
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't apply the plan override — try again.");
     },
   });
 }

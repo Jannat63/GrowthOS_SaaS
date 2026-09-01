@@ -1,5 +1,6 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type { RecommendationComment } from "@growthos/types";
 import { api } from "@/lib/api/client";
 import { liveOrMock } from "./liveOrMock";
@@ -37,6 +38,9 @@ export function useCollaborationActions(workspaceId: string | null | undefined) 
     onSuccess: (_data, { recId }) => {
       qc.invalidateQueries({ queryKey: ["rec-comments", workspaceId, recId] });
     },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't post that comment — try again.");
+    },
   });
 
   const assign = useMutation({
@@ -44,6 +48,9 @@ export function useCollaborationActions(workspaceId: string | null | undefined) 
       api.patch(`/workspaces/${workspaceId}/recommendations/${recId}/assignment`, { assignedTo }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["recommendations", workspaceId] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't update the assignment — try again.");
     },
   });
 
