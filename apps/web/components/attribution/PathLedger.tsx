@@ -64,10 +64,7 @@ export function PathLedger({
   return (
     <Card className="p-6">
       <header className="max-w-3xl">
-        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-          Show the working
-        </p>
-        <h2 className="mt-1.5 font-display text-lg font-semibold tracking-tight">
+        <h2 className="font-display text-lg font-semibold tracking-tight">
           How {prose(MODEL_LABELS[selected])} divides each of the {ordered.length} paths
         </h2>
         <p className="mt-1.5 text-sm text-muted-foreground">{rule}</p>

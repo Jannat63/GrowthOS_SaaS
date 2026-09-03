@@ -91,12 +91,9 @@ export function CreditSpread({
   return (
     <Card className="p-6">
       <header className="max-w-3xl">
-        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-          Credit at risk
-        </p>
         {headline && !settled ? (
           <>
-            <h2 className="mt-1.5 text-balance font-display text-xl font-semibold tracking-tight">
+            <h2 className="text-balance font-display text-xl font-semibold tracking-tight">
               {channelLabel(headline.channel)} is credited anywhere from{" "}
               <span className="text-primary">{usd(headline.min)}</span> to{" "}
               <span className="text-primary">{usd(headline.max)}</span> — {pct(headline.swingShare)}{" "}
@@ -112,7 +109,7 @@ export function CreditSpread({
             </p>
           </>
         ) : (
-          <h2 className="mt-1.5 font-display text-xl font-semibold tracking-tight">
+          <h2 className="font-display text-xl font-semibold tracking-tight">
             Every model agrees on this data.
           </h2>
         )}

@@ -47,10 +47,7 @@ export function ModelMatrix({
     <Card className="p-0">
       <div className="flex flex-wrap items-baseline justify-between gap-2 px-6 pb-4 pt-6">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-            Full comparison
-          </p>
-          <h2 className="mt-1.5 font-display text-lg font-semibold tracking-tight">
+          <h2 className="font-display text-lg font-semibold tracking-tight">
             Every model, every channel
           </h2>
         </div>
