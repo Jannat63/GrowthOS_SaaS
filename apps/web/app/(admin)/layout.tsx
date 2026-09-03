@@ -5,7 +5,7 @@ import { Search, ShieldAlert } from "lucide-react";
 import { Button } from "@growthos/ui/components/button";
 import { useAdminAccess } from "@/lib/hooks/useAdmin";
 import { useSession } from "@/lib/auth/client";
-import { AdminRail } from "@/components/admin/AdminRail";
+import { AdminRail, AdminNavStrip } from "@/components/admin/AdminRail";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { OperatorMenu } from "@/components/admin/OperatorMenu";
 import {
@@ -117,56 +117,61 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         This replaced a hazard-striped bar. A stripe says "somewhere dangerous" and then leaves the
         operator to remember why; gold is the colour this design system already uses for "not the
         normal state", so the meaning is borrowed rather than invented. What it stands for — that
-        every view here is recorded under your name — now lives in the operator menu, attached to
-        the name it is about, instead of as a caption addressed to nobody.
+        every view here is recorded under your name — lives in the operator menu, attached to the
+        name it is about, rather than as a caption addressed to nobody.
       */}
       <div aria-hidden="true" className="h-0.5 w-full shrink-0 bg-warning" />
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b px-3 md:px-4">
-        <div className="flex shrink-0 items-center gap-2">
-          <ShieldAlert className="h-4 w-4 text-warning" aria-hidden="true" />
-          <span className="font-display text-sm font-semibold tracking-tight">Super Admin</span>
-        </div>
-
-        {/*
-          The search field is the console's primary navigation, so it sits in the centre of the
-          header rather than at the top of one page. It is a button, not an input: the palette owns
-          its own field, and two focusable text boxes for one search is a trap for keyboard users.
-        */}
-        {/* Hidden behind either wall for the same reason the rail is: the palette navigates. */}
-        {!walled && (
-        <button
-          type="button"
-          onClick={() => palette.setOpen(true)}
-          className="flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-md border border-input bg-transparent px-3 text-left text-sm text-muted-foreground transition-colors hover:border-ring/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-md"
-        >
-          <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="truncate">Find an account, a person, an id…</span>
-          <kbd className="ml-auto hidden shrink-0 rounded border border-border px-1.5 font-mono text-[10px] leading-4 text-muted-foreground sm:block">
-            ⌘K
-          </kbd>
-        </button>
-        )}
-
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          <ThemeToggle />
-          <OperatorMenu platformRole={access.platformRole} />
-        </div>
-      </header>
-
       {/*
-        The shell owns the viewport height, and only the content column scrolls. The sidebar and
-        header were scrolling away with the page, which on a long directory left an operator with
-        no navigation and no way back without scrolling to the top first.
+        The same shell as the customer dashboard: a full-height rail on the left carrying the mark
+        and the sections, and a column beside it with the header and the only scrolling region.
+        The console's name sits in the rail, not the header, for the same reason the product's logo
+        does over there.
       */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-        {/* A wall, not a page: no navigation out of it until it is satisfied. */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Both walls hide navigation: no way out of them until they are satisfied. */}
         {!walled && <AdminRail isSuperAdmin={isSuperAdmin} />}
-        {/*
-          No max-width container. The customer app centres its content because it is read; this is
-          scanned across, and every column of a directory is width the operator asked for.
-        */}
-        <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <header className="flex h-16 shrink-0 items-center gap-3 border-b px-4">
+            {/*
+              The search field is the console's primary navigation. It is a button, not an input:
+              the palette owns its own field, and two focusable text boxes for one search is a trap
+              for keyboard users.
+            */}
+            {!walled && (
+              <button
+                type="button"
+                onClick={() => palette.setOpen(true)}
+                className="flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-md border border-input bg-transparent px-3 text-left text-sm text-muted-foreground transition-colors hover:border-ring/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-md"
+              >
+                <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="truncate">Find an account, a person, an id…</span>
+                <kbd className="ml-auto hidden shrink-0 rounded border border-border px-1.5 font-mono text-[10px] leading-4 text-muted-foreground sm:block">
+                  ⌘K
+                </kbd>
+              </button>
+            )}
+
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <ThemeToggle />
+              <OperatorMenu platformRole={access.platformRole} />
+            </div>
+          </header>
+
+          {/* The rail is hidden below md, so the sections need somewhere else to live there. */}
+          {!walled && <AdminNavStrip isSuperAdmin={isSuperAdmin} />}
+
+          {/*
+            The only scrolling region. The rail and header keep their place, which on a long
+            directory is the difference between navigation being there and having to scroll to the
+            top to find it.
+
+            No max-width: the customer app centres its content because it is read; this is scanned
+            across, and every column of a directory is width the operator asked for.
+          */}
+          <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        </div>
       </div>
 
       {!walled && (
