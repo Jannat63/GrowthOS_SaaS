@@ -213,31 +213,59 @@ export interface PlatformHealth {
   trialsEndingSoonCount: number
 }
 
+/**
+ * Platform-wide counts for the admin overview.
+ *
+ * **Every figure here counts from `workspaces`, never from `subscriptions` alone.** `workspaceId`
+ * carries no foreign key — tenancy is enforced at the application layer (see tenancy.ts) — so
+ * deleting a workspace leaves its subscription row behind. Scanning `subscriptions` therefore
+ * counts customers who no longer exist: on the dev database that was 71 orphaned rows against 15
+ * live workspaces, which the panel reported as 68 on growth, 4 on scale, and 27 trials about to
+ * end. The true answer was 14 workspaces with no subscription row, 1 on growth, and 1 trial.
+ *
+ * The old `totalWorkspaces - subscribedCount` fallback was where this stayed invisible: with more
+ * subscription rows than workspaces it goes negative, and a `> 0` guard then dropped it silently
+ * instead of surfacing the contradiction.
+ */
 export async function getPlatformHealth(): Promise<PlatformHealth> {
-  const [workspaceRows, userRows, byPlan, subRows] = await Promise.all([
+  const in3Days = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+
+  const [workspaceRows, userRows, byPlan, trialsRows] = await Promise.all([
     db.select({ value: count() }).from(schema.workspaces),
     db.select({ value: count() }).from(schema.user),
-    db.select({ plan: schema.subscriptions.plan, value: count() }).from(schema.subscriptions).groupBy(schema.subscriptions.plan),
-    db.select({ value: count() }).from(schema.subscriptions),
+    // LEFT JOIN out of workspaces: one row per live workspace, and a workspace with no
+    // subscription row surfaces as `plan: null` rather than being missing from the breakdown.
+    db
+      .select({ plan: schema.subscriptions.plan, value: count() })
+      .from(schema.workspaces)
+      .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
+      .groupBy(schema.subscriptions.plan),
+    db
+      .select({ value: count() })
+      .from(schema.subscriptions)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.subscriptions.workspaceId))
+      .where(
+        and(
+          eq(schema.subscriptions.status, 'trialing'),
+          lte(schema.subscriptions.trialEndsAt, in3Days),
+        ),
+      ),
   ])
+
   const totalWorkspaces = workspaceRows[0]?.value ?? 0
   const totalUsers = userRows[0]?.value ?? 0
-  const subscribedCount = subRows[0]?.value ?? 0
 
-  // Workspaces with no subscriptions row default to starter/trialing (see getCurrentSubscription)
-  // and wouldn't otherwise show up in the by-plan breakdown at all.
-  const noSubscriptionCount = totalWorkspaces - subscribedCount
-  const workspacesByPlan = [
-    ...byPlan.map((r) => ({ plan: r.plan, count: r.value })),
-    ...(noSubscriptionCount > 0 ? [{ plan: 'starter (no subscription row)', count: noSubscriptionCount }] : []),
-  ]
+  // No subscription row means starter/trialing (getCurrentSubscription's default), so it is
+  // reported as 'starter' — the plan the workspace actually has, not a separate bucket. The
+  // breakdown now sums to totalWorkspaces by construction.
+  const merged = new Map<string, number>()
+  for (const row of byPlan) {
+    const plan = row.plan ?? 'starter'
+    merged.set(plan, (merged.get(plan) ?? 0) + row.value)
+  }
+  const workspacesByPlan = [...merged].map(([plan, count]) => ({ plan, count }))
 
-  const in3Days = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-  const [trialsRow] = await db
-    .select({ value: count() })
-    .from(schema.subscriptions)
-    .where(and(eq(schema.subscriptions.status, 'trialing'), lte(schema.subscriptions.trialEndsAt, in3Days)))
-  const trialsEndingSoonCount = trialsRow?.value ?? 0
+  const trialsEndingSoonCount = trialsRows[0]?.value ?? 0
 
   return { totalWorkspaces, totalUsers, workspacesByPlan, trialsEndingSoonCount }
 }
