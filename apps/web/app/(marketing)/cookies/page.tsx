@@ -1,11 +1,12 @@
-import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 
 const LAST_UPDATED = "[DATE — set when this is reviewed and published]";
 
-export const metadata: Metadata = {
+export const metadata = pageMeta({
   title: "Cookie Policy",
   description: "The cookies GrowthOS uses — an essential sign-in cookie, and an optional analytics cookie where enabled.",
-};
+  path: "/cookies",
+});
 
 export default function CookiesPage() {
   return (

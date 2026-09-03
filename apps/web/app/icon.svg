@@ -1,4 +1,18 @@
+<!--
+  The favicon is the LogoMark (components/brand/LogoMark.tsx): three stations and the closed
+  circuit between them.
+
+  It cannot share that component's source, because a favicon is fetched as a standalone document
+  and has no page to inherit CSS variables from — so `var(--primary)` would resolve to nothing.
+  The ember is therefore written out as the light-theme literal, the one place in the app where a
+  hex is correct rather than a violation. Geometry is identical to the component; only the stroke
+  and dot radius are nudged up, because at 16px the component's hairline disappears.
+-->
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#1e40af"/>
-  <rect x="12" y="12" width="8" height="8" rx="1.5" fill="#ffffff"/>
+  <rect width="32" height="32" rx="9" fill="#ce4218"/>
+  <path d="M16 9 L23 21 L9 21 Z" fill="none" stroke="#ffffff" stroke-opacity="0.5"
+        stroke-width="1.75" stroke-linejoin="round"/>
+  <circle cx="16" cy="9" r="3" fill="#ffffff"/>
+  <circle cx="23" cy="21" r="3" fill="#ffffff"/>
+  <circle cx="9" cy="21" r="3" fill="#ffffff"/>
 </svg>

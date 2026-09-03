@@ -1,11 +1,12 @@
-import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 
 const LAST_UPDATED = "[DATE — set when this is reviewed and published]";
 
-export const metadata: Metadata = {
+export const metadata = pageMeta({
   title: "Privacy Policy",
   description: "How GrowthOS collects, uses, and protects your data.",
-};
+  path: "/privacy",
+});
 
 export default function PrivacyPage() {
   return (

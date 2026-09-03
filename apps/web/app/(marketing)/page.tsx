@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Hero } from "@/components/marketing/Hero";
 import { TheProblem } from "@/components/marketing/TheProblem";
 import { SixBridges } from "@/components/marketing/SixBridges";
@@ -7,8 +8,17 @@ import { WhoItsFor } from "@/components/marketing/WhoItsFor";
 import { PricingTeaser } from "@/components/marketing/PricingTeaser";
 import { FAQSection } from "@/components/marketing/FAQ";
 import { CTASection } from "@/components/marketing/CTASection";
+import { SITE_URL } from "@/lib/seo";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://growthos.app";
+/**
+ * The homepage keeps the root layout's title and description — it is the page they were written
+ * for — and adds only the one thing they cannot carry: its own address. Without it, the site's
+ * most-linked page is also the one most often reached through a campaign parameter, and every
+ * one of those variants is a competing copy of the homepage in the index.
+ */
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 // Structured data for the homepage — a SoftwareApplication + Organization graph. Notably absent
 // before this: for a product whose own Schema Markup Generator feature does exactly this for

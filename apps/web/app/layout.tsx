@@ -1,7 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Archivo, JetBrains_Mono } from "next/font/google";
 import "@/styles/globals.css";
 import { Providers } from "@/components/Providers";
+import { BRAND_EMBER, BRAND_INK } from "@/lib/brand-mark";
+import { SITE_URL } from "@/lib/seo";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,9 +30,6 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-// Read from the environment for the same reason robots.ts and sitemap.ts do: a preview deployment
-// that hardcodes the production origin emits canonical URLs pointing at production.
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://growthos.app";
 const SITE_NAME = "GrowthOS";
 const TITLE = "GrowthOS — SEO, Google Ads and Meta Ads on one exchange";
 const DESCRIPTION =
@@ -40,6 +39,7 @@ const SOCIAL_DESCRIPTION =
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME,
   title: {
     default: TITLE,
     // Every page below sets its own short `title` and gets " · GrowthOS" appended automatically,
@@ -66,6 +66,19 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+};
+
+/**
+ * The colour the browser paints its own chrome with — Android's address bar, Safari's toolbar, the
+ * window frame on an installed app. Split by scheme so the chrome matches the page it frames
+ * rather than glowing ember above a graphite page.
+ */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: BRAND_EMBER },
+    { media: "(prefers-color-scheme: dark)", color: BRAND_INK },
+  ],
+  colorScheme: "light dark",
 };
 
 export default function RootLayout({

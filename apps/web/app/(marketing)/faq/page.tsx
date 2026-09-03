@@ -1,15 +1,17 @@
-import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@growthos/ui/components/button";
 import { FaqList } from "@/components/marketing/FAQ";
 import { FAQ } from "@/components/marketing/faq-data";
+import { InlineCTA } from "@/components/marketing/InlineCTA";
 
-export const metadata: Metadata = {
+export const metadata = pageMeta({
   title: "FAQ",
   description:
     "What GrowthOS connects to, how it differs from SEO and attribution tools, what the trial includes, and where your data lives.",
-};
+  path: "/faq",
+});
 
 export default function FaqPage() {
   return (
@@ -22,6 +24,8 @@ export default function FaqPage() {
         If something here is unclear or missing, the fastest answer is usually the trial — it
         runs on your own accounts without a card.
       </p>
+
+      <InlineCTA />
 
       <div className="mt-14">
         <FaqList items={FAQ} />

@@ -6,8 +6,7 @@ import type { BlogPost } from "@growthos/types";
 import { Button } from "@growthos/ui/components/button";
 import { getPost, getPostSlugs, getRelatedPosts, formatPostDate } from "@/lib/blog";
 import { PostBody } from "@/components/marketing/PostBody";
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://growthos.app";
+import { OG_IMAGE, privateMeta, SITE_URL } from "@/lib/seo";
 
 /**
  * Pre-renders the posts that exist at build time. `dynamicParams` stays at its default of true, so
@@ -26,7 +25,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const post = await getPost(slug);
-  if (!post) return { title: "Not found" };
+  // The route renders the 404 below; this keeps a crawler from indexing the miss.
+  if (!post) return privateMeta("Page not found");
 
   const cover = absolute(post.coverImageUrl);
 
@@ -44,14 +44,17 @@ export async function generateMetadata({
       publishedTime: post.publishedAt ?? undefined,
       modifiedTime: post.updatedAt,
       authors: [post.author.name],
-      // Falls through to the site-wide opengraph-image when a post has no cover of its own.
-      ...(cover ? { images: [{ url: cover, alt: post.coverImageAlt ?? post.title }] } : {}),
+      // A post with no cover falls back to the site card explicitly. It does not inherit one:
+      // declaring `openGraph` here replaces the root layout's, image included.
+      images: cover
+        ? [{ url: cover, alt: post.coverImageAlt ?? post.title }]
+        : [OG_IMAGE],
     },
     twitter: {
       card: "summary_large_image",
       title: post.title,
       description: post.description,
-      ...(cover ? { images: [cover] } : {}),
+      images: [cover ?? OG_IMAGE.url],
     },
   };
 }

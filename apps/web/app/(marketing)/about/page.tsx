@@ -1,14 +1,16 @@
-import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@growthos/ui/components/button";
 import { CHANNELS } from "@/components/marketing/channels";
+import { InlineCTA } from "@/components/marketing/InlineCTA";
 
-export const metadata: Metadata = {
+export const metadata = pageMeta({
   title: "About",
   description:
     "Why GrowthOS treats SEO, Google Ads, and Meta Ads as one system rather than three tools, and what that means for how it is built.",
-};
+  path: "/about",
+});
 
 export default function AboutPage() {
   return (
@@ -35,6 +37,8 @@ export default function AboutPage() {
           stages of one journey, and the useful software sits in the gaps between them.
         </p>
       </div>
+
+      <InlineCTA />
 
       <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border bg-border sm:grid-cols-3">
         {Object.values(CHANNELS).map((c) => (

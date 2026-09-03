@@ -1,11 +1,12 @@
-import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 
 const LAST_UPDATED = "[DATE — set when this is reviewed and published]";
 
-export const metadata: Metadata = {
+export const metadata = pageMeta({
   title: "Terms of Service",
   description: "The terms governing use of GrowthOS.",
-};
+  path: "/terms",
+});
 
 export default function TermsPage() {
   return (

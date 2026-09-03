@@ -1,14 +1,16 @@
-import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { BlogPostSummary } from "@growthos/types";
 import { getAllPosts, formatPostDate } from "@/lib/blog";
+import { InlineCTA } from "@/components/marketing/InlineCTA";
 
-export const metadata: Metadata = {
+export const metadata = pageMeta({
   title: "Blog",
   description:
     "Notes on running SEO, Google Ads, and Meta Ads as one system — measurement, creative, and the work between channels.",
-};
+  path: "/blog",
+});
 
 /**
  * The index.
@@ -39,6 +41,8 @@ export default async function BlogIndex() {
         reconcile, creative that decays faster than the reporting cadence, and the work that
         falls between three tools.
       </p>
+
+      <InlineCTA />
 
       {posts.length === 0 ? (
         <p className="mt-16 rounded-xl border border-dashed p-10 text-center text-muted-foreground">

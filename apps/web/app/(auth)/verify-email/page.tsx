@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { MailCheck } from "lucide-react";
 import { Button } from "@growthos/ui/components/button";
+import { privateMeta } from "@/lib/seo";
+
+export const metadata = privateMeta("Verify your email");
 
 export default function VerifyEmailPage() {
   return (

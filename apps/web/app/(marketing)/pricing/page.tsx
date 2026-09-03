@@ -1,14 +1,15 @@
+import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
-import type { Metadata } from "next";
 import { Check, Minus } from "lucide-react";
 import { Button } from "@growthos/ui/components/button";
+import { PLAN_LIMITS, planPriceLabel, type Plan } from "@growthos/types";
 
-export const metadata: Metadata = {
+export const metadata = pageMeta({
   title: "Pricing",
   description:
     "Starter, Growth, and Scale plans for GrowthOS — one loop across SEO, Google Ads, and Meta Ads. 14-day free trial on Growth, no credit card required.",
-};
-import { PLAN_LIMITS, planPriceLabel, type Plan } from "@growthos/types";
+  path: "/pricing",
+});
 
 // Every number on this page reads from @growthos/types PLAN_LIMITS — the same source
 // apps/api/src/plan-limits.ts enforces server-side. Nothing here is independently maintained,

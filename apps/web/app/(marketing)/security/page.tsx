@@ -1,12 +1,14 @@
-import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
 import { KeyRound, Lock, ShieldCheck, Users, Webhook, ScrollText } from "lucide-react";
+import { InlineCTA } from "@/components/marketing/InlineCTA";
 
-export const metadata: Metadata = {
+export const metadata = pageMeta({
   title: "Security",
   description:
     "How GrowthOS handles platform connections, token storage, workspace isolation, API keys, and outbound webhooks.",
-};
+  path: "/security",
+});
 
 /** Describes what is implemented today. Deliberately not a compliance page — GrowthOS holds no
  *  third-party audit certification, and claiming one would be worse than saying so. */
@@ -54,6 +56,8 @@ export default function SecurityPage() {
         Connecting an ad account is a real act of trust. This page describes what GrowthOS
         actually does with that access today — not a roadmap.
       </p>
+
+      <InlineCTA />
 
       <div className="mt-14 grid gap-4 sm:grid-cols-2">
         {PRACTICES.map((p) => (
