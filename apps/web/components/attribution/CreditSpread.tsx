@@ -22,6 +22,33 @@ function niceMax(value: number): number {
   return 10 * magnitude;
 }
 
+/**
+ * The contested band, in the channel's own colour.
+ *
+ * Only the three channels this product is actually about get a hue. `email`, `direct` and
+ * `referral` turn up in conversion paths but are not channels GrowthOS manages, so they keep the
+ * neutral band - the difference in treatment is itself the information, and inventing two more
+ * brand hues to fill the gap would have made an already-crowded palette worse.
+ *
+ * That crowding is documented: UserSpend records `--channel-google` and `--channel-meta` as 0.3 ΔE
+ * apart under deuteranopia in dark mode. Hue is therefore never the only thing separating these
+ * rows - every one is named in text directly above its bar, and carries its figure to the right.
+ * Colour reinforces the label here; it does not replace it.
+ */
+function bandClass(channel: string): string {
+  switch (channel) {
+    case "seo":
+      return "bg-channel-seo/45";
+    case "google_ads":
+    case "google_search_console":
+      return "bg-channel-google/45";
+    case "meta_ads":
+      return "bg-channel-meta/45";
+    default:
+      return "bg-muted-foreground/40";
+  }
+}
+
 /** Below this share of the axis a band is too narrow to letter without collision. */
 const LABEL_THRESHOLD = 0.22;
 
@@ -158,9 +185,11 @@ export function CreditSpread({
                       message, so it has to be the second-heaviest mark on the row. */}
                   <div className="absolute inset-x-0 top-2 h-2 rounded-full bg-secondary" aria-hidden />
 
-                  {/* Neutral on purpose: ember is reserved for the selection. */}
+                  {/* The channel's hue, so a row is recognisable before its label is read. The
+                      dot stays ember: it marks the selected model, and that is the one thing on
+                      this page the accent is spent on. */}
                   <div
-                    className="absolute top-2 h-2 rounded-full bg-muted-foreground/40"
+                    className={cn("absolute top-2 h-2 rounded-full", bandClass(s.channel))}
                     style={{ left: `${minPct}%`, width: `${Math.max(maxPct - minPct, 0)}%` }}
                     aria-hidden
                   />
