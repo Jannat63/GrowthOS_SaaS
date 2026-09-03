@@ -3,8 +3,6 @@
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
   Line,
   LineChart,
@@ -198,21 +196,53 @@ export function ReturnLine({ data }: { data: PlatformOverview["spendDaily"] }) {
   );
 }
 
-/** New people per day. Zero-filled, unlike spend: a quiet day really did have no signups. */
-export function SignupBars({ data }: { data: PlatformOverview["growthDaily"] }) {
+/**
+ * People joining, as a running total across the window.
+ *
+ * It was thirty daily bars, and on a real signup pattern twenty-four of them were zero — a chart
+ * that spent most of its width proving nothing happened, with the whole story crushed into two
+ * spikes. A cumulative line has a shape on every dataset, because it only ever goes up, and it
+ * answers the question the panel is actually asking: is this growing, and how fast.
+ *
+ * The total starts at zero rather than at the platform's headcount. Anchoring to "everyone who has
+ * ever signed up" would be wrong the moment someone picks a window in the past — the line would
+ * still end at today's number.
+ */
+export function GrowthArea({ data }: { data: PlatformOverview["growthDaily"] }) {
+  let running = 0;
+  const points = data.map((d) => {
+    running += d.users;
+    return { date: d.date, total: running, added: d.users };
+  });
+
   return (
-    <div className="h-24 w-full">
+    <div className="h-28 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-          <XAxis dataKey="date" hide />
+        <AreaChart data={points} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+          <defs>
+            <linearGradient id="ov-growth" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.3} />
+              <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="var(--color-border)" vertical={false} />
+          <XAxis dataKey="date" tickFormatter={shortDate} minTickGap={48} {...AXIS} tickLine={false} />
+          <YAxis width={28} allowDecimals={false} {...AXIS} tickLine={false} axisLine={false} />
           <Tooltip
             {...TOOLTIP}
-            labelFormatter={(d) => String(d)}
-            formatter={(v) => [String(v), "People"]}
-            cursor={{ fill: "var(--color-secondary)" }}
+            formatter={(v, _n, item) => {
+              const added = (item?.payload as { added?: number } | undefined)?.added ?? 0;
+              return [`${v} total${added > 0 ? ` (+${added})` : ""}`, "People"];
+            }}
           />
-          <Bar dataKey="users" fill="var(--color-primary)" radius={[2, 2, 0, 0]} />
-        </BarChart>
+          <Area
+            type="monotone"
+            dataKey="total"
+            stroke="var(--color-primary)"
+            strokeWidth={2}
+            fill="url(#ov-growth)"
+          />
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

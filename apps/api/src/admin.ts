@@ -712,7 +712,28 @@ const OVERVIEW_WINDOW_DAYS = 30
  * database — and summing without that filter would report spend for customers who no longer exist,
  * the same class of error that made the old plan mix count 71 orphaned subscriptions.
  */
-async function getPlatformSpend(liveWorkspaceIds: string[]): Promise<{
+/**
+ * A picked end date means "including that whole day".
+ *
+ * Postgres timestamps carry a time and a date picker hands back midnight, so comparing directly
+ * would drop everything that happened after 00:00 on the final day — the most recent day of any
+ * chosen range would always read as empty, which looks like missing data rather than an off-by-one.
+ */
+function endOfDay(d: Date): Date {
+  const end = new Date(d)
+  end.setUTCHours(23, 59, 59, 999)
+  return end
+}
+
+export interface OverviewRange {
+  from?: Date | undefined
+  to?: Date | undefined
+}
+
+async function getPlatformSpend(
+  liveWorkspaceIds: string[],
+  range: OverviewRange,
+): Promise<{
   spendDaily: PlatformOverview['spendDaily']
   spendWindow: PlatformOverview['spendWindow']
   totalSpend: number
@@ -735,18 +756,28 @@ async function getPlatformSpend(liveWorkspaceIds: string[]): Promise<{
   if (liveWorkspaceIds.length === 0) return empty
 
   const ch = getClickhouse()
-  const boundsRs = await ch.query({
-    query: `SELECT toString(max(date)) AS last FROM ad_performance WHERE workspace_id IN {ws:Array(String)}`,
-    query_params: { ws: liveWorkspaceIds },
-    format: 'JSONEachRow',
-  })
-  const last = ((await boundsRs.json()) as { last: string | null }[])[0]?.last
-  // ClickHouse returns the zero date for an empty set rather than null.
-  if (!last || last.startsWith('1970')) return empty
 
-  const to = new Date(`${last}T00:00:00Z`)
-  const from = new Date(to.getTime() - (OVERVIEW_WINDOW_DAYS - 1) * DAY_MS)
-  const fromDay = from.toISOString().slice(0, 10)
+  let fromDay: string
+  let last: string
+  if (range.from && range.to) {
+    // An explicit range is taken literally, including when it contains nothing. A picker that
+    // silently slid to the nearest data would make an empty period indistinguishable from a full
+    // one, which is the question someone picking dates is usually asking.
+    fromDay = range.from.toISOString().slice(0, 10)
+    last = range.to.toISOString().slice(0, 10)
+  } else {
+    const boundsRs = await ch.query({
+      query: `SELECT toString(max(date)) AS last FROM ad_performance WHERE workspace_id IN {ws:Array(String)}`,
+      query_params: { ws: liveWorkspaceIds },
+      format: 'JSONEachRow',
+    })
+    const bound = ((await boundsRs.json()) as { last: string | null }[])[0]?.last
+    // ClickHouse returns the zero date for an empty set rather than null.
+    if (!bound || bound.startsWith('1970')) return empty
+    last = bound
+    const to = new Date(`${bound}T00:00:00Z`)
+    fromDay = new Date(to.getTime() - (OVERVIEW_WINDOW_DAYS - 1) * DAY_MS).toISOString().slice(0, 10)
+  }
 
   const [rs, campaignRs] = await Promise.all([
     ch.query({
@@ -866,23 +897,30 @@ async function getPlatformSpend(liveWorkspaceIds: string[]): Promise<{
  */
 function fillDailyCounts(
   rows: { day: string; n: number }[],
-  days: number,
+  from: Date,
+  to: Date,
 ): Map<string, number> {
   const counts = new Map(rows.map((r) => [r.day, r.n]))
   const out = new Map<string, number>()
-  const today = new Date()
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today.getTime() - i * DAY_MS).toISOString().slice(0, 10)
+  // Capped so a hand-edited URL asking for ten years cannot ask the browser to draw 3,650 bars.
+  const days = Math.min(
+    370,
+    Math.max(1, Math.round((to.getTime() - from.getTime()) / DAY_MS) + 1),
+  )
+  for (let i = 0; i < days; i++) {
+    const d = new Date(from.getTime() + i * DAY_MS).toISOString().slice(0, 10)
     out.set(d, counts.get(d) ?? 0)
   }
   return out
 }
 
-export async function getPlatformOverview(): Promise<PlatformOverview> {
+export async function getPlatformOverview(range: OverviewRange = {}): Promise<PlatformOverview> {
   const now = Date.now()
   const in3Days = new Date(now + 3 * DAY_MS)
   const sevenDaysAgo = new Date(now - 7 * DAY_MS)
-  const windowStart = new Date(now - (OVERVIEW_WINDOW_DAYS - 1) * DAY_MS)
+  // The growth series follows the picker; every 'right now' figure below deliberately does not.
+  const windowEnd = range.to ?? new Date(now)
+  const windowStart = range.from ?? new Date(windowEnd.getTime() - (OVERVIEW_WINDOW_DAYS - 1) * DAY_MS)
 
   const pastDueWhere = eq(schema.subscriptions.status, 'past_due')
   const trialWhere = and(
@@ -1037,7 +1075,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
         n: sql<number>`count(*)::int`,
       })
       .from(schema.workspaces)
-      .where(gte(schema.workspaces.createdAt, windowStart))
+      .where(and(gte(schema.workspaces.createdAt, windowStart), lte(schema.workspaces.createdAt, endOfDay(windowEnd))))
       .groupBy(sql`1`),
     db
       .select({
@@ -1045,7 +1083,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
         n: sql<number>`count(*)::int`,
       })
       .from(schema.user)
-      .where(gte(schema.user.createdAt, windowStart))
+      .where(and(gte(schema.user.createdAt, windowStart), lte(schema.user.createdAt, endOfDay(windowEnd))))
       .groupBy(sql`1`),
     // Every live workspace with its status, so the mix counts customers rather than rows.
     db
@@ -1092,7 +1130,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
   }
 
   const liveIds = liveIdRows.map((r) => r.id)
-  const spend = await getPlatformSpend(liveIds)
+  const spend = await getPlatformSpend(liveIds, range)
   const nameOf = new Map(newestRows.map((r) => [r.id, r.name]))
   // Top spenders come back as ids; the names they need live in Postgres. Anything already fetched
   // is reused, and only the remainder is asked for.
@@ -1105,8 +1143,8 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
     for (const r of rows) nameOf.set(r.id, r.name)
   }
 
-  const wsPerDay = fillDailyCounts(workspacesPerDay, OVERVIEW_WINDOW_DAYS)
-  const usrPerDay = fillDailyCounts(usersPerDay, OVERVIEW_WINDOW_DAYS)
+  const wsPerDay = fillDailyCounts(workspacesPerDay, windowStart, windowEnd)
+  const usrPerDay = fillDailyCounts(usersPerDay, windowStart, windowEnd)
 
   return {
     totalWorkspaces: workspaceRows[0]?.value ?? 0,

@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Clock, CreditCard, PlugZap, XCircle } from "lucide-react";
 import type {
@@ -20,11 +21,12 @@ import {
   subscriptionStatusLabel,
 } from "@/components/admin/labels";
 import { spineClass, toneTextClass, trialTone, type Tone } from "@/components/admin/tone";
+import { DateRangePicker, type DateRange } from "@/components/admin/DateRangePicker";
 import {
   BarList,
   ChannelSpark,
   ReturnLine,
-  SignupBars,
+  GrowthArea,
   SpendArea,
   compact,
 } from "@/components/admin/OverviewCharts";
@@ -48,7 +50,10 @@ import {
  * product wearing our logo.
  */
 export default function AdminOverviewPage() {
-  const { data, isLoading } = useAdminOverview();
+  // Undefined means "let the server choose" — the last 30 days of data that actually exists, which
+  // is the only setting guaranteed to draw something on a seeded database.
+  const [range, setRange] = useState<DateRange | undefined>(undefined);
+  const { data, isLoading } = useAdminOverview(range);
   const a = data?.attention;
 
   const total =
@@ -59,7 +64,15 @@ export default function AdminOverviewPage() {
 
   return (
     <div className="space-y-6 pb-10">
-      <h1 className="font-display text-xl font-semibold tracking-tight">Overview</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-xl font-semibold tracking-tight">Overview</h1>
+        {/*
+          Placed against the page title rather than against one chart, because it governs several
+          sections. The strip below is labelled 'right now' so the half it does NOT govern is
+          visible rather than something to be worked out.
+        */}
+        <DateRangePicker value={range} onChange={setRange} />
+      </div>
 
       <section aria-labelledby="needs-you">
         <div className="flex items-baseline justify-between gap-4 border-b pb-2">
@@ -104,7 +117,17 @@ export default function AdminOverviewPage() {
         )}
       </section>
 
-      <VitalSigns data={data} loading={isLoading} />
+      <section aria-labelledby="right-now">
+        <div className="flex items-baseline justify-between gap-4 border-b pb-2">
+          <h2 id="right-now" className="font-display text-base font-semibold tracking-tight">
+            Right now
+          </h2>
+          <span className="text-xs text-muted-foreground">Not affected by the date range</span>
+        </div>
+        <div className="pt-3">
+          <VitalSigns data={data} loading={isLoading} />
+        </div>
+      </section>
       <SpendBand data={data} loading={isLoading} />
 
       {/* The channel split, as small multiples rather than a stack. */}
@@ -129,7 +152,7 @@ export default function AdminOverviewPage() {
       </div>
 
       <div className="grid divide-y rounded-lg border lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-        <SubscriptionsPanel data={data} loading={isLoading} />
+        <AccountsPanel data={data} loading={isLoading} />
         <GrowthPanel data={data} loading={isLoading} />
         <CampaignsPanel data={data} loading={isLoading} />
       </div>
@@ -391,58 +414,102 @@ function recommendationStatusLabel(status: string): string {
   return NAMES[status] ?? status;
 }
 
-function SubscriptionsPanel({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
+/**
+ * What the customer base is made of.
+ *
+ * This was three lines in a box stretched to the height of its neighbours, so it read as mostly
+ * empty space. The plan mix went missing in the rebuild — it was the one genuinely useful thing on
+ * the original overview — so it comes back here as bars, and gives the panel the substance the
+ * others already had.
+ */
+function AccountsPanel({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
+  const planTotal = data?.workspacesByPlan.reduce((n, p) => n + p.count, 0) ?? 0;
+
   return (
-    <Panel title="Subscriptions">
+    <Panel
+      title="Accounts"
+      aside={
+        data && (
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+            {data.totalWorkspaces}
+          </span>
+        )
+      }
+    >
       {loading || !data ? (
-        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-32 w-full" />
       ) : (
-        <ul className="space-y-2">
-          {data.subscriptionMix.map((row) => (
-            <li key={row.status} className="flex items-baseline justify-between gap-4 text-sm">
-              <span className={cn(row.status === "past_due" && "text-destructive")}>
-                {subscriptionStatusLabel(row.status)}
+        <div className="space-y-4">
+          <BarList
+            rows={PLAN_ORDER.filter((plan) =>
+              data.workspacesByPlan.some((p) => p.plan === plan)
+            ).map((plan) => {
+              const n = data.workspacesByPlan.find((p) => p.plan === plan)?.count ?? 0;
+              return {
+                key: plan,
+                label: planLabel(plan),
+                value: String(n),
+                share: planTotal > 0 ? (n / planTotal) * 100 : 0,
+              };
+            })}
+          />
+
+          <ul className="space-y-2 border-t pt-3">
+            {data.subscriptionMix.map((row) => (
+              <li key={row.status} className="flex items-baseline justify-between gap-4 text-sm">
+                <span className={cn(row.status === "past_due" && "text-destructive")}>
+                  {subscriptionStatusLabel(row.status)}
+                </span>
+                <span className="font-mono text-xs tabular-nums">{row.count}</span>
+              </li>
+            ))}
+            <li className="flex items-baseline justify-between gap-4 text-sm">
+              <span className="text-muted-foreground">Connected integrations</span>
+              <span
+                className={cn(
+                  "font-mono text-xs tabular-nums",
+                  data.connectedPlatforms === 0 && "text-warning"
+                )}
+              >
+                {data.connectedPlatforms}
               </span>
-              <span className="font-mono tabular-nums">{row.count}</span>
             </li>
-          ))}
-          <li className="flex items-baseline justify-between gap-4 border-t pt-2 text-sm">
-            <span className="text-muted-foreground">Connected integrations</span>
-            <span
-              className={cn(
-                "font-mono tabular-nums",
-                data.connectedPlatforms === 0 && "text-warning"
-              )}
-            >
-              {data.connectedPlatforms}
-            </span>
-          </li>
-          <li className="flex items-baseline justify-between gap-4 text-sm">
-            <span className="text-muted-foreground">Content briefs written</span>
-            <span className="font-mono tabular-nums">{data.briefsCreated}</span>
-          </li>
-        </ul>
+            <li className="flex items-baseline justify-between gap-4 text-sm">
+              <span className="text-muted-foreground">Content briefs written</span>
+              <span className="font-mono text-xs tabular-nums">{data.briefsCreated}</span>
+            </li>
+          </ul>
+        </div>
       )}
     </Panel>
   );
 }
 
+/** Plans are ordinal, so the mix is drawn in tier order rather than by size. */
+const PLAN_ORDER = ["starter", "growth", "scale"];
+
 function GrowthPanel({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
-  const joined = data?.growthDaily.reduce((n, d) => n + d.users, 0) ?? 0;
+  const joined = data?.growthDaily.reduce((n, x) => n + x.users, 0) ?? 0;
   return (
     <Panel
-      title="New people, per day"
+      title="People joining"
       aside={
-        data && <span className="font-mono text-xs tabular-nums text-muted-foreground">{joined}</span>
+        data && (
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">+{joined}</span>
+        )
       }
     >
       {loading || !data ? (
-        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-28 w-full" />
+      ) : joined === 0 ? (
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Nobody signed up in this window. Widen the range to find the last time somebody did.
+        </p>
       ) : (
         <>
-          <SignupBars data={data.growthDaily} />
+          <GrowthArea data={data.growthDaily} />
           <p className="mt-2 text-xs text-muted-foreground">
-            Last 30 days. {joined} {joined === 1 ? "person" : "people"} joined.
+            Running total across the window. {joined} {joined === 1 ? "person" : "people"} joined.
           </p>
         </>
       )}

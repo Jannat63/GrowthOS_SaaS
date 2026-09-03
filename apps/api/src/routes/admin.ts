@@ -343,11 +343,27 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     return { success: true, trialEndsAt: trialEndsAt?.toISOString() ?? null }
   })
 
+  /**
+   * `from`/`to` are parsed leniently and only honoured as a pair — half a range is no range, and
+   * falling back to the default window is friendlier than refusing to render the page because a
+   * bookmark carried one stale parameter.
+   */
+  const overviewQuery = z.object({
+    from: z.coerce.date().optional().catch(undefined),
+    to: z.coerce.date().optional().catch(undefined),
+  })
+
   app.get('/api/v1/admin/overview', async (request): Promise<PlatformOverview> => {
     const user = await requireUser(request)
     await requirePlatformRole(user.id, 'support_agent')
-    const overview = await getPlatformOverview()
-    await logAdminAction(user.id, 'health.view', 'workspace', 'all')
+    const parsed = overviewQuery.safeParse(request.query)
+    const q = parsed.success ? parsed.data : {}
+    const range = q.from && q.to && q.from <= q.to ? { from: q.from, to: q.to } : {}
+    const overview = await getPlatformOverview(range)
+    await logAdminAction(user.id, 'health.view', 'workspace', 'all', {
+      from: range.from?.toISOString().slice(0, 10),
+      to: range.to?.toISOString().slice(0, 10),
+    })
     return overview
   })
 

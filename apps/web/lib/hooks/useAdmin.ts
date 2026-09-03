@@ -282,12 +282,35 @@ export function useExtendTrial(workspaceId: string | null) {
   });
 }
 
-export function useAdminOverview() {
-  return useQuery<PlatformOverview>({
-    queryKey: ["admin", "overview"],
-    staleTime: ADMIN_STALE_MS,
-    queryFn: () => api.get<PlatformOverview>("/admin/overview"),
+/**
+ * The overview, optionally scoped to a date range.
+ *
+ * The range is part of the query key: without it two different windows would share one cache entry
+ * and quietly show each other's numbers. Dates travel as plain `YYYY-MM-DD` so the URL stays
+ * readable and no timezone is implied by an ISO timestamp.
+ */
+export function useAdminOverview(range?: { from?: Date | undefined; to?: Date | undefined }) {
+  const qs = directoryQuery({
+    from: range?.from ? isoDay(range.from) : undefined,
+    to: range?.to ? isoDay(range.to) : undefined,
   });
+  return useQuery<PlatformOverview>({
+    queryKey: ["admin", "overview", qs],
+    staleTime: ADMIN_STALE_MS,
+    queryFn: () => api.get<PlatformOverview>(`/admin/overview${qs}`),
+  });
+}
+
+/**
+ * The local calendar date, not the UTC one.
+ *
+ * `toISOString()` converts to UTC first, so a date picked in any timezone behind Greenwich comes
+ * back as the previous day — an operator west of London would select "3 September" and be shown
+ * the 2nd.
+ */
+function isoDay(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 export interface AuditQuery extends DirectoryPage {
