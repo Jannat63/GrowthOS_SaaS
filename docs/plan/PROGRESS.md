@@ -1,6 +1,13 @@
 # GrowthOS — Master Progress Dashboard
 
-> **Where we are: M4 — V2: Automation & Scale · P4.4a COMPLETE.**
+> **Where we are: M6 — Platform Operations & Public Surface, opened retrospectively 2026-09-04.**
+> M4's P4.4a is complete and the rest of M4 is externally gated, so the work since 2026-08-27 has
+> been the two surfaces a launch needs that no milestone owned: **the platform admin console** and
+> **the public site** (legal pages, a database-backed blog, per-page SEO, cookie consent). Both are
+> built; see `docs/plan/M6-platform-surface/progress.md`, including the one open item — the admin
+> and blog routes shipped without tests.
+>
+> **Previously: M4 — V2: Automation & Scale · P4.4a COMPLETE.**
 > P4.3a (the control plane) is done; P4.3b (live Google Ads / Meta adapters) is blocked on external
 > credentials. **P4.4a-1 per-key rate limits and P4.4a-2 outbound webhooks both shipped 2026-08-27**,
 > alongside **P3.1 keyword clustering**. **All four un-gated slices designed on 2026-08-20 are now
@@ -32,6 +39,8 @@ bridges), a lightweight scheduler (`node-cron`, wires trial reminders + the inte
 a stuck-job sweep), P4.4's public API (Bearer-key authenticated, OpenAPI docs), real-time WebSocket
 transport (resolves a deferral independently named in P2.5/P2.6/P2.7/P3.4 — see P2.7's progress.md),
 and **P4.3a's automation control plane** are all done.
+**M6 is where work is now** — the admin console, staff 2FA, the blog and the public site, all
+built between 2026-08-27 and 2026-09-04 and recorded retrospectively.
 **M5 COMPLETE** — P5.1 Billing core, P5.2 Plan limits & metering, P5.3 Customer portal &
 lifecycle emails, and P5.4 Launch readiness all done. See
 docs/plan/M5-launch-monetization/GO_LIVE_CHECKLIST.md for what's still required before actually
@@ -76,7 +85,7 @@ outright, since the two copies' types are not interchangeable. Restored to `^0.4
 `drizzle-kit` to `^0.31.10`), keeping the `pg` / `@types/pg` deps main added for Local Demo Mode.
 Typecheck is 9/9 again and `pnpm peers check` reports no issues.
 
-·  Updated: 2026-08-27
+·  Updated: 2026-09-04
 
 Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked (note blocker)
 
@@ -128,7 +137,7 @@ approvals mature → then P3.2/P3.3.
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
 | P3.0 | Real platform integrations (OAuth) | [~] | **Built.** Custom OAuth → `platform_connections`; GSC first; encrypted tokens; live sync → ClickHouse; connections UI. 27 API tests. **Live E2E pending user's Google Cloud creds.** Meta/Ads/Shopify adapters + approvals later. |
-| P3.1 | SEO module | [~] | **Rank-tracker + organic-traffic slices done 2026-07-18** — GSC-fed keyword positions + per-page traffic from ClickHouse (`apps/api/src/seo.ts`), `/seo` tabs (rankings sparkline + clicks chart). **Keyword clustering done 2026-08-27** — `clusterKeywords` in `@growthos/logic` (Jaccard over tokenised word sets), `GET .../seo/clusters`, and a Clusters tab; it never needed pgvector, which is why it sat mislabelled as gated for months. Clusters are **lexical, not intent-verified**, and the UI says so — verifying intent needs SERP data. DataForSEO features (keyword research) still gated on the paid key; **site audit is free and unbuilt**. |
+| P3.1 | SEO module | [~] | **Rank-tracker + organic-traffic slices done 2026-07-18** — GSC-fed keyword positions + per-page traffic from ClickHouse (`apps/api/src/seo.ts`), `/seo` tabs (rankings sparkline + clicks chart). **Keyword clustering done 2026-08-27** — `clusterKeywords` in `@growthos/logic` (Jaccard over tokenised word sets), `GET .../seo/clusters`, and a Clusters tab; it never needed pgvector, which is why it sat mislabelled as gated for months. Clusters are **lexical, not intent-verified**, and the UI says so — verifying intent needs SERP data. **Site audit + Core Web Vitals done 2026-08-28** — site audit crawls a real site from the Python worker (`handlers/site_audit.py`) over the Redis job-bridge, SSRF-hardened the same way the webhook slice was; Core Web Vitals calls Google's PageSpeed Insights directly and works keyless (6 tests). Both had been listed as gated for months and neither was. DataForSEO keyword research is now the only genuinely gated item in this phase. |
 | P3.2 | Google Ads module | [~] | **Advisor + RSA + budget planner done 2026-07-18** — `@growthos/logic` google-ads-advisor (wasted-spend, classification, RSA, target-CPA/ROAS, budget allocator; 8 tests) + `/google-ads` page. Live fetch/push + Quality Score gated on the dev token. |
 | P3.3 | Meta Ads module | [~] | **Advisor + funnel/copy slice done 2026-07-18** — `@growthos/logic` meta-ads-advisor (funnel split, ad-copy + UGC generators; 4 tests) + `/meta-ads` page; fatigue done in M2. Live sync/publish + CAPI/EMQ gated on App Review. |
 | P3.4 | Intelligence Engine V1 | [x] | **V1 done 2026-07-18.** Weekly report + budget-reallocation engine; `intelligence_reports` table; `GET /intelligence/report`; `/intelligence` page. **Real-time WS delivery + the autonomous scheduled loop are both live** — the loop landed 2026-07-23, was dropped by the 2026-08-13 main merge, and was restored 2026-08-13 (see `docs/AUDIT-2026-08-13-post-merge.md`): Redis-lock single-runner, per-workspace cadence/enable (`automation_config`), persistent-dedupe alerting (`automation_alerts` → mer/fatigue re-fire only on change), observability (`scheduler_runs` + Settings activity), `intelligence:report_ready` WS event. |
@@ -164,6 +173,28 @@ when a launch is scheduled.
 | P5.3 | Customer portal & lifecycle emails | [x] | **Done 2026-07-22.** Stripe Customer Portal; Resend trial-converted + dunning emails on real webhook triggers. `checkTrialsEndingSoon` is now scheduler-wired (daily @ 09:00 UTC, under a Redis lock) — it wasn't when this phase shipped, because no scheduler existed yet. |
 | P5.4 | Launch readiness | [x] | **Done 2026-07-22.** helmet + boot-time env validation (extended 2026-08-13 to require the OAuth secrets), dependency audit + a real better-auth CVE fix, `/pricing` `/terms` `/privacy`, PostHog analytics, `GO_LIVE_CHECKLIST.md`. |
 
+## M6 — Platform Operations & Public Surface  🟨 In progress
+
+**Opened retrospectively on 2026-09-04**, after the work. None of it belonged to a milestone: M5
+closed as "Launch & Monetization" and none of M1–M5 owned a platform console, a blog, or the public
+site beyond a landing page. The subphases have no `plan.md`, deliberately — writing one now would be
+fiction dressed as a specification. Full writeup: `docs/plan/M6-platform-surface/progress.md`.
+
+| Phase | Name | Status | Notes |
+|-------|------|--------|-------|
+| P6.1 | Admin console | [x] | `/admin` + `apps/api/src/routes/admin.ts`. Two platform roles in `guards.ts` (`support_agent` reads, `super_admin` writes), workspace/account directories with an account file, a platform overview (funnel, channel mix, return, outcomes over a selectable range), and a readable audit log — `admin-audit.ts` writes one row per write, always, and collapses repeated reads. Migrations `0018`/`0019`. Two real defects fixed on the way in: the overview **counted customers who had been deleted**, and **a super admin had to create a customer workspace to reach the console at all** — platform staff own no workspace, so routing on membership sent them into customer onboarding with no link to the console they signed in for. |
+| P6.2 | Staff security | [x] | Two-factor (Better Auth plugin, migrations `0020`/`0021`), step-up re-authentication (`admin-stepup.ts`), super-admin alerting on sensitive actions (`admin-alerts.ts`). The console walls a new operator until their profile is complete **and** 2FA is on, and both walls hide its navigation, so there is no way past them other than through. `0021` exists because `0020` created the `twoFactor` table missing half the plugin's fields — the schema was written from memory rather than from the plugin's definition. |
+| P6.3 | Blog CMS | [x] | `schema/blog.ts` (migration `0022`), `apps/api/src/blog.ts`, public reads in `routes/blog.ts`, Tiptap editor at `/admin/blog`. **Posts store ProseMirror JSON, not HTML**, which removes the stored-XSS surface rather than sanitising it, and `.prose-signal` is one stylesheet shared by the editor and the published page so "the editor is the preview" is structurally true. Publishing gates on completeness; **saving asks for nothing**, because a draft is allowed to be unfinished. Publishing calls the web app's `/api/revalidate` so a post appears without a redeploy. Seeded with five SEO posts, idempotent by slug. |
+| P6.4 | Public site & SEO | [x] | Legal pages checked against what ships — **the Terms claimed GrowthOS could adjust campaigns and execute actions automatically, in three places**, when every OAuth scope requested is read-only and the only automation adapters are the content queue and a dry run; and the privacy policy said nothing about platform staff opening a workspace, the access the audit log already records. Per-page titles, descriptions and canonicals via `lib/seo.ts` (canonicals existed on exactly one route before this). **The favicon and share card were still the pre-rebrand blue**, having survived an entire rebrand because nothing pointed at them. Cookie consent that actually gates PostHog, 8 tests. Route-level loading states, group error boundaries, `global-error.tsx`, and inline form errors. |
+| — | Test coverage | [ ] | **`apps/api` has no test file for `admin.ts` or `blog.ts`.** Every other surface touching customer data has one. The authorization is real — `requirePlatformRole` on every route, `requireStepUp` on the sensitive ones, audit rows written before the response — but verified only by manual use, on the one surface where a session reaches another account's data. **This is the M6 backlog, and it is not gated on anything.** |
+| — | Legal placeholders | [!] | Company legal name, jurisdiction, contact addresses and effective date are unfilled. Gathered in `apps/web/lib/legal.tsx` and rendered as visible gold gaps rather than invented. **Must be filled before the legal pages go live.** |
+
+Also shipped in this window, against existing phases rather than M6: the dashboard audit series
+(`docs/AUDIT-2026-08-28-*.md` — Recommendations, Content Pipeline, Creative Queue, Creative Fatigue,
+SEO, Google Ads, Meta Ads, Analytics, attribution and automation all rebuilt or corrected), site
+audit and Core Web Vitals under **P3.1**, and a `pnpm dev` port preflight (`scripts/dev-preflight.mjs`)
+after a session lost to two processes listening on :3001 at once.
+
 ## Known blockers
 
 | Blocker | Affects |
@@ -172,5 +203,6 @@ when a launch is scheduled.
 | ~~Python 3.12 (current is 3.14)~~ | ✅ Resolved 2026-07-17 — 3.12.10 installed alongside 3.14. |
 | ~~Docker not installed (local ClickHouse)~~ | ✅ Resolved 2026-07-17 — WSL2 + Docker Desktop 29.6.1; ClickHouse up. |
 | ~~Redis job broker~~ | ✅ Resolved 2026-07-17 — **local Redis via Docker** (`redis://localhost:6379`); Upstash cloud deferred to prod. |
+| Company legal name, jurisdiction, contact addresses | **M6 P6.4** — the privacy, terms and cookie pages cannot go live until these are filled in `apps/web/lib/legal.tsx`. Blocked on the business, not on engineering; they are not guessable, and a plausible wrong entity name would be worse than the visible gap that is there now. |
 
-**No open blockers.** M2 P2.1 is fully unblocked.
+**One open blocker, and it is not a code blocker** (above). M6's missing admin/blog route tests are backlog, not a blocker — nothing external gates them.

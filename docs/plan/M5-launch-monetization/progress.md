@@ -1,6 +1,6 @@
 # M5 — Progress
 
-Status: [x]  ·  Updated: 2026-08-13
+Status: [x]  ·  Updated: 2026-09-04
 
 Deferred (rolling-wave) — phases will be expanded to folders when a launch is scheduled.
 
@@ -9,7 +9,7 @@ Deferred (rolling-wave) — phases will be expanded to folders when a launch is 
 | P5.1 Billing core | [x] | `subscriptions` + `usage_records` (0009_billing_core.sql); Stripe checkout + webhook; 14-day Growth trial auto-starts on workspace creation. Settings → Billing section (plan cards, checkout, trial countdown). |
 | P5.2 Plan limits & metering | [x] | `plan-limits.ts` — `assertWithinLimit`/`recordUsage` (rolling-window counters) + `assertFeatureEnabled` (boolean gates) + `getUsageSummary`. **Call sites wired 2026-08-13** — see the closing log entry; when this phase shipped only white-label branding was gated. |
 | P5.3 Customer portal & lifecycle emails | [x] | Stripe Customer Portal; Resend trial-converted + dunning emails wired to real webhook triggers. **The trial-ending-soon reminder is now scheduler-wired** (daily @ 09:00 UTC, under a Redis lock) — it wasn't when this phase shipped, because no scheduler existed. |
-| P5.4 Launch readiness | [x] | Security hardening (helmet, env validation, dependency audit + better-auth CVE fix), `/pricing` `/terms` `/privacy` pages, analytics scaffolding, `GO_LIVE_CHECKLIST.md`. All of M5 is now built — see the checklist for what's still required before actually launching. |
+| P5.4 Launch readiness | [x] | Security hardening (helmet, env validation, dependency audit + better-auth CVE fix), `/pricing` `/terms` `/privacy` pages, analytics scaffolding, `GO_LIVE_CHECKLIST.md`. All of M5 is now built — see the checklist for what's still required before actually launching. **The public surface has since grown well past the three pages named here** — cookie policy, FAQ, about, security, a blog, per-page SEO, and cookie consent that actually gates the analytics this phase scaffolded. That work is recorded under **M6**, not here: this milestone shipped what it planned, and reopening a closed phase to absorb a year's worth of later surface would make its completion date meaningless. |
 
 ## Log
 
@@ -116,3 +116,12 @@ Deferred (rolling-wave) — phases will be expanded to folders when a launch is 
   nothing. The M4 scheduler (`node-cron`, in-process) now runs it daily at 09:00 UTC under a Redis
   lock, so N API instances send one reminder rather than N. `GO_LIVE_CHECKLIST.md`'s "scheduler
   infra" line is stale in the same way — there is no separate deployable to provision.
+
+- 2026-09-04 — **A correction this phase should own, even though the fix is recorded in M6.** P5.4
+  shipped PostHog as "analytics scaffolding" and wired `initAnalytics()` into `Providers` on mount.
+  That is analytics running before consent — the SDK set its cookies on first paint, with no banner
+  and no way to decline. It stayed that way from 2026-07-22 until 2026-09-04. The go-live checklist
+  named "legal review" as an outstanding item and the cookie policy carried a placeholder reading
+  `[add opt-out mechanism here once decided]`, so the gap was visible in two documents and still
+  shipped, because neither of them was a test. Fixed in M6 P6.4: the SDK is now reachable only
+  through the consent layer.

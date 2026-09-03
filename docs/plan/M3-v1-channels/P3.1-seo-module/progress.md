@@ -78,3 +78,21 @@ GSC metrics (clicks, impressions, CTR, avg position).
   threshold so a demo looks better is how a made-up number ends up on a customer's screen. The UI
   handles it instead: singletons collapse into one "Ungrouped" card rather than six identical
   one-item cards implying groupings that are not there.
+
+- 2026-08-28 — **Site audit and Core Web Vitals built.** Both were listed as gated for months and
+  neither was: site audit needs no paid provider (it is our own crawler), and Google's PageSpeed
+  Insights API accepts keyless requests.
+
+  **Site audit** runs in the Python worker (`apps/worker/app/handlers/site_audit.py`), enqueued over
+  the existing Redis job-bridge by `POST /workspaces/:id/seo/site-audit` and polled by a matching
+  `GET`. It crawls a real site over real HTTP and reports missing titles, thin content, broken
+  canonicals and missing alt text. Because a customer-supplied URL that our own server fetches is
+  the same SSRF shape the webhook slice had already been caught by, it is hardened the same way:
+  private and link-local addresses refused, response size capped, non-HTML content types rejected.
+
+  **Core Web Vitals** (`apps/api/src/core-web-vitals.ts`, 6 tests) calls PageSpeed Insights
+  directly, so the numbers are Google's own rather than a local approximation of them.
+  `GOOGLE_PAGESPEED_API_KEY` is optional and documented in `apps/api/.env.example` — it only raises
+  the keyless rate limit.
+
+  This leaves DataForSEO keyword research as the only genuinely gated item in P3.1.
