@@ -3,27 +3,33 @@
 import { useId, useState } from "react";
 import { Button } from "@growthos/ui/components/button";
 import { Textarea } from "@growthos/ui/components/textarea";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 import { cn } from "@/lib/utils/cn";
 
 /** Matches the server, which rejects anything shorter on every one of these routes. */
 export const MIN_REASON = 10;
 
+export interface StepUpInput {
+  reason: string;
+  password: string;
+}
+
 /**
- * An action against a customer's account that has to be explained.
+ * An action against a customer's account: explained, then re-authenticated.
  *
  * Every write in this console — a plan override, an extended trial, a change to someone's platform
- * access, a forced sign-out — takes a reason of at least ten characters and records it in the audit
- * log. That rule is enforced server-side; this is the shape it takes on screen, in one place, so
- * the four actions do not drift into four different confirmation flows.
+ * access, a forced sign-out — takes a reason of at least ten characters and the operator's own
+ * password. Both rules are enforced server-side; this is the shape they take on screen, in one
+ * place, so the four actions cannot drift into four different flows.
  *
- * Two steps, deliberately. The first press commits to the change and shows exactly what is about
- * to happen; the second performs it. The intermediate state is where the sentence naming the
- * account and the change lives, because that is the moment someone catches that they are looking
- * at the wrong customer.
+ * Two steps, and the password belongs to the second one. The first press commits to the change and
+ * shows exactly what is about to happen; only then does it ask you to prove you are still you.
+ * Asking for a password before someone has decided anything trains people to type it reflexively,
+ * which is the opposite of what a step-up check is for — and the intermediate panel, naming the
+ * account and the change, is the moment someone catches that they have the wrong customer open.
  *
- * The reason field explains its own rule as you type rather than leaving a disabled button with no
- * account of itself — counting characters to discover a minimum is not a thing anyone should have
- * to do.
+ * The password is never held anywhere but this component's state, and it is cleared the instant the
+ * action fires or the operator backs out.
  */
 export function ReasonAction({
   title,
@@ -49,21 +55,30 @@ export function ReasonAction({
   /** False while the controls above are incomplete — no plan chosen, no role picked. */
   ready?: boolean;
   pending?: boolean;
-  onConfirm: (reason: string) => void;
+  onConfirm: (input: StepUpInput) => void;
 }) {
   const [reason, setReason] = useState("");
+  const [password, setPassword] = useState("");
   const [confirming, setConfirming] = useState(false);
-  // Two of these can be on one page; a title-derived id would collide the label with the wrong box.
-  const fieldId = useId();
+  // Two of these can be on one page; a title-derived id would tie the label to the wrong box.
+  const reasonId = useId();
+  const passwordId = useId();
 
   const short = reason.trim().length < MIN_REASON;
-  const blocked = short || !ready || pending;
+  const blockedFirst = short || !ready || pending;
+  const blockedFinal = blockedFirst || password.length === 0;
+
+  function back() {
+    setConfirming(false);
+    setPassword("");
+  }
 
   function commit() {
-    if (blocked) return;
-    onConfirm(reason.trim());
+    if (blockedFinal) return;
+    onConfirm({ reason: reason.trim(), password });
     setConfirming(false);
     setReason("");
+    setPassword("");
   }
 
   return (
@@ -80,15 +95,15 @@ export function ReasonAction({
       {children}
 
       <div className="space-y-2">
-        <label htmlFor={fieldId} className="block text-xs text-muted-foreground">
+        <label htmlFor={reasonId} className="block text-xs text-muted-foreground">
           Why
         </label>
         <Textarea
-          id={fieldId}
+          id={reasonId}
           value={reason}
           onChange={(e) => {
             setReason(e.target.value);
-            setConfirming(false);
+            back();
           }}
           placeholder="In enough detail to make sense to whoever reads the log in six months."
           rows={2}
@@ -107,7 +122,7 @@ export function ReasonAction({
           type="button"
           size="sm"
           variant={destructive ? "destructive" : "default"}
-          disabled={blocked}
+          disabled={blockedFirst}
           onClick={() => setConfirming(true)}
         >
           {confirmLabel}
@@ -115,22 +130,42 @@ export function ReasonAction({
       ) : (
         <div
           className={cn(
-            "rounded-lg border p-3",
+            "space-y-3 rounded-lg border p-3",
             destructive ? "border-destructive/40 bg-destructive/5" : "border-primary/40 bg-primary/5"
           )}
         >
           <p className="text-sm leading-relaxed">{confirmation}</p>
-          <div className="mt-3 flex gap-2">
+
+          <div className="space-y-1.5">
+            <label htmlFor={passwordId} className="block text-xs text-muted-foreground">
+              Your password
+            </label>
+            <PasswordInput
+              id={passwordId}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              placeholder="Confirm it is you"
+              // The operator has already decided by this point; put the cursor where it is needed.
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">
+              Your own password, not the customer&rsquo;s. A signed-in session says who opened the
+              browser, not who is at it now.
+            </p>
+          </div>
+
+          <div className="flex gap-2">
             <Button
               type="button"
               size="sm"
               variant={destructive ? "destructive" : "default"}
-              disabled={blocked}
+              disabled={blockedFinal}
               onClick={commit}
             >
               {pending ? "Working…" : "Yes, do it"}
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+            <Button type="button" size="sm" variant="ghost" onClick={back}>
               Cancel
             </Button>
           </div>

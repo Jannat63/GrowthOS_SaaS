@@ -145,9 +145,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                   </>
                 )
               }
-              onConfirm={(reason) => {
+              onConfirm={({ reason, password }) => {
                 if (nextRole === undefined) return;
-                setRole.mutate({ role: nextRole, reason }, { onSuccess: () => setNextRole(undefined) });
+                setRole.mutate(
+                  { role: nextRole, reason, password },
+                  { onSuccess: () => setNextRole(undefined) }
+                );
               }}
             >
               <div className="flex flex-col gap-1.5">
@@ -195,7 +198,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                     <span className="font-mono">{user.email}</span>?
                   </>
                 }
-                onConfirm={(reason) => revoke.mutate({ reason })}
+                onConfirm={({ reason, password }) => revoke.mutate({ reason, password })}
               />
             )}
           </div>

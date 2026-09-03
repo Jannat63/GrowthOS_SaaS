@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@growthos/ui/components/dialog";
-import { ReasonAction } from "@/components/admin/ReasonAction";
+import { ReasonAction, type StepUpInput } from "@/components/admin/ReasonAction";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -54,7 +54,7 @@ export function ActionDialog({
   destructive?: boolean;
   ready?: boolean;
   pending?: boolean;
-  onConfirm: (reason: string) => void;
+  onConfirm: (input: StepUpInput) => void;
   /** Called when the dialog opens or closes, so a caller can reset its own selection. */
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -94,8 +94,8 @@ export function ActionDialog({
             destructive={destructive}
             ready={ready}
             pending={pending}
-            onConfirm={(reason) => {
-              onConfirm(reason);
+            onConfirm={(input) => {
+              onConfirm(input);
               change(false);
             }}
           >

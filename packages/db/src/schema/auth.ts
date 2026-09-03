@@ -24,6 +24,10 @@ export const user = pgTable("user", {
   // Optional contact number for platform staff, collected on the admin profile step
   // (app/(admin)/admin/welcome). Nullable and never required of customers.
   phone: text("phone"),
+  // Better Auth's twoFactor plugin owns this. False for everyone by default; the admin console
+  // requires it of anyone holding a platformRole before it will open (see apps/web/app/(admin)).
+  // Customers may turn it on but are never forced to.
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
@@ -49,6 +53,29 @@ export const session = pgTable(
     activeOrganizationId: text("active_organization_id"),
   },
   (table) => [index("session_userId_idx").on(table.userId)],
+);
+
+/**
+ * Better Auth's twoFactor plugin table — one row per user with 2FA enabled.
+ *
+ * Shape dictated by the plugin (packages/better-auth two-factor/schema.ts), not by us: `secret` is
+ * the TOTP seed and `backupCodes` the recovery set, both encrypted by the plugin and never returned
+ * to a client. Disabling 2FA deletes the whole row rather than flipping a flag, which is why there
+ * is no `enabled` column here — that lives on `user.twoFactorEnabled`.
+ *
+ * Cascades from `user`: a deleted account must not leave its TOTP seed behind.
+ */
+export const twoFactor = pgTable(
+  "twoFactor",
+  {
+    id: text("id").primaryKey(),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [index("twoFactor_userId_idx").on(table.userId)],
 );
 
 export const account = pgTable(

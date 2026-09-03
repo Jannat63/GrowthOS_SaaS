@@ -108,3 +108,49 @@ export async function sendTeamInviteEmail(
 function webOriginForEmails(): string {
   return process.env.WEB_ORIGIN ?? 'http://localhost:3000'
 }
+
+/**
+ * Tells every super admin that a change was made in the admin console.
+ *
+ * Written plainly and without a call to action, because there is nothing to click: it exists so
+ * that a change nobody expected is noticed within seconds rather than found in the audit log a
+ * week later. The reason the operator typed is quoted verbatim — it is the only part of the record
+ * that says *why*, and paraphrasing it would defeat the point of requiring it.
+ *
+ * HTML-escaped: every field here is operator-supplied free text or a customer's own workspace name,
+ * and both end up inside an email body.
+ */
+export async function sendAdminActionAlertEmail(
+  to: string,
+  input: {
+    actorName: string
+    actorEmail: string
+    action: string
+    target: string
+    reason: string
+    change?: string | undefined
+  },
+): Promise<void> {
+  const e = escapeHtml
+  await send(
+    to,
+    `[GrowthOS admin] ${input.action} — ${input.target}`,
+    `<p><strong>${e(input.actorName)}</strong> (${e(input.actorEmail)}) just did this in the admin console:</p>
+     <p style="font-size:16px"><strong>${e(input.action)}</strong> — ${e(input.target)}</p>
+     ${input.change ? `<p>Change: ${e(input.change)}</p>` : ''}
+     <p>Reason given:<br><em>${e(input.reason)}</em></p>
+     <p style="color:#666;font-size:13px">Every super admin receives this, including the person who
+     made the change. If that was not you, your session may have been used by someone else — change
+     your password and sign out everywhere.</p>`,
+  )
+}
+
+/** Operator free text and customer names both land inside an email body. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}

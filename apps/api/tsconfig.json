@@ -2,7 +2,19 @@
   "extends": "@growthos/config/typescript/base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    // No .d.ts output. apps/api is an application, not a library: nothing imports its types —
+    // apps/web deliberately cannot (CLAUDE.md), and the smoke test loads dist/app.js, not its
+    // declarations. The shared base config turns declarations on because every package/* IS a
+    // library; this overrides it for the one workspace that is not.
+    //
+    // It also settles TS2742. Better Auth's twoFactor plugin depends on zod 4 while apps/api is on
+    // zod 3, so the inferred type of `auth` reaches into a zod copy this package cannot name. That
+    // is a declaration-emit diagnostic only — the code and every type check are unaffected — and
+    // the alternatives were worse: moving the whole API to zod 4 to satisfy a plugin's transitive
+    // dependency, or hand-annotating a deeply generic Better Auth return type.
+    "declaration": false,
+    "declarationMap": false
   },
   "include": ["src"]
 }

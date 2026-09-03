@@ -254,9 +254,12 @@ function AccountTab({ ws, isSuperAdmin }: { ws: AdminWorkspaceDetail; isSuperAdm
                   {selectedPlan ? planLabel(selectedPlan) : ""}, without changing Stripe?
                 </>
               }
-              onConfirm={(reason) => {
+              onConfirm={({ reason, password }) => {
                 if (!selectedPlan) return;
-                override.mutate({ plan: selectedPlan, reason }, { onSuccess: () => setSelectedPlan("") });
+                override.mutate(
+                  { plan: selectedPlan, reason, password },
+                  { onSuccess: () => setSelectedPlan("") }
+                );
               }}
             >
               <div className="flex flex-wrap gap-2">
@@ -294,7 +297,7 @@ function AccountTab({ ws, isSuperAdmin }: { ws: AdminWorkspaceDetail; isSuperAdm
                   ?
                 </>
               }
-              onConfirm={(reason) => extend.mutate({ days, reason })}
+              onConfirm={({ reason, password }) => extend.mutate({ days, reason, password })}
             >
               <div className="flex items-center gap-2">
                 <Input

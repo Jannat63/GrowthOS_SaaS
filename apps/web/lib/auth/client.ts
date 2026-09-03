@@ -1,10 +1,24 @@
 import { createAuthClient } from "better-auth/react";
-import { organizationClient, inferAdditionalFields } from "better-auth/client/plugins";
+import {
+  organizationClient,
+  inferAdditionalFields,
+  twoFactorClient,
+} from "better-auth/client/plugins";
 
 export const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001",
   plugins: [
     organizationClient(),
+    /**
+     * TOTP. `onTwoFactorRedirect` fires when a correct password lands on an account that has 2FA
+     * enabled: Better Auth deletes the half-made session and issues a challenge cookie instead, so
+     * there is nothing signed in until the code is verified.
+     */
+    twoFactorClient({
+      onTwoFactorRedirect() {
+        window.location.href = "/two-factor";
+      },
+    }),
     /**
      * The user fields this app adds on the server (apps/api/src/auth.ts). They are declared by
      * hand rather than with `inferAdditionalFields<typeof auth>()` because that form needs to
@@ -19,9 +33,10 @@ export const authClient = createAuthClient({
       user: {
         platformRole: { type: "string", required: false },
         phone: { type: "string", required: false },
+        twoFactorEnabled: { type: "boolean", required: false },
       },
     }),
   ],
 });
 
-export const { signIn, signUp, signOut, useSession, updateUser } = authClient;
+export const { signIn, signUp, signOut, useSession, updateUser, twoFactor } = authClient;

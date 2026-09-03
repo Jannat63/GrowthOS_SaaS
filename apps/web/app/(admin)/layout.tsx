@@ -6,6 +6,7 @@ import { Button } from "@growthos/ui/components/button";
 import { useAdminAccess } from "@/lib/hooks/useAdmin";
 import { useSession } from "@/lib/auth/client";
 import { AdminRail } from "@/components/admin/AdminRail";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { OperatorMenu } from "@/components/admin/OperatorMenu";
 import {
   AdminCommandPalette,
@@ -18,12 +19,16 @@ import {
  * /admin/* independently requires a platform role server-side (apps/api/src/routes/admin.ts), so
  * there's no path where getting past this layout alone exposes real data.
  *
- * **The whole surface is scoped `dark`, in every theme.** That is the safeguard: an operator must
- * never mistake a customer's account for their own workspace, and a console that inverts with the
- * theme can end up looking exactly like the customer app. Scoping the class rather than hardcoding
- * a grey ramp means the shadcn primitives inside resolve to the graphite palette on their own —
- * `--card`, `--border`, `--input` and the rest all move together — so `<Button>` and `<Input>` are
- * usable here unmodified, and nothing has to be re-toned per instance.
+ * **The console follows the chosen theme.** It used to be scoped `dark` in every theme, as a
+ * safeguard against mistaking a customer's account for your own workspace. That had a defect that
+ * gave the game away: Radix portals every dialog and the command palette to `document.body`, which
+ * is *outside* the scoped element, so those surfaces resolved against the light tokens and opened
+ * as bright panels over a graphite page. Scoping the class on a subtree cannot cover anything that
+ * escapes the subtree.
+ *
+ * What still marks this as the console, in either theme: the gold hairline across the top, the
+ * shield and its name in the header, and the standing warning in the operator menu that everything
+ * here is recorded under your name. Those do not depend on the surface being dark.
  *
  * The shell is a 52px icon rail plus a single header bar, not the customer app's sidebar-and-
  * header. Finding an account is the command palette's job; the rail carries only the destinations
@@ -49,13 +54,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     Boolean(access) && !sessionPending && (session?.user.name ?? "").trim().length === 0;
   const onWelcome = pathname === "/admin/welcome";
 
+  /**
+   * Two-factor is required of platform staff before the console opens.
+   *
+   * A wall, not a reminder: this surface reads every customer account on the platform, and a
+   * security control that can be dismissed is one that will be. It sits beside the profile gate for
+   * the same reason that one does — sign-in is not the only way in, so a check on the sign-in
+   * handler alone is a check that can be walked around by typing /admin.
+   *
+   * The server still holds the real line. This gate only decides what renders; every admin route
+   * independently requires a platform role, and Better Auth independently refuses to issue a
+   * session for a 2FA account until a code is verified.
+   */
+  const twoFactorMissing =
+    Boolean(access) &&
+    !sessionPending &&
+    !(session?.user as { twoFactorEnabled?: boolean } | undefined)?.twoFactorEnabled;
+  const onSecurity = pathname === "/admin/security";
+
   useEffect(() => {
-    if (profileIncomplete && !onWelcome) router.replace("/admin/welcome");
-  }, [profileIncomplete, onWelcome, router]);
+    if (profileIncomplete && !onWelcome) {
+      router.replace("/admin/welcome");
+      return;
+    }
+    // Name first: the audit log needs someone to write down before it is worth protecting.
+    if (!profileIncomplete && twoFactorMissing && !onSecurity) router.replace("/admin/security");
+  }, [profileIncomplete, onWelcome, twoFactorMissing, onSecurity, router]);
 
   if (isLoading) {
     return (
-      <div className="dark flex min-h-screen items-center justify-center bg-background">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-sm text-muted-foreground">Checking admin access…</p>
       </div>
     );
@@ -63,7 +91,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!access) {
     return (
-      <div className="dark flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-6 text-center text-foreground">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-6 text-center text-foreground">
         <ShieldAlert className="h-9 w-9 text-destructive" aria-hidden="true" />
         <h1 className="font-display text-xl font-semibold tracking-tight">Not authorized</h1>
         <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
@@ -78,9 +106,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const isSuperAdmin = access.platformRole === "super_admin";
+  // Either wall hides the way out of it.
+  const walled = profileIncomplete || twoFactorMissing;
 
   return (
-    <div className="dark flex h-screen flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
       {/*
         The signature, and the one place this surface raises its voice.
 
@@ -103,8 +133,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           header rather than at the top of one page. It is a button, not an input: the palette owns
           its own field, and two focusable text boxes for one search is a trap for keyboard users.
         */}
-        {/* Hidden during the profile wall for the same reason the rail is: the palette navigates. */}
-        {!profileIncomplete && (
+        {/* Hidden behind either wall for the same reason the rail is: the palette navigates. */}
+        {!walled && (
         <button
           type="button"
           onClick={() => palette.setOpen(true)}
@@ -118,7 +148,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </button>
         )}
 
-        <div className="ml-auto shrink-0">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <ThemeToggle />
           <OperatorMenu platformRole={access.platformRole} />
         </div>
       </header>
@@ -129,8 +160,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         no navigation and no way back without scrolling to the top first.
       */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-        {/* The profile step is a wall, not a page: no navigation out of it until there is a name. */}
-        {!profileIncomplete && <AdminRail isSuperAdmin={isSuperAdmin} />}
+        {/* A wall, not a page: no navigation out of it until it is satisfied. */}
+        {!walled && <AdminRail isSuperAdmin={isSuperAdmin} />}
         {/*
           No max-width container. The customer app centres its content because it is read; this is
           scanned across, and every column of a directory is width the operator asked for.
@@ -138,7 +169,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
       </div>
 
-      {!profileIncomplete && (
+      {!walled && (
         <AdminCommandPalette
           open={palette.open}
           onOpenChange={palette.setOpen}

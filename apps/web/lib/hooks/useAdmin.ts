@@ -162,7 +162,7 @@ export function useAdminWorkspaceHistory(workspaceId: string, enabled: boolean) 
 export function usePlanOverride(workspaceId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { plan: Plan; reason: string }) =>
+    mutationFn: (input: { plan: Plan; reason: string; password: string }) =>
       api.post<{ success: boolean }>(`/admin/workspaces/${workspaceId}/plan-override`, input),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "workspace", workspaceId] });
@@ -225,7 +225,7 @@ export function useAdminUserSpend(userId: string | null) {
 export function useSetPlatformRole(userId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { role: PlatformRole | null; reason: string }) =>
+    mutationFn: (input: { role: PlatformRole | null; reason: string; password: string }) =>
       api.post<{ success: boolean }>(`/admin/users/${userId}/platform-role`, input),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "user", userId] });
@@ -243,7 +243,7 @@ export function useSetPlatformRole(userId: string) {
 export function useRevokeSessions(userId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { reason: string }) =>
+    mutationFn: (input: { reason: string; password: string }) =>
       api.post<{ success: boolean; revoked: number }>(
         `/admin/users/${userId}/revoke-sessions`,
         input
@@ -263,7 +263,7 @@ export function useRevokeSessions(userId: string) {
 export function useExtendTrial(workspaceId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { days: number; reason: string }) =>
+    mutationFn: (input: { days: number; reason: string; password: string }) =>
       api.post<{ success: boolean; trialEndsAt: string | null }>(
         `/admin/workspaces/${workspaceId}/extend-trial`,
         input

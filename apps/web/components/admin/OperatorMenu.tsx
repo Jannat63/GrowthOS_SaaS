@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ChevronDown, ExternalLink, LogOut, UserCog } from "lucide-react";
+import { ChevronDown, ExternalLink, LogOut, ShieldCheck, UserCog } from "lucide-react";
 import type { PlatformRole } from "@growthos/types";
 import {
   DropdownMenu,
@@ -69,6 +69,11 @@ export function OperatorMenu({ platformRole }: { platformRole: PlatformRole }) {
         <DropdownMenuItem onSelect={() => router.push("/admin/welcome")}>
           <UserCog className="h-4 w-4" aria-hidden="true" />
           Edit your details
+        </DropdownMenuItem>
+
+        <DropdownMenuItem onSelect={() => router.push("/admin/security")}>
+          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+          Two-factor
         </DropdownMenuItem>
 
         {hasWorkspace && (

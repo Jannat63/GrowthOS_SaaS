@@ -16,6 +16,8 @@ import { AppError } from '../errors.js'
 import { requireUser } from '../auth-context.js'
 import { requirePlatformRole } from '../guards.js'
 import { logAdminAction } from '../admin-audit.js'
+import { alertSuperAdmins } from '../admin-alerts.js'
+import { requireStepUp } from '../admin-stepup.js'
 import { parsePage } from '../pagination.js'
 import { getUsageSummary } from '../plan-limits.js'
 import {
@@ -35,6 +37,18 @@ import {
 } from '../admin.js'
 
 const searchQuery = z.object({ search: z.string().trim().max(200).optional() })
+
+/**
+ * The two things every write in this console carries: why, and proof it is still you.
+ *
+ * The reason goes in the audit log and in the alert email. The password is re-checked at the moment
+ * of the write (see admin-stepup.ts) because a live session says who opened the browser, not who is
+ * sitting at it now.
+ */
+const stepUp = {
+  reason: z.string().trim().min(10, 'A reason (10+ characters) is required.'),
+  password: z.string().min(1, 'Confirm your password to make this change.'),
+}
 
 /**
  * Filter and sort are parsed leniently: an unrecognised value falls back to the default rather
@@ -132,7 +146,7 @@ export async function registerAdminRoutes(app: FastifyInstance) {
 
   const planOverrideBody = z.object({
     plan: z.enum(['starter', 'growth', 'scale']),
-    reason: z.string().trim().min(10, 'A reason (10+ characters) is required for a manual plan override.'),
+    ...stepUp,
   })
   app.post('/api/v1/admin/workspaces/:id/plan-override', async (request) => {
     const user = await requireUser(request)
@@ -144,12 +158,23 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
     }
 
+    await requireStepUp(request, body.data.password)
+
     const before = await getWorkspaceDetail(id)
     await overrideWorkspacePlan(id, body.data.plan as Plan)
     await logAdminAction(user.id, 'workspace.plan_override', 'workspace', id, {
       reason: body.data.reason,
       before: before?.subscription.plan ?? null,
       after: body.data.plan,
+    })
+    alertSuperAdmins({
+      actorId: user.id,
+      actorName: user.name,
+      actorEmail: user.email,
+      action: 'Changed a plan',
+      target: before?.name ?? id,
+      reason: body.data.reason,
+      change: `${before?.subscription.plan ?? 'unknown'} to ${body.data.plan}`,
     })
     return { success: true }
   })
@@ -196,7 +221,7 @@ export async function registerAdminRoutes(app: FastifyInstance) {
   const platformRoleBody = z.object({
     // null removes the role entirely; the two strings grant one.
     role: z.enum(['support_agent', 'super_admin']).nullable(),
-    reason: z.string().trim().min(10, 'A reason (10+ characters) is required to change platform access.'),
+    ...stepUp,
   })
   app.post('/api/v1/admin/users/:id/platform-role', async (request) => {
     const actor = await requireUser(request)
@@ -223,6 +248,8 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       )
     }
 
+    await requireStepUp(request, body.data.password)
+
     const before = await getUserDetail(id)
     if (!before) throw new AppError('NOT_FOUND', 'No account with that ID.')
 
@@ -233,12 +260,19 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       after: body.data.role,
       subjectEmail: before.email,
     })
+    alertSuperAdmins({
+      actorId: actor.id,
+      actorName: actor.name,
+      actorEmail: actor.email,
+      action: 'Changed platform access',
+      target: before.email,
+      reason: body.data.reason,
+      change: `${before.platformRole ?? 'customer'} to ${body.data.role ?? 'customer'}`,
+    })
     return { success: true }
   })
 
-  const reasonBody = z.object({
-    reason: z.string().trim().min(10, 'A reason (10+ characters) is required.'),
-  })
+  const reasonBody = z.object(stepUp)
   app.post('/api/v1/admin/users/:id/revoke-sessions', async (request) => {
     const actor = await requireUser(request)
     await requirePlatformRole(actor.id, 'super_admin')
@@ -247,6 +281,8 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     if (!body.success) {
       throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
     }
+
+    await requireStepUp(request, body.data.password)
 
     const subject = await getUserDetail(id)
     if (!subject) throw new AppError('NOT_FOUND', 'No account with that ID.')
@@ -257,13 +293,22 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       revoked,
       subjectEmail: subject.email,
     })
+    alertSuperAdmins({
+      actorId: actor.id,
+      actorName: actor.name,
+      actorEmail: actor.email,
+      action: 'Signed someone out everywhere',
+      target: subject.email,
+      reason: body.data.reason,
+      change: `${revoked} session${revoked === 1 ? '' : 's'} ended`,
+    })
     return { success: true, revoked }
   })
 
   const extendTrialBody = z.object({
     // Capped at 90: past that it is not an extension, it is a comp, and a comp is a plan override.
     days: z.number().int().min(1).max(90),
-    reason: z.string().trim().min(10, 'A reason (10+ characters) is required to extend a trial.'),
+    ...stepUp,
   })
   app.post('/api/v1/admin/workspaces/:id/extend-trial', async (request) => {
     const user = await requireUser(request)
@@ -274,6 +319,8 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
     }
 
+    await requireStepUp(request, body.data.password)
+
     const before = await getWorkspaceDetail(id)
     if (!before) throw new AppError('WORKSPACE_NOT_FOUND', 'No workspace with that ID.')
 
@@ -283,6 +330,15 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       days: body.data.days,
       before: before.subscription.trialEndsAt,
       after: trialEndsAt?.toISOString() ?? null,
+    })
+    alertSuperAdmins({
+      actorId: user.id,
+      actorName: user.name,
+      actorEmail: user.email,
+      action: 'Extended a trial',
+      target: before.name,
+      reason: body.data.reason,
+      change: `+${body.data.days} day${body.data.days === 1 ? '' : 's'}`,
     })
     return { success: true, trialEndsAt: trialEndsAt?.toISOString() ?? null }
   })

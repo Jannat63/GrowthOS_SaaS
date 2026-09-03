@@ -1,6 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { organization } from 'better-auth/plugins';
+import { organization, twoFactor } from 'better-auth/plugins';
 import { db, schema } from '@growthos/db';
 
 /**
@@ -16,6 +16,8 @@ import { db, schema } from '@growthos/db';
  */
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg', schema }),
+  // Also the TOTP issuer — what shows up beside the code in an authenticator app.
+  appName: 'GrowthOS',
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL ?? 'http://localhost:3001',
   trustedOrigins: [process.env.WEB_ORIGIN ?? 'http://localhost:3000'],
@@ -34,6 +36,19 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    /**
+     * Two-factor (TOTP), available to everyone and REQUIRED of platform staff.
+     *
+     * The admin console grants read access to every customer account on the platform, and a
+     * password alone was the whole barrier to it. The plugin intercepts credential sign-in and
+     * issues a challenge when the user has 2FA on; enforcement of "staff must have it" is the
+     * console's own gate (apps/web/app/(admin)/layout.tsx), because Better Auth has no notion of
+     * our platformRole.
+     *
+     * Customers may enable it and are never forced to — this is not a change to the customer
+     * product.
+     */
+    twoFactor(),
     organization({
       schema: {
         organization: {
