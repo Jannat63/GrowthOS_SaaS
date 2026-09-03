@@ -53,7 +53,14 @@ export function PostMeta({
 
   return (
     <aside className="w-full shrink-0 space-y-7 lg:w-72">
-      <Visibility post={post} onPublish={onPublish} onUnpublish={onUnpublish} busy={busy} />
+      <Visibility
+        post={post}
+        draft={draft}
+        words={words}
+        onPublish={onPublish}
+        onUnpublish={onUnpublish}
+        busy={busy}
+      />
 
       <Section title="Address">
         <div className="space-y-1.5">
@@ -153,28 +160,52 @@ export function PostMeta({
 
 // ── Visibility ──────────────────────────────────────────────────────────────
 
+/**
+ * What a post still needs before it can go out.
+ *
+ * Saving asks for nothing — a draft is allowed to be unfinished, and demanding a dek before the
+ * first sentence is written puts the requirement on the wrong verb. Publishing is where it is
+ * enforced (server-side, in publishPost), and the button says so here rather than letting someone
+ * click and receive a toast. The description matters because it is also the meta description and
+ * the social card's text: publishing without one ships a live page that describes itself as nothing.
+ */
+function blockingReason(draft: PostDraft, words: number): string | null {
+  const title = draft.title.trim();
+  if (title === "" || title === "Untitled post") return "Give it a title first.";
+  if (draft.description.trim() === "") return "Write the one-line description first.";
+  if (words === 0) return "The body is empty.";
+  return null;
+}
+
 function Visibility({
   post,
+  draft,
+  words,
   onPublish,
   onUnpublish,
   busy,
 }: {
   post: BlogPost;
+  draft: PostDraft;
+  words: number;
   onPublish: (at?: string) => void;
   onUnpublish: () => void;
   busy: boolean;
 }) {
   const [scheduling, setScheduling] = useState(false);
   const [when, setWhen] = useState("");
+  const blocked = blockingReason(draft, words);
 
   return (
     <Section title="Visibility">
       {post.state === "draft" ? (
         <div className="space-y-2">
-          <Button className="w-full" disabled={busy} onClick={() => onPublish()}>
+          <Button className="w-full" disabled={busy || blocked !== null} onClick={() => onPublish()}>
             <Globe className="h-4 w-4" />
             Publish now
           </Button>
+
+          {blocked && <p className="text-xs text-muted-foreground">{blocked}</p>}
 
           {scheduling ? (
             <div className="space-y-2 rounded-md border p-3">
@@ -195,7 +226,7 @@ function Visibility({
                 <Button
                   size="sm"
                   className="flex-1"
-                  disabled={!when || busy}
+                  disabled={!when || busy || blocked !== null}
                   onClick={() => onPublish(new Date(when).toISOString())}
                 >
                   Schedule
@@ -209,7 +240,7 @@ function Visibility({
             <Button
               variant="outline"
               className="w-full"
-              disabled={busy}
+              disabled={busy || blocked !== null}
               onClick={() => setScheduling(true)}
             >
               <CalendarClock className="h-4 w-4" />

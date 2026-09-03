@@ -442,10 +442,22 @@ export async function registerAdminRoutes(app: FastifyInstance) {
    * structural: the renderer walks a fixed set of node types and ignores anything else, so an
    * unexpected node cannot render, let alone execute. Nothing here is ever interpreted as HTML.
    */
+  /**
+   * Saving a draft asks for nothing, deliberately.
+   *
+   * `title` and `description` were both `min(1)` here, which put the requirement on the wrong verb:
+   * "New post" creates an empty draft, so the very first write failed with "A description is
+   * required" before the writer had typed a word — and autosave would have gone on failing until
+   * they wrote the dek, which is the last thing anyone writes.
+   *
+   * A draft is allowed to be unfinished. The requirement belongs on publish, where it is enforced
+   * (see publishPost in ../blog.ts) — that is the moment incompleteness actually costs something,
+   * because an empty description is also the meta description on a live page.
+   */
   const postBody = z.object({
     slug: z.string().trim().max(120).optional(),
-    title: z.string().trim().min(1, 'A title is required.').max(200),
-    description: z.string().trim().min(1, 'A description is required.').max(500),
+    title: z.string().trim().max(200),
+    description: z.string().trim().max(500),
     body: z.object({ type: z.literal('doc') }).passthrough(),
     tag: z.string().trim().max(60).optional(),
     coverImageUrl: z.string().trim().max(2000).nullish(),

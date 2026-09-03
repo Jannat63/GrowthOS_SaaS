@@ -355,8 +355,32 @@ export async function updatePost(id: string, input: BlogPostInput): Promise<Blog
   return toPost(row!)
 }
 
-/** `at` in the future schedules; absent means now. */
+/**
+ * `at` in the future schedules; absent means now.
+ *
+ * **This is where a post has to be finished**, and the only place. Saving asks for nothing, because
+ * a draft is allowed to be incomplete and demanding a dek before the first sentence is written puts
+ * the requirement on the wrong verb. Publishing is different: the description is also the meta
+ * description and the social card's text, so publishing without one ships a live page that
+ * describes itself as nothing.
+ */
 export async function publishPost(id: string, at?: Date): Promise<BlogPost> {
+  const existing = await getPostById(id)
+  if (!existing) throw new AppError('NOT_FOUND', 'No post with that ID.')
+
+  if (existing.title.trim() === '' || existing.title.trim() === 'Untitled post') {
+    throw new AppError('VALIDATION_ERROR', 'Give the post a title before publishing it.')
+  }
+  if (existing.description.trim() === '') {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'Write the one-line description before publishing — it is also what search engines and social cards show.',
+    )
+  }
+  if (existing.wordCount === 0) {
+    throw new AppError('VALIDATION_ERROR', 'There is nothing in the body yet.')
+  }
+
   const [row] = await db
     .update(schema.blogPosts)
     .set({ publishedAt: at ?? new Date(), updatedAt: new Date() })
