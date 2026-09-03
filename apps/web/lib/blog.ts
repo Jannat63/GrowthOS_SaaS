@@ -70,9 +70,33 @@ export async function getRelatedPosts(slug: string): Promise<BlogPostSummary[]> 
   return result.data;
 }
 
+/**
+ * Every published slug, for `generateStaticParams`.
+ *
+ * **Uncached, unlike everything else here.** This is the build's manifest of what to prerender, and
+ * reading it through the 300s window means a build inherits whatever slug list the previous build
+ * cached — locally that silently prerendered three posts out of eight. The five missing ones still
+ * worked, because `dynamicParams` renders them on first request, but "worked" meant one visitor
+ * paid for a cold render of a page the build could have had ready.
+ *
+ * It costs one request per build, and it is the one call here where being current matters more than
+ * being cheap.
+ */
 export async function getPostSlugs(): Promise<string[]> {
-  const result = await read<{ data: string[] }>("/blog/slugs", { data: [] });
-  return result.data;
+  try {
+    const res = await fetch(`${API_URL}/api/v1/blog/slugs`, { cache: "no-store" });
+    if (!res.ok) {
+      console.error(`[blog] /blog/slugs returned ${res.status}`);
+      return [];
+    }
+    const body = (await res.json()) as { data: string[] };
+    return body.data;
+  } catch (err) {
+    // A build with no API reachable prerenders nothing and falls back to rendering on demand,
+    // rather than failing the build outright.
+    console.error("[blog] could not reach the API for the slug list", err);
+    return [];
+  }
 }
 
 /** `July 15, 2026`. Unchanged from the file-based version — the same posts must read the same way. */
