@@ -67,13 +67,14 @@ export default function AdminWelcomePage() {
   return (
     <div className="mx-auto max-w-lg">
       <div className="flex items-center gap-2">
-        <ShieldAlert className="h-4 w-4 text-warning" aria-hidden="true" />
-        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+        <ShieldAlert className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+        {/* A label, in sentence case. The console has no tracked-out all-caps eyebrows. */}
+        <span className="text-sm text-muted-foreground">
           {user?.platformRole ? platformRoleLabel(user.platformRole) : "Platform staff"}
         </span>
       </div>
 
-      <h1 className="mt-3 font-display text-2xl font-semibold tracking-tight">
+      <h1 className="mt-3 font-display text-xl font-semibold tracking-tight">
         Before you go in
       </h1>
       <p className="mt-2 text-sm leading-relaxed text-muted-foreground">

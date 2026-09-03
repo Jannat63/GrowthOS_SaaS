@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type {
+  AdminActivityItem,
   AdminAuditLogEntry,
   AdminUserDetail,
   AdminUserFilter,
@@ -13,6 +14,7 @@ import type {
   AdminWorkspaceSummary,
   Plan,
   PlatformOverview,
+  UsageSummary,
   PlatformRole,
   MeResponse,
 } from "@growthos/types";
@@ -116,6 +118,38 @@ export function useAdminWorkspaceDetail(workspaceId: string | null) {
     staleTime: ADMIN_STALE_MS,
     enabled: Boolean(workspaceId),
     queryFn: () => api.get<AdminWorkspaceDetail>(`/admin/workspaces/${workspaceId}`),
+  });
+}
+
+/**
+ * The account file's secondary tabs. Each is its own query, enabled only while its tab is open —
+ * opening a workspace should cost one request, not five, and each of these writes its own
+ * audit-log row.
+ */
+export function useAdminWorkspaceUsage(workspaceId: string, enabled: boolean) {
+  return useQuery<UsageSummary>({
+    queryKey: ["admin", "workspace", workspaceId, "usage"],
+    staleTime: ADMIN_STALE_MS,
+    enabled,
+    queryFn: () => api.get<UsageSummary>(`/admin/workspaces/${workspaceId}/usage`),
+  });
+}
+
+export function useAdminWorkspaceActivity(workspaceId: string, enabled: boolean) {
+  return useQuery<AdminActivityItem[]>({
+    queryKey: ["admin", "workspace", workspaceId, "activity"],
+    staleTime: ADMIN_STALE_MS,
+    enabled,
+    queryFn: () => api.get<AdminActivityItem[]>(`/admin/workspaces/${workspaceId}/activity`),
+  });
+}
+
+export function useAdminWorkspaceHistory(workspaceId: string, enabled: boolean) {
+  return useQuery<AdminAuditLogEntry[]>({
+    queryKey: ["admin", "workspace", workspaceId, "admin-history"],
+    staleTime: ADMIN_STALE_MS,
+    enabled,
+    queryFn: () => api.get<AdminAuditLogEntry[]>(`/admin/workspaces/${workspaceId}/admin-history`),
   });
 }
 
@@ -236,10 +270,31 @@ export function useAdminOverview() {
   });
 }
 
-export function useAdminAuditLog() {
+export interface AuditQuery extends DirectoryPage {
+  /** Defaults to true on the server as well — the log opens on changes, not on views. */
+  mutatingOnly?: boolean;
+  actorUserId?: string | undefined;
+  targetType?: string | undefined;
+}
+
+export function useAdminAuditLog(params: AuditQuery = {}) {
+  const {
+    mutatingOnly = true,
+    actorUserId,
+    targetType,
+    offset = 0,
+    limit = DIRECTORY_PAGE_SIZE,
+  } = params;
+  const qs = directoryQuery({
+    mutatingOnly: String(mutatingOnly),
+    actorUserId,
+    targetType,
+    limit,
+    offset,
+  });
   return useQuery<{ data: AdminAuditLogEntry[]; total: number }>({
-    queryKey: ["admin", "audit-log"],
+    queryKey: ["admin", "audit-log", qs],
     staleTime: ADMIN_STALE_MS,
-    queryFn: () => api.get<{ data: AdminAuditLogEntry[]; total: number }>("/admin/audit-log"),
+    queryFn: () => api.get<{ data: AdminAuditLogEntry[]; total: number }>(`/admin/audit-log${qs}`),
   });
 }

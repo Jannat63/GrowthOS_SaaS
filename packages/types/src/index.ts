@@ -770,9 +770,45 @@ export interface AdminWorkspaceDetail {
     currentPeriodEnd: string | null;
     cancelAt: string | null;
   };
+  /**
+   * Stripe's own identifiers, so the console can link out rather than reimplement billing. Null
+   * before checkout has ever completed, which is the normal state of a trialing workspace.
+   */
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
   members: { userId: string; name: string; email: string; role: string }[];
-  connections: { platform: string; accountName: string | null; isActive: boolean | null; lastSyncedAt: string | null }[];
+  connections: {
+    platform: string;
+    accountName: string | null;
+    isActive: boolean | null;
+    lastSyncedAt: string | null;
+    /** Why the last sync failed, when it did. The first thing to read on a support ticket. */
+    syncError: string | null;
+  }[];
 }
+
+/**
+ * One entry in a workspace's own history — what the customer did, and what ran for them.
+ *
+ * Two sources merged into one timeline because an operator reading it is asking "what happened
+ * here", and the answer often alternates between the two: a connection was added, then a sync job
+ * failed, then someone dismissed a recommendation.
+ */
+export type AdminActivityItem =
+  | {
+      kind: "audit";
+      at: string;
+      action: string;
+      actorName: string | null;
+      entityType: string;
+    }
+  | {
+      kind: "job";
+      at: string;
+      type: string;
+      status: string;
+      error: string | null;
+    };
 export interface AdminUserSummary {
   id: string;
   name: string;

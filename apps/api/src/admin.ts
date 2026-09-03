@@ -1,11 +1,13 @@
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, lt, lte, max, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, lt, lte, max, notInArray, or, sql } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 import {
   PLAN_PRICE_USD_CENTS,
+  type AdminActivityItem,
   type AdminUserFilter,
   type AdminUserDetail,
   type AdminUserSort,
   type AdminUserSummary,
+  type AdminWorkspaceDetail,
   type AdminWorkspaceFilter,
   type AdminWorkspaceSort,
   type AdminWorkspaceSummary,
@@ -13,6 +15,7 @@ import {
   type PlatformOverview,
   type PlatformRole,
 } from '@growthos/types'
+import { READ_ACTION_NAMES } from './admin-audit.js'
 import { getCurrentSubscription } from './billing.js'
 import type { Page, Paged } from './pagination.js'
 
@@ -168,23 +171,23 @@ export async function listWorkspaces(
   return { data, total }
 }
 
-export interface AdminWorkspaceDetail {
-  id: string
-  name: string
-  slug: string
-  websiteUrl: string | null
-  createdAt: string
-  subscription: Awaited<ReturnType<typeof getCurrentSubscription>>
-  members: { userId: string; name: string; email: string; role: string }[]
-  connections: { platform: string; accountName: string | null; isActive: boolean | null; lastSyncedAt: string | null }[]
-}
+export type { AdminWorkspaceDetail }
 
 export async function getWorkspaceDetail(workspaceId: string): Promise<AdminWorkspaceDetail | null> {
   const [ws] = await db.select().from(schema.workspaces).where(eq(schema.workspaces.id, workspaceId)).limit(1)
   if (!ws) return null
 
-  const [subscription, members, connections] = await Promise.all([
+  const [subscription, stripeIds, members, connections] = await Promise.all([
     getCurrentSubscription(workspaceId),
+    // Stripe's own ids, so the console links out to the invoice rather than restating billing.
+    db
+      .select({
+        customerId: schema.subscriptions.stripeCustomerId,
+        subscriptionId: schema.subscriptions.stripeSubscriptionId,
+      })
+      .from(schema.subscriptions)
+      .where(eq(schema.subscriptions.workspaceId, workspaceId))
+      .limit(1),
     db
       .select({
         userId: schema.workspace_members.userId,
@@ -201,6 +204,7 @@ export async function getWorkspaceDetail(workspaceId: string): Promise<AdminWork
         accountName: schema.platformConnections.accountName,
         isActive: schema.platformConnections.isActive,
         lastSyncedAt: schema.platformConnections.lastSyncedAt,
+        syncError: schema.platformConnections.syncError,
       })
       .from(schema.platformConnections)
       .where(eq(schema.platformConnections.workspaceId, workspaceId)),
@@ -213,9 +217,90 @@ export async function getWorkspaceDetail(workspaceId: string): Promise<AdminWork
     websiteUrl: ws.websiteUrl,
     createdAt: ws.createdAt.toISOString(),
     subscription,
+    stripeCustomerId: stripeIds[0]?.customerId ?? null,
+    stripeSubscriptionId: stripeIds[0]?.subscriptionId ?? null,
     members,
     connections: connections.map((c) => ({ ...c, lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null })),
   }
+}
+
+/**
+ * A workspace's own history: what the customer did, and what ran for them, in one timeline.
+ *
+ * Both sources are capped and then merged, so the result is the most recent `limit` entries across
+ * both rather than the most recent of each — an account whose jobs all failed last night should not
+ * push a week of customer activity off the page, and vice versa.
+ */
+export async function getWorkspaceActivity(workspaceId: string, limit = 40): Promise<AdminActivityItem[]> {
+  const [audit, jobs] = await Promise.all([
+    db
+      .select({
+        at: schema.auditLogs.createdAt,
+        action: schema.auditLogs.action,
+        entityType: schema.auditLogs.entityType,
+        actorName: schema.user.name,
+      })
+      .from(schema.auditLogs)
+      .leftJoin(schema.user, eq(schema.user.id, schema.auditLogs.actorId))
+      .where(eq(schema.auditLogs.workspaceId, workspaceId))
+      .orderBy(desc(schema.auditLogs.createdAt))
+      .limit(limit),
+    db
+      .select({
+        at: schema.backgroundJobs.queuedAt,
+        completedAt: schema.backgroundJobs.completedAt,
+        type: schema.backgroundJobs.type,
+        status: schema.backgroundJobs.status,
+        error: schema.backgroundJobs.error,
+      })
+      .from(schema.backgroundJobs)
+      .where(eq(schema.backgroundJobs.workspaceId, workspaceId))
+      .orderBy(desc(schema.backgroundJobs.queuedAt))
+      .limit(limit),
+  ])
+
+  const items: AdminActivityItem[] = [
+    ...audit.map((a) => ({
+      kind: 'audit' as const,
+      at: a.at?.toISOString() ?? new Date(0).toISOString(),
+      action: a.action,
+      entityType: a.entityType,
+      actorName: a.actorName,
+    })),
+    ...jobs.map((j) => ({
+      kind: 'job' as const,
+      at: (j.completedAt ?? j.at)?.toISOString() ?? new Date(0).toISOString(),
+      type: j.type,
+      status: j.status,
+      error: j.error,
+    })),
+  ]
+
+  return items.sort((x, y) => y.at.localeCompare(x.at)).slice(0, limit)
+}
+
+/** Everything platform staff have done to, or looked at on, this one account. */
+export async function getWorkspaceAdminHistory(workspaceId: string, limit = 40) {
+  return db
+    .select({
+      id: schema.adminAuditLog.id,
+      actorUserId: schema.adminAuditLog.actorUserId,
+      actorName: schema.user.name,
+      actorEmail: schema.user.email,
+      action: schema.adminAuditLog.action,
+      targetType: schema.adminAuditLog.targetType,
+      targetId: schema.adminAuditLog.targetId,
+      metadata: schema.adminAuditLog.metadata,
+      createdAt: schema.adminAuditLog.createdAt,
+    })
+    .from(schema.adminAuditLog)
+    .leftJoin(schema.user, eq(schema.user.id, schema.adminAuditLog.actorUserId))
+    .where(
+      and(eq(schema.adminAuditLog.targetType, 'workspace'), eq(schema.adminAuditLog.targetId, workspaceId)),
+    )
+    .orderBy(desc(schema.adminAuditLog.createdAt))
+    .limit(limit)
+    .then((rows) => rows.map((r) => ({ ...r, createdAt: r.createdAt!.toISOString() })))
 }
 
 /**
@@ -664,8 +749,48 @@ export interface AdminAuditLogEntry {
   createdAt: string
 }
 
-export async function listAuditLog(page: Page): Promise<Paged<AdminAuditLogEntry>> {
-  const [totalRow] = await db.select({ value: count() }).from(schema.adminAuditLog)
+export interface AuditLogFilters {
+  /** Only entries that changed something. The log's default view — see the comment below. */
+  mutatingOnly?: boolean | undefined
+  actorUserId?: string | undefined
+  action?: string | undefined
+  targetType?: string | undefined
+  from?: Date | undefined
+  to?: Date | undefined
+}
+
+/**
+ * The platform audit log.
+ *
+ * **Reads are excluded by default.** Every admin route records a row, including the list and
+ * overview pages, so views outnumber changes by a wide margin and an undifferentiated log buries
+ * the handful of rows anyone is ever looking for. The reads are still there, one query parameter
+ * away — the record is complete, the default view is useful, and those are not the same
+ * requirement.
+ *
+ * "Mutating" is derived from `READ_ACTION_NAMES` in admin-audit.ts rather than from a second list
+ * kept here: one definition of what counts as a read, used both to collapse repeats and to filter
+ * this view.
+ */
+export async function listAuditLog(
+  page: Page,
+  filters: AuditLogFilters = {},
+): Promise<Paged<AdminAuditLogEntry>> {
+  const conditions = []
+  if (filters.mutatingOnly) {
+    conditions.push(notInArray(schema.adminAuditLog.action, [...READ_ACTION_NAMES]))
+  }
+  if (filters.actorUserId) conditions.push(eq(schema.adminAuditLog.actorUserId, filters.actorUserId))
+  if (filters.action) conditions.push(eq(schema.adminAuditLog.action, filters.action))
+  if (filters.targetType) conditions.push(eq(schema.adminAuditLog.targetType, filters.targetType))
+  if (filters.from) conditions.push(gte(schema.adminAuditLog.createdAt, filters.from))
+  if (filters.to) conditions.push(lte(schema.adminAuditLog.createdAt, filters.to))
+  const whereClause = conditions.length ? and(...conditions) : undefined
+
+  const [totalRow] = await db
+    .select({ value: count() })
+    .from(schema.adminAuditLog)
+    .where(whereClause)
   const total = totalRow?.value ?? 0
 
   const rows = await db
@@ -682,6 +807,7 @@ export async function listAuditLog(page: Page): Promise<Paged<AdminAuditLogEntry
     })
     .from(schema.adminAuditLog)
     .leftJoin(schema.user, eq(schema.user.id, schema.adminAuditLog.actorUserId))
+    .where(whereClause)
     .orderBy(desc(schema.adminAuditLog.createdAt))
     .limit(page.limit)
     .offset(page.offset)

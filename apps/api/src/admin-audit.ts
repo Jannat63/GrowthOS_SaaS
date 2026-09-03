@@ -8,7 +8,7 @@ export type AdminTargetType = 'workspace' | 'user' | 'subscription' | 'audit_log
  * always — a repeated write is a different event even when it looks identical, and collapsing two
  * plan overrides into one row would hide the fact that someone did it twice.
  */
-const READ_ACTIONS = new Set([
+export const READ_ACTION_NAMES = [
   'workspace.list',
   'workspace.view',
   'workspace.usage.view',
@@ -18,7 +18,9 @@ const READ_ACTIONS = new Set([
   'user.view',
   'health.view',
   'audit_log.view',
-])
+] as const
+
+const READ_ACTIONS = new Set<string>(READ_ACTION_NAMES)
 
 export function isReadAction(action: string): boolean {
   return READ_ACTIONS.has(action)

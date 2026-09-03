@@ -1,7 +1,7 @@
 # Super Admin console — redesign & feature build
 
 **Date:** 2026-09-03
-**Status:** approved, in build
+**Status:** built — all seven phases landed 2026-09-03. Tests still outstanding (see §8).
 **Extends** `docs/growthos-modular-packages-and-admin.md` §3, which specified the first version of
 this surface. Every decision there still holds; this document says what the panel becomes now that
 it has been used.
@@ -174,7 +174,7 @@ enable email verification, so the column is `false` for every account and would 
 platform-wide fault. For the same reason there is no "resend verification" action — there is nothing
 to resend. Revisit both if verification is ever turned on.
 
-**One addition to `@growthos/types`:** `PLAN_PRICE_USD`, beside `PLAN_LIMITS`. MRR needs a canonical
+**One addition to `@growthos/types`:** `PLAN_PRICE_USD_CENTS` (plus a `planPriceLabel` helper), beside `PLAN_LIMITS`. MRR needs a canonical
 monthly price, and the only prices in the repo today are display strings hardcoded in
 `app/(marketing)/pricing/page.tsx` ($79 / $199 / $399) and Stripe price *ids* in `billing.ts`. The
 marketing page is repointed at the new constant, so the figure has one home. This is the same rule
@@ -256,7 +256,7 @@ never throws.
 
 Each phase leaves the console working.
 
-1. **Foundations** — `PLAN_PRICE_USD`; `relativeTime()`; the shadcn primitives this needs in
+1. **Foundations** — `PLAN_PRICE_USD_CENTS`; `relativeTime()`; the shadcn primitives this needs in
    `packages/ui` (`command`, `select`, `separator`, `sheet`); `staleTime` on the admin hooks;
    `logAdminAction` repeat-collapsing.
 2. **Shell** — rail, command palette, header, operator menu, and the "Exit to GrowthOS" fix.

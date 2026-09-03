@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import type {
+  AdminActivityItem,
   AdminAuditLogEntry,
   AdminUserDetail,
   AdminUserSummary,
@@ -8,15 +9,19 @@ import type {
   AdminWorkspaceSummary,
   Plan,
   PlatformOverview,
+  UsageSummary,
 } from '@growthos/types'
 import { AppError } from '../errors.js'
 import { requireUser } from '../auth-context.js'
 import { requirePlatformRole } from '../guards.js'
 import { logAdminAction } from '../admin-audit.js'
 import { parsePage } from '../pagination.js'
+import { getUsageSummary } from '../plan-limits.js'
 import {
   listWorkspaces,
   getWorkspaceDetail,
+  getWorkspaceActivity,
+  getWorkspaceAdminHistory,
   overrideWorkspacePlan,
   extendTrial,
   listUsers,
@@ -89,6 +94,38 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     }
     await logAdminAction(user.id, 'workspace.view', 'workspace', id)
     return detail
+  })
+
+  app.get('/api/v1/admin/workspaces/:id/usage', async (request): Promise<UsageSummary> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'support_agent')
+    const { id } = request.params as { id: string }
+    const summary = await getUsageSummary(id)
+    await logAdminAction(user.id, 'workspace.usage.view', 'workspace', id)
+    return summary
+  })
+
+  app.get('/api/v1/admin/workspaces/:id/activity', async (request): Promise<AdminActivityItem[]> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'support_agent')
+    const { id } = request.params as { id: string }
+    const activity = await getWorkspaceActivity(id)
+    await logAdminAction(user.id, 'workspace.activity.view', 'workspace', id)
+    return activity
+  })
+
+  /**
+   * Who from our side has touched this account. Super admin only, for the same reason the full
+   * audit log is: a support agent should not be able to review — or notice gaps in — the record of
+   * what other admins have been doing.
+   */
+  app.get('/api/v1/admin/workspaces/:id/admin-history', async (request): Promise<AdminAuditLogEntry[]> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const history = await getWorkspaceAdminHistory(id)
+    await logAdminAction(user.id, 'workspace.admin_history.view', 'workspace', id)
+    return history
   })
 
   const planOverrideBody = z.object({
@@ -249,10 +286,33 @@ export async function registerAdminRoutes(app: FastifyInstance) {
 
   // The audit log itself requires super_admin — a support_agent shouldn't be able to review
   // (or, worse, notice gaps in) the record of what other admins have been doing.
+  const auditQuery = z.object({
+    // Defaults to changes only. The reads are still recorded and still reachable; they are just not
+    // what someone opening this page is looking for.
+    mutatingOnly: z
+      .enum(['true', 'false'])
+      .optional()
+      .catch(undefined)
+      .transform((v) => v !== 'false'),
+    actorUserId: z.string().trim().max(200).optional().catch(undefined),
+    action: z.string().trim().max(100).optional().catch(undefined),
+    targetType: z.enum(['workspace', 'user', 'subscription', 'audit_log']).optional().catch(undefined),
+    from: z.coerce.date().optional().catch(undefined),
+    to: z.coerce.date().optional().catch(undefined),
+  })
+
   app.get('/api/v1/admin/audit-log', async (request): Promise<{ data: AdminAuditLogEntry[]; total: number }> => {
     const user = await requireUser(request)
     await requirePlatformRole(user.id, 'super_admin')
     const page = parsePage(request.query, 50)
-    return listAuditLog(page)
+    const parsed = auditQuery.safeParse(request.query)
+    const filters = parsed.success ? parsed.data : { mutatingOnly: true }
+    const result = await listAuditLog(page, filters)
+    // Reading the log is itself an admin action, and one worth recording — the point of the record
+    // is that nothing about this console is unobserved, including the observing.
+    await logAdminAction(user.id, 'audit_log.view', 'audit_log', 'all', {
+      mutatingOnly: filters.mutatingOnly,
+    })
+    return result
   })
 }

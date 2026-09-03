@@ -1,6 +1,5 @@
 "use client";
-import Link from "next/link";
-import type { AdminAuditLogEntry } from "@growthos/types";
+import { useEffect, useState } from "react";
 import {
   Table,
   TableHeader,
@@ -10,113 +9,82 @@ import {
   TableCell,
 } from "@growthos/ui/components/table";
 import { Skeleton } from "@growthos/ui/components/skeleton";
+import { DIRECTORY_PAGE_SIZE, useAdminAuditLog } from "@/lib/hooks/useAdmin";
+import { FilterChips, Pager, type FilterOption } from "@/components/admin/Directory";
+import { AuditDetail, AuditTarget, auditActionLabel, isMutatingAction } from "@/components/admin/audit";
+import { absoluteTime, relativeTime } from "@/lib/utils/time";
+import { countLabel } from "@/components/admin/labels";
 import { cn } from "@/lib/utils/cn";
-import { useAdminAuditLog } from "@/lib/hooks/useAdmin";
-import { planLabel } from "@/components/admin/labels";
 
 /**
- * Readable name and consequence for each recorded action. `mutating` is what separates the two
- * entries that changed a customer's account from the hundreds that merely looked at one — in a log
- * where reads vastly outnumber writes, an undifferentiated list buries the only rows anyone is
- * ever actually looking for.
+ * The record of what platform staff have done.
  *
- * Keys match the `action` strings passed to logAdminAction in apps/api/src/routes/admin.ts.
- */
-const ACTIONS: Record<string, { label: string; mutating?: boolean }> = {
-  "workspace.list": { label: "Browsed workspaces" },
-  "workspace.view": { label: "Opened a workspace" },
-  "workspace.plan_override": { label: "Changed a plan", mutating: true },
-  "user.list": { label: "Browsed people" },
-  "health.view": { label: "Viewed the overview" },
-};
-
-type OverrideMeta = { reason?: string; before?: string | null; after?: string | null };
-type SearchMeta = { search?: string };
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
-}
-
-/**
- * What the entry actually says, per action.
+ * **It opens on changes, not on views.** Every admin route records a row, including the list and
+ * overview pages, so views outnumber changes heavily — the first version of this page was nine
+ * consecutive entries reading "Browsed people" and "Viewed the overview", with the one plan
+ * override that mattered nowhere in sight. Reads are still recorded and are one chip away. The
+ * record being complete and the default view being useful are different requirements, and this is
+ * the only page where they pull against each other.
  *
- * This column used to be `JSON.stringify(metadata)` inside a `max-w-xs truncate`, which meant the
- * reason attached to a plan override — the single most important thing the audit log records, and
- * the only field the API forces an admin to write — was clipped to about six words of `{"reason":"`
- * before it ever got to the point.
+ * Repeated reads collapse server-side into one row with a count, so a tab left open no longer
+ * writes a line a minute.
  */
-function Detail({ entry }: { entry: AdminAuditLogEntry }) {
-  const meta = isRecord(entry.metadata) ? entry.metadata : null;
 
-  if (entry.action === "workspace.plan_override") {
-    const m = (meta ?? {}) as OverrideMeta;
-    return (
-      <div className="space-y-1">
-        {m.before && m.after && (
-          <p className="font-mono text-xs text-muted-foreground">
-            {planLabel(m.before)} → {planLabel(m.after)}
-          </p>
-        )}
-        {m.reason ? (
-          <p className="text-sm leading-relaxed">{m.reason}</p>
-        ) : (
-          <p className="text-sm text-warning">No reason recorded.</p>
-        )}
-      </div>
-    );
-  }
+type Scope = "workspace" | "user";
 
-  if (entry.action === "workspace.list" || entry.action === "user.list") {
-    const term = (meta as SearchMeta | null)?.search;
-    return term ? (
-      <p className="text-sm text-muted-foreground">
-        Searched <span className="text-foreground">{term}</span>
-      </p>
-    ) : (
-      <p className="text-sm text-muted-foreground">Full list</p>
-    );
-  }
-
-  // An unmapped action still has to show whatever it recorded, rather than nothing.
-  if (meta && Object.keys(meta).length > 0) {
-    return (
-      <p className="break-words font-mono text-xs text-muted-foreground">{JSON.stringify(meta)}</p>
-    );
-  }
-  return <span className="text-muted-foreground/60">—</span>;
-}
-
-function Target({ entry }: { entry: AdminAuditLogEntry }) {
-  if (entry.targetId === "all") {
-    return <span className="text-muted-foreground">Platform-wide</span>;
-  }
-  // A workspace id in a log is only useful if it takes you to the workspace.
-  if (entry.targetType === "workspace") {
-    return (
-      <Link
-        href={`/admin/workspaces/${entry.targetId}`}
-        className="rounded-sm font-mono text-xs underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {entry.targetId.slice(0, 8)}
-      </Link>
-    );
-  }
-  return <span className="font-mono text-xs text-muted-foreground">{entry.targetId.slice(0, 8)}</span>;
-}
+const SCOPES: FilterOption<Scope>[] = [
+  { value: "workspace", label: "Accounts" },
+  { value: "user", label: "People" },
+];
 
 export default function AdminAuditLogPage() {
-  const { data, isLoading } = useAdminAuditLog();
+  const [mutatingOnly, setMutatingOnly] = useState(true);
+  const [targetType, setTargetType] = useState<Scope | undefined>(undefined);
+  const [offset, setOffset] = useState(0);
+
+  useEffect(() => setOffset(0), [mutatingOnly, targetType]);
+
+  const { data, isLoading } = useAdminAuditLog({
+    mutatingOnly,
+    targetType,
+    offset,
+    limit: DIRECTORY_PAGE_SIZE,
+  });
   const rows = data?.data ?? [];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight">Audit log</h1>
-        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Every admin action against a customer account, including plain views. Reads are recorded
-          as well as changes, so &ldquo;who looked at this, and why&rdquo; stays answerable.
-          Super&nbsp;admins only.
-        </p>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+        <h1 className="font-display text-xl font-semibold tracking-tight">Audit log</h1>
+        {data && (
+          <p className="font-mono text-xs tabular-nums text-muted-foreground">
+            {countLabel(data.total, "entry", "entries")}
+          </p>
+        )}
+      </div>
+
+      <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        Everything platform staff do against a customer account, including the pages they only look
+        at. Recording views as well as changes is what keeps &ldquo;who looked at this, and
+        why&rdquo; answerable. Super admins only.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div role="group" aria-label="What to show" className="flex gap-1.5">
+          <Toggle active={mutatingOnly} onClick={() => setMutatingOnly(true)}>
+            Changes only
+          </Toggle>
+          <Toggle active={!mutatingOnly} onClick={() => setMutatingOnly(false)}>
+            Everything, views included
+          </Toggle>
+        </div>
+
+        <FilterChips
+          options={SCOPES}
+          value={targetType}
+          onChange={setTargetType}
+          label="Filter by what was touched"
+        />
       </div>
 
       <div className="overflow-x-auto rounded-lg border">
@@ -125,8 +93,8 @@ export default function AdminAuditLogPage() {
             <TableRow className="hover:bg-transparent">
               <TableHead>When</TableHead>
               <TableHead>Who</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead>Account</TableHead>
+              <TableHead>Did what</TableHead>
+              <TableHead>To</TableHead>
               <TableHead>Detail</TableHead>
             </TableRow>
           </TableHeader>
@@ -140,16 +108,30 @@ export default function AdminAuditLogPage() {
             ) : rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                  Nothing recorded yet. The first admin action writes the first row.
+                  {mutatingOnly
+                    ? "Nothing has been changed. Switch to “Everything” to see what has been looked at."
+                    : "Nothing recorded yet. The first admin action writes the first row."}
                 </TableCell>
               </TableRow>
             ) : (
               rows.map((entry) => {
-                const action = ACTIONS[entry.action];
+                const mutating = isMutatingAction(entry.action);
                 return (
-                  <TableRow key={entry.id} className="align-top">
-                    <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
-                      {new Date(entry.createdAt).toLocaleString()}
+                  <TableRow
+                    key={entry.id}
+                    className={cn(
+                      "border-l-2 align-top",
+                      // A change is the thing worth finding in a page of views, so it gets the
+                      // spine — gold for "not the ordinary case", the same meaning it carries
+                      // everywhere else in the console.
+                      mutating ? "border-l-warning" : "border-l-transparent"
+                    )}
+                  >
+                    <TableCell
+                      className="whitespace-nowrap font-mono text-xs text-muted-foreground"
+                      title={absoluteTime(entry.createdAt)}
+                    >
+                      {relativeTime(entry.createdAt)}
                     </TableCell>
                     <TableCell className="text-sm">
                       {entry.actorName ?? entry.actorEmail ?? (
@@ -159,20 +141,15 @@ export default function AdminAuditLogPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <span
-                        className={cn(
-                          "text-sm",
-                          action?.mutating ? "font-medium text-warning" : "text-foreground"
-                        )}
-                      >
-                        {action?.label ?? entry.action}
+                      <span className={cn("text-sm", mutating && "font-medium text-warning")}>
+                        {auditActionLabel(entry.action)}
                       </span>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-sm">
-                      <Target entry={entry} />
+                      <AuditTarget entry={entry} />
                     </TableCell>
                     <TableCell className="max-w-md">
-                      <Detail entry={entry} />
+                      <AuditDetail action={entry.action} metadata={entry.metadata} />
                     </TableCell>
                   </TableRow>
                 );
@@ -181,6 +158,40 @@ export default function AdminAuditLogPage() {
           </TableBody>
         </Table>
       </div>
+
+      <Pager
+        offset={offset}
+        limit={DIRECTORY_PAGE_SIZE}
+        total={data?.total ?? 0}
+        onOffsetChange={setOffset}
+      />
     </div>
+  );
+}
+
+function Toggle({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active
+          ? "border-primary/40 bg-primary/10 text-primary"
+          : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
+      )}
+    >
+      {children}
+    </button>
   );
 }
