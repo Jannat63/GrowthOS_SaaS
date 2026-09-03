@@ -232,7 +232,9 @@ export function LinkedRow({ tone = "neutral", children }: { tone?: Tone; childre
   return (
     <TableRow
       className={cn(
-        "relative border-l-2 transition-colors hover:bg-secondary/50 focus-within:bg-secondary/50",
+        // `group` so a cell can react to the row being hovered — the title turning into a link
+        // colour, chiefly, which is what tells you the row is clickable before you click it.
+        "group relative border-l-2 transition-colors hover:bg-secondary/50 focus-within:bg-secondary/50",
         spineClass(tone)
       )}
     >

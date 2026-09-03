@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Pin, Plus } from "lucide-react";
+import { ExternalLink, Pencil, Pin, Plus } from "lucide-react";
 import type { BlogPostFilter, BlogPostSort, BlogPostSummary } from "@growthos/types";
 import {
   Table,
@@ -129,18 +130,21 @@ export default function AdminBlogPage() {
                 <TableHead className="text-right">Words</TableHead>
                 <TableHead>Published</TableHead>
                 <TableHead>Edited</TableHead>
+                <TableHead className="text-right">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={7}>
                     <Skeleton className="h-24 w-full" />
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                     {debounced
                       ? `Nothing matches “${debounced}”.`
                       : filter === "draft"
@@ -183,7 +187,9 @@ function PostRow({ post }: { post: BlogPostSummary }) {
             {post.featured && (
               <Pin className="h-3.5 w-3.5 shrink-0 text-primary" aria-label="Pinned" />
             )}
-            <span className="truncate font-medium">{post.title}</span>
+            <span className="truncate font-medium transition-colors group-hover:text-primary">
+              {post.title}
+            </span>
           </span>
         </RowLink>
         <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
@@ -212,23 +218,45 @@ function PostRow({ post }: { post: BlogPostSummary }) {
       </TableCell>
 
       <TableCell className="text-sm text-muted-foreground">
-        <span className="flex items-center gap-2">
-          <time dateTime={post.updatedAt} title={absoluteTime(post.updatedAt)}>
-            {relativeTime(post.updatedAt)}
-          </time>
+        <time dateTime={post.updatedAt} title={absoluteTime(post.updatedAt)}>
+          {relativeTime(post.updatedAt)}
+        </time>
+      </TableCell>
+
+      {/*
+        An explicit Edit, spelled out.
+
+        The whole row is already a link to the same place, which is the console's directory idiom
+        and stays — but a directory of accounts and a list of posts are read with different
+        expectations. Nobody hunts for a verb on an account row; on a post they look for "Edit", and
+        if the only affordance is that the row happens to be clickable, they do not find it. That
+        happened.
+
+        Both actions need `relative z-10` to sit above the row's stretched link.
+      */}
+      <TableCell className="text-right">
+        <div className="relative z-10 flex items-center justify-end gap-1">
+          <Link
+            href={`/admin/blog/${post.id}`}
+            aria-label={`Edit ${post.title}`}
+            className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Pencil className="h-3 w-3" aria-hidden="true" />
+            Edit
+          </Link>
           {post.state === "published" && (
-            // Needs `relative z-10` to stay clickable above the row's stretched link.
             <a
               href={`/blog/${post.slug}`}
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`Open ${post.title} on the site`}
-              className="relative z-10 rounded-sm text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              title="Open on the site"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <ExternalLink className="h-3.5 w-3.5" />
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             </a>
           )}
-        </span>
+        </div>
       </TableCell>
     </LinkedRow>
   );
