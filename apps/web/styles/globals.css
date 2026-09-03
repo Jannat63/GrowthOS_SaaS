@@ -73,6 +73,30 @@
   --channel-google: #1d4ed8;
   --channel-meta: #6d28d9;
 
+  /* Super Admin console only.
+
+     Two accents, and nothing in apps/web outside app/(admin) and
+     components/admin references them — they are additive tokens, so the
+     customer product cannot be affected by anything here.
+
+     They exist because ember was doing five jobs on the console at once: spend,
+     growth, plan mix, campaigns and every bar. One hue carrying five meanings
+     is the same as carrying none. These split off the two categories that are
+     genuinely different from "money going out":
+
+       revenue — money coming back: return on spend, attributed revenue,
+                 paying customers, revenue per plan.
+       output  — what the product made: recommendations, content briefs.
+
+     Teal and magenta, checked rather than chosen by eye: 31.2 normal-vision dE
+     apart in both themes, well over the 15 floor, and both clear 3:1 on their
+     surface. Their deuteranopia separation is ~5-8 dE, which is only acceptable
+     because they are never two unlabelled series in one chart — every use is a
+     figure with its own words beside it, in a different panel. Do not put them
+     adjacent in a single plot. */
+  --console-revenue: #0d9488;
+  --console-output: #be185d;
+
   /* Elevation. Warm-cast in light so shadows sit under the paper background
      rather than greying it. */
   --elev-1: 0 1px 2px 0 rgb(12 10 8 / 0.05);
@@ -137,6 +161,10 @@
   --channel-google: #60a5fa;
   --channel-meta: #a78bfa;
 
+  /* Lifted for the dark surface; same pairing, same 31.2 dE separation. */
+  --console-revenue: #2dd4bf;
+  --console-output: #f472b6;
+
   /* On dark surfaces a drop shadow alone reads as nothing; the hairline rim is
      what actually communicates elevation. */
   --elev-1: 0 1px 2px 0 rgb(0 0 0 / 0.5);
@@ -187,6 +215,8 @@
   --color-ink-muted: var(--ink-muted);
   --color-ink-border: var(--ink-border);
 
+  --color-console-revenue: var(--console-revenue);
+  --color-console-output: var(--console-output);
   --color-channel-seo: var(--channel-seo);
   --color-channel-google: var(--channel-google);
   --color-channel-meta: var(--channel-meta);

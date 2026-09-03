@@ -85,6 +85,7 @@ export default function AdminOverviewPage() {
         <SectionHead
           id="needs-you"
           title="Needs you"
+          accent="attention"
           aside={
             !isLoading &&
             total > 0 && (
@@ -135,6 +136,7 @@ export default function AdminOverviewPage() {
         <SectionHead
           id="money"
           title="Money"
+          accent="money"
           aside={
             data?.spendWindow.from && (
               <span className="font-mono text-xs text-muted-foreground">
@@ -175,7 +177,7 @@ export default function AdminOverviewPage() {
       </section>
 
       <section aria-labelledby="customers" className="space-y-3">
-        <SectionHead id="customers" title="Customers" />
+        <SectionHead id="customers" title="Customers" accent="customers" />
         <div className="rounded-lg border">
           <div className="grid divide-y lg:grid-cols-3 lg:divide-x lg:divide-y-0">
             <AccountsPanel data={data} loading={isLoading} />
@@ -197,15 +199,27 @@ export default function AdminOverviewPage() {
 function SectionHead({
   id,
   title,
+  accent,
   aside,
 }: {
   id: string;
   title: string;
+  /** A short rule in the zone's hue, so the three zones are told apart before they are read. */
+  accent: "attention" | "money" | "customers";
   aside?: React.ReactNode;
 }) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-b pb-2">
-      <h2 id={id} className="font-display text-base font-semibold tracking-tight">
+      <h2 id={id} className="flex items-center gap-2.5 font-display text-base font-semibold tracking-tight">
+        <span
+          aria-hidden="true"
+          className={cn(
+            "h-3.5 w-1 shrink-0 rounded-full",
+            accent === "attention" && "bg-warning",
+            accent === "money" && "bg-primary",
+            accent === "customers" && "bg-console-output"
+          )}
+        />
         {title}
       </h2>
       {aside}
@@ -278,6 +292,7 @@ function VitalSigns({ data, loading }: { data?: PlatformOverview; loading: boole
         label="Monthly revenue"
         value={data ? moneyLabel(data.mrrCents) : undefined}
         loading={loading}
+        tone="revenue"
         hint="Active subscriptions at list price. Trials and late payments are not counted."
       />
       <Figure
@@ -296,6 +311,7 @@ function VitalSigns({ data, loading }: { data?: PlatformOverview; loading: boole
         label="Paying customers"
         value={data?.payingCustomers}
         loading={loading}
+        tone="revenue"
         hint="Workspaces on an active subscription. The count behind the revenue figure."
       />
     </dl>
@@ -307,15 +323,23 @@ function Figure({
   value,
   loading,
   hint,
+  tone,
 }: {
   label: string;
   value: number | string | undefined;
   loading: boolean;
   hint?: string;
+  /** Only the money figures are tinted. Colouring all six would be decoration. */
+  tone?: "revenue";
 }) {
   return (
     <div className="px-4 py-3.5" title={hint}>
-      <dd className="font-mono text-2xl font-semibold tabular-nums">
+      <dd
+        className={cn(
+          "font-mono text-2xl font-semibold tabular-nums",
+          tone === "revenue" && "text-console-revenue"
+        )}
+      >
         {loading ? <Skeleton className="h-8 w-20" /> : (value ?? "—")}
       </dd>
       <dt className="mt-0.5 text-xs text-muted-foreground">{label}</dt>
@@ -392,10 +416,11 @@ function FunnelPanel({ data }: { data: PlatformOverview }) {
       </ol>
 
       <dl className="mt-auto space-y-2 border-t pt-4">
-        <Reading label="Attributed revenue" value={moneyLabel(revenue * 100)} />
+        <Reading label="Attributed revenue" value={moneyLabel(revenue * 100)} tone="revenue" />
         <Reading
           label="Return on spend"
           value={data.totalSpend > 0 ? `${(revenue / data.totalSpend).toFixed(1)}x` : "—"}
+          tone="revenue"
         />
         <Reading label="Cost per click" value={cpc > 0 ? moneyLabel(cpc * 100) : "—"} />
         <Reading label="Cost per conversion" value={cpa > 0 ? moneyLabel(cpa * 100) : "—"} />
@@ -433,11 +458,27 @@ function Connector({ rate, verb }: { rate: number; verb: string }) {
 }
 
 /** A label and its figure, for the funnel's summary. */
-function Reading({ label, value }: { label: string; value: string }) {
+function Reading({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  /** Money coming back is tinted; the unit costs beneath it are money going out, so they are not. */
+  tone?: "revenue";
+}) {
   return (
     <div className="flex items-baseline justify-between gap-4">
       <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="font-mono text-sm tabular-nums">{value}</dd>
+      <dd
+        className={cn(
+          "font-mono text-sm tabular-nums",
+          tone === "revenue" && "text-console-revenue"
+        )}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
@@ -499,7 +540,7 @@ function OutcomesPanel({ data, loading }: { data?: PlatformOverview; loading: bo
       ) : (
         <>
           <BarList
-            tone="muted"
+            tone="output"
             rows={data.recommendationsByStatus
               .slice()
               .sort((x, y) => y.count - x.count)

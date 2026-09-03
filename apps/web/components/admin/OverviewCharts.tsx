@@ -156,9 +156,9 @@ export function ChannelSpark({
 /**
  * Return on spend: attributed revenue divided by spend, per day.
  *
- * Neutral rather than ember. In this console ember is the operator's own actions and the one
- * flagship series, which on this page is spend — a supporting aggregate drawn in the same colour
- * would claim equal billing with it. Same rule the customer app's MER module follows.
+ * Teal, not ember and not white. Ember is money going out; this is money coming back, and drawing
+ * both in the brand hue made the whole Money zone one colour that meant nothing. White was worse —
+ * the starkest thing on the page given to a supporting aggregate.
  */
 export function ReturnLine({ data }: { data: PlatformOverview["spendDaily"] }) {
   const points = data.map((d) => ({
@@ -186,7 +186,7 @@ export function ReturnLine({ data }: { data: PlatformOverview["spendDaily"] }) {
           <Line
             type="monotone"
             dataKey="ratio"
-            stroke="var(--color-foreground)"
+            stroke="var(--color-console-revenue)"
             strokeWidth={2}
             dot={false}
           />
@@ -260,7 +260,8 @@ export function BarList({
   tone = "primary",
 }: {
   rows: { key: string; label: string; sub?: string; value: string; share: number }[];
-  tone?: "primary" | "muted";
+  /** Which category the split belongs to — spend, what the product made, or neither. */
+  tone?: "primary" | "output" | "muted";
 }) {
   return (
     <ul className="space-y-3">
@@ -278,7 +279,12 @@ export function BarList({
           </div>
           <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
             <div
-              className={cn("h-full", tone === "primary" ? "bg-primary" : "bg-muted-foreground/50")}
+              className={cn(
+                "h-full",
+                tone === "primary" && "bg-primary",
+                tone === "output" && "bg-console-output",
+                tone === "muted" && "bg-muted-foreground/50"
+              )}
               style={{ width: `${Math.min(100, r.share)}%` }}
             />
           </div>
