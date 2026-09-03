@@ -898,11 +898,27 @@ export interface PlatformOverview {
    * window is the last 30 days *of available data*, not of wall-clock time, so seeded data still
    * draws a chart.
    */
-  spendDaily: { date: string; spend: number }[];
+  spendDaily: { date: string; spend: number; revenue: number }[];
   spendWindow: { from: string | null; to: string | null };
   totalSpend: number;
   /** Storage slugs — render through `channelLabel`. */
   spendByPlatform: { platform: string; spend: number }[];
+  /**
+   * Spend per channel per day, as two named series rather than one keyed by slug — the console
+   * draws them as separate small multiples, never as one stack, because `--channel-google` and
+   * `--channel-meta` are indistinguishable under deuteranopia on the dark surface.
+   */
+  spendByChannelDaily: { date: string; google: number; meta: number }[];
+  /** The advertising funnel across the whole platform, over the spend window. */
+  funnel: {
+    impressions: number;
+    clicks: number;
+    conversions: number;
+    revenue: number;
+  };
+  topCampaigns: { campaign: string; platform: string; spend: number }[];
+  /** What became of every recommendation the product has generated. */
+  recommendationsByStatus: { status: string; count: number }[];
   newestWorkspaces: { id: string; name: string; plan: string; createdAt: string }[];
   topSpenders: { id: string; name: string; spend: number }[];
   attention: {

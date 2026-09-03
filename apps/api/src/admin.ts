@@ -717,6 +717,9 @@ async function getPlatformSpend(liveWorkspaceIds: string[]): Promise<{
   spendWindow: PlatformOverview['spendWindow']
   totalSpend: number
   spendByPlatform: PlatformOverview['spendByPlatform']
+  spendByChannelDaily: PlatformOverview['spendByChannelDaily']
+  funnel: PlatformOverview['funnel']
+  topCampaigns: PlatformOverview['topCampaigns']
   topSpenders: { workspaceId: string; spend: number }[]
 }> {
   const empty = {
@@ -724,6 +727,9 @@ async function getPlatformSpend(liveWorkspaceIds: string[]): Promise<{
     spendWindow: { from: null, to: null },
     totalSpend: 0,
     spendByPlatform: [],
+    spendByChannelDaily: [],
+    funnel: { impressions: 0, clicks: 0, conversions: 0, revenue: 0 },
+    topCampaigns: [],
     topSpenders: [],
   }
   if (liveWorkspaceIds.length === 0) return empty
@@ -742,41 +748,102 @@ async function getPlatformSpend(liveWorkspaceIds: string[]): Promise<{
   const from = new Date(to.getTime() - (OVERVIEW_WINDOW_DAYS - 1) * DAY_MS)
   const fromDay = from.toISOString().slice(0, 10)
 
-  const rs = await ch.query({
-    query: `
-      SELECT toString(date) AS day, platform, workspace_id AS workspaceId, toFloat64(sum(spend)) AS spend
-      FROM ad_performance
-      WHERE workspace_id IN {ws:Array(String)} AND date >= {from:Date} AND date <= {to:Date}
-      GROUP BY day, platform, workspaceId
-      ORDER BY day`,
-    query_params: { ws: liveWorkspaceIds, from: fromDay, to: last },
-    format: 'JSONEachRow',
-  })
+  const [rs, campaignRs] = await Promise.all([
+    ch.query({
+      query: `
+        SELECT toString(date) AS day, platform, workspace_id AS workspaceId,
+          toFloat64(sum(spend)) AS spend,
+          toFloat64(sum(conversion_value)) AS convValue,
+          toUInt64(sum(impressions)) AS impressions,
+          toUInt64(sum(clicks)) AS clicks,
+          toFloat64(sum(conversions)) AS conversions
+        FROM ad_performance
+        WHERE workspace_id IN {ws:Array(String)} AND date >= {from:Date} AND date <= {to:Date}
+        GROUP BY day, platform, workspaceId
+        ORDER BY day`,
+      query_params: { ws: liveWorkspaceIds, from: fromDay, to: last },
+      format: 'JSONEachRow',
+    }),
+    // Campaign names are the language a customer uses about their own account, so an operator
+    // reading a support thread can match what they are told to what the platform sees.
+    ch.query({
+      query: `
+        SELECT campaign_name AS campaign, platform, toFloat64(sum(spend)) AS spend
+        FROM ad_performance
+        WHERE workspace_id IN {ws:Array(String)} AND date >= {from:Date} AND date <= {to:Date}
+        GROUP BY campaign, platform
+        ORDER BY spend DESC
+        LIMIT 6`,
+      query_params: { ws: liveWorkspaceIds, from: fromDay, to: last },
+      format: 'JSONEachRow',
+    }),
+  ])
+
   const rows = (await rs.json()) as {
     day: string
     platform: string
     workspaceId: string
     spend: number
+    convValue: number
+    impressions: number
+    clicks: number
+    conversions: number
+  }[]
+  const campaigns = (await campaignRs.json()) as {
+    campaign: string
+    platform: string
+    spend: number
   }[]
 
   const round = (n: number) => Math.round(n * 100) / 100
-  const byDay = new Map<string, number>()
+  const byDay = new Map<string, { spend: number; revenue: number }>()
+  const byChannelDay = new Map<string, { google: number; meta: number }>()
   const byPlatform = new Map<string, number>()
   const byWorkspace = new Map<string, number>()
   let totalSpend = 0
+  const funnel = { impressions: 0, clicks: 0, conversions: 0, revenue: 0 }
 
   for (const r of rows) {
+    // Revenue is derived with the shared REVENUE_FACTOR rather than a local constant — CLAUDE.md's
+    // rule about the seeded figures is that they are imported, never re-derived.
+    const revenue = r.convValue * REVENUE_FACTOR
     totalSpend += r.spend
-    byDay.set(r.day, (byDay.get(r.day) ?? 0) + r.spend)
+    funnel.impressions += Number(r.impressions)
+    funnel.clicks += Number(r.clicks)
+    funnel.conversions += r.conversions
+    funnel.revenue += revenue
+
+    const day = byDay.get(r.day) ?? { spend: 0, revenue: 0 }
+    byDay.set(r.day, { spend: day.spend + r.spend, revenue: day.revenue + revenue })
+
+    const chan = byChannelDay.get(r.day) ?? { google: 0, meta: 0 }
+    if (r.platform === 'google_ads') chan.google += r.spend
+    else if (r.platform === 'meta_ads') chan.meta += r.spend
+    byChannelDay.set(r.day, chan)
+
     byPlatform.set(r.platform, (byPlatform.get(r.platform) ?? 0) + r.spend)
     byWorkspace.set(r.workspaceId, (byWorkspace.get(r.workspaceId) ?? 0) + r.spend)
   }
 
   return {
+    spendByChannelDaily: [...byChannelDay]
+      .map(([date, v]) => ({ date, google: round(v.google), meta: round(v.meta) }))
+      .sort((x, y) => x.date.localeCompare(y.date)),
+    funnel: {
+      impressions: funnel.impressions,
+      clicks: funnel.clicks,
+      conversions: Math.round(funnel.conversions),
+      revenue: Math.round(funnel.revenue),
+    },
+    topCampaigns: campaigns.map((c) => ({
+      campaign: c.campaign,
+      platform: c.platform,
+      spend: round(c.spend),
+    })),
     // Absent days stay absent rather than being zero-filled: a gap in the data is not a day on
     // which every customer spent nothing, and drawing it as zero would assert that it was.
     spendDaily: [...byDay]
-      .map(([date, spend]) => ({ date, spend: round(spend) }))
+      .map(([date, v]) => ({ date, spend: round(v.spend), revenue: Math.round(v.revenue) }))
       .sort((x, y) => x.date.localeCompare(y.date)),
     spendWindow: { from: fromDay, to: last },
     totalSpend: round(totalSpend),
@@ -856,6 +923,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
     usersPerDay,
     statusMix,
     newestRows,
+    recStatusRows,
     liveIdRows,
   ] = await Promise.all([
     db.select({ value: count() }).from(schema.workspaces),
@@ -996,6 +1064,12 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
       .orderBy(desc(schema.workspaces.createdAt))
       .limit(5),
+    // What became of everything the engine produced. 265 rows of real outcome data on the dev
+    // database, and the clearest available answer to "is anyone acting on what we generate".
+    db
+      .select({ status: schema.recommendations.status, value: count() })
+      .from(schema.recommendations)
+      .groupBy(schema.recommendations.status),
     // The id list that scopes every ClickHouse figure to workspaces that still exist.
     db.select({ id: schema.workspaces.id }).from(schema.workspaces),
   ])
@@ -1064,6 +1138,10 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
     spendWindow: spend.spendWindow,
     totalSpend: spend.totalSpend,
     spendByPlatform: spend.spendByPlatform,
+    spendByChannelDaily: spend.spendByChannelDaily,
+    funnel: spend.funnel,
+    topCampaigns: spend.topCampaigns,
+    recommendationsByStatus: recStatusRows.map((r) => ({ status: r.status, count: r.value })),
     newestWorkspaces: newestRows.map((r) => ({
       id: r.id,
       name: r.name,

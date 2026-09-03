@@ -1,16 +1,5 @@
 "use client";
 import Link from "next/link";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { CheckCircle2, Clock, CreditCard, PlugZap, XCircle } from "lucide-react";
 import type {
   FailedJobItem,
@@ -31,6 +20,14 @@ import {
   subscriptionStatusLabel,
 } from "@/components/admin/labels";
 import { spineClass, toneTextClass, trialTone, type Tone } from "@/components/admin/tone";
+import {
+  BarList,
+  ChannelSpark,
+  ReturnLine,
+  SignupBars,
+  SpendArea,
+  compact,
+} from "@/components/admin/OverviewCharts";
 
 /**
  * The console's front page.
@@ -40,15 +37,15 @@ import { spineClass, toneTextClass, trialTone, type Tone } from "@/components/ad
  * first version answered one and a half — a short queue, four figures, and then most of a 1920px
  * screen of nothing.
  *
- * **The hero is platform-wide ad spend.** That is the characteristic number for this product:
- * GrowthOS exists to optimise money that customers spend elsewhere, so the amount moving through it
- * says more about the platform than its own revenue does. It was also the largest dataset in the
- * system — tens of thousands of rows in ClickHouse — with nothing on the console reading it.
+ * **The hero is platform-wide ad spend**, and it sits beside the funnel it came from rather than
+ * stretching the full width. That is the characteristic number for this product: GrowthOS exists to
+ * optimise money customers spend elsewhere, so the amount moving through it says more about the
+ * platform than its own revenue does.
  *
- * Structurally the page is built from two devices, not from a card kit: rows with a state spine for
- * anything that is a queue, and bordered containers divided by rules for anything that is a set of
- * readings. Identical rounded cards for every block is the thing that made the old admin panel
- * read as a different product wearing our logo.
+ * Structurally the page uses two devices and no card kit: rows with a state spine for anything that
+ * is a queue, and bordered containers divided by rules for anything that is a set of readings.
+ * Identical rounded cards for every block is what made the original panel read as a different
+ * product wearing our logo.
  */
 export default function AdminOverviewPage() {
   const { data, isLoading } = useAdminOverview();
@@ -61,18 +58,20 @@ export default function AdminOverviewPage() {
     (a?.failedJobsTotal ?? 0);
 
   return (
-    <div className="space-y-7 pb-10">
+    <div className="space-y-6 pb-10">
       <h1 className="font-display text-xl font-semibold tracking-tight">Overview</h1>
 
-      {/* 1. What needs a person. */}
       <section aria-labelledby="needs-you">
-        <SectionHead id="needs-you" title="Needs you">
+        <div className="flex items-baseline justify-between gap-4 border-b pb-2">
+          <h2 id="needs-you" className="font-display text-base font-semibold tracking-tight">
+            Needs you
+          </h2>
           {!isLoading && total > 0 && (
             <span className="font-mono text-xs tabular-nums text-muted-foreground">
               {countLabel(total, "item")}
             </span>
           )}
-        </SectionHead>
+        </div>
 
         {isLoading ? (
           <div className="space-y-2 pt-3">
@@ -105,20 +104,36 @@ export default function AdminOverviewPage() {
         )}
       </section>
 
-      {/* 2. The readings. Six figures, divided rather than carded. */}
       <VitalSigns data={data} loading={isLoading} />
+      <SpendBand data={data} loading={isLoading} />
 
-      {/* 3. The one bold thing. */}
-      <SpendChart data={data} loading={isLoading} />
+      {/* The channel split, as small multiples rather than a stack. */}
+      {data && data.spendByChannelDaily.length > 0 && (
+        <div className="grid divide-y rounded-lg border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+          <ChannelSpark
+            data={data.spendByChannelDaily}
+            channel="google"
+            total={data.spendByPlatform.find((p) => p.platform === "google_ads")?.spend ?? 0}
+          />
+          <ChannelSpark
+            data={data.spendByChannelDaily}
+            channel="meta"
+            total={data.spendByPlatform.find((p) => p.platform === "meta_ads")?.spend ?? 0}
+          />
+        </div>
+      )}
 
-      {/* 4. Three readings that each need a shape, in one container. */}
-      <div className="grid divide-y rounded-lg border lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-        <Subscriptions data={data} loading={isLoading} />
-        <GrowthChart data={data} loading={isLoading} />
-        <ChannelSplit data={data} loading={isLoading} />
+      <div className="grid divide-y rounded-lg border lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+        <ReturnPanel data={data} loading={isLoading} />
+        <OutcomesPanel data={data} loading={isLoading} />
       </div>
 
-      {/* 5. Two ways into an account. */}
+      <div className="grid divide-y rounded-lg border lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+        <SubscriptionsPanel data={data} loading={isLoading} />
+        <GrowthPanel data={data} loading={isLoading} />
+        <CampaignsPanel data={data} loading={isLoading} />
+      </div>
+
       <div className="grid divide-y rounded-lg border lg:grid-cols-2 lg:divide-x lg:divide-y-0">
         <NewestAccounts data={data} loading={isLoading} />
         <TopSpenders data={data} loading={isLoading} />
@@ -127,26 +142,27 @@ export default function AdminOverviewPage() {
   );
 }
 
-function SectionHead({
-  id,
+function Panel({
   title,
+  aside,
   children,
 }: {
-  id?: string;
   title: string;
-  children?: React.ReactNode;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b pb-2">
-      <h2 id={id} className="font-display text-base font-semibold tracking-tight">
-        {title}
-      </h2>
-      {children}
+    <div className="min-w-0 p-5">
+      <div className="flex items-baseline justify-between gap-4">
+        <h3 className="font-display text-sm font-semibold tracking-tight">{title}</h3>
+        {aside}
+      </div>
+      <div className="mt-3">{children}</div>
     </div>
   );
 }
 
-// ── 2. Vital signs ───────────────────────────────────────────────────────────
+// ── Vital signs ──────────────────────────────────────────────────────────────
 
 function VitalSigns({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
   return (
@@ -202,30 +218,10 @@ function Figure({
   );
 }
 
-// ── 3. The hero ──────────────────────────────────────────────────────────────
+// ── The hero, beside the funnel it came from ─────────────────────────────────
 
-const AXIS = { tick: { fontSize: 11 }, stroke: "var(--color-muted-foreground)" } as const;
-
-const TOOLTIP = {
-  contentStyle: {
-    background: "var(--color-card)",
-    border: "1px solid var(--color-border)",
-    borderRadius: 8,
-    fontSize: 12,
-  },
-  labelStyle: { color: "var(--color-muted-foreground)" },
-} as const;
-
-/** Compact dollars for an axis: $1.2k rather than $1,240, which collides at this width. */
-function axisMoney(v: number): string {
-  if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k`;
-  return `$${Math.round(v)}`;
-}
-
-const shortDate = (d: string) => d.slice(5);
-
-function SpendChart({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
-  if (loading) return <Skeleton className="h-64 w-full" />;
+function SpendBand({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
+  if (loading) return <Skeleton className="h-72 w-full" />;
   if (!data || data.spendDaily.length === 0) {
     return (
       <section className="rounded-lg border p-5">
@@ -240,69 +236,162 @@ function SpendChart({ data, loading }: { data?: PlatformOverview; loading: boole
     );
   }
 
+  const ctr = data.funnel.impressions > 0 ? (data.funnel.clicks / data.funnel.impressions) * 100 : 0;
+  const cpc = data.funnel.clicks > 0 ? data.totalSpend / data.funnel.clicks : 0;
+  const cpa = data.funnel.conversions > 0 ? data.totalSpend / data.funnel.conversions : 0;
+
   return (
-    <section className="rounded-lg border p-5" aria-labelledby="spend">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-        <h2 id="spend" className="font-display text-base font-semibold tracking-tight">
-          Money moving through GrowthOS
-        </h2>
-        <p className="font-mono text-sm tabular-nums">
-          {moneyLabel(data.totalSpend * 100)}
-          <span className="ml-2 text-xs text-muted-foreground">
-            {data.spendWindow.from} to {data.spendWindow.to}
-          </span>
+    <section
+      className="grid divide-y rounded-lg border lg:grid-cols-[2fr_1fr] lg:divide-x lg:divide-y-0"
+      aria-labelledby="spend"
+    >
+      <div className="min-w-0 p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+          <h2 id="spend" className="font-display text-base font-semibold tracking-tight">
+            Money moving through GrowthOS
+          </h2>
+          <p className="font-mono text-sm tabular-nums">
+            {moneyLabel(data.totalSpend * 100)}
+            <span className="ml-2 text-xs text-muted-foreground">
+              {data.spendWindow.from} to {data.spendWindow.to}
+            </span>
+          </p>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Every customer&rsquo;s advertising spend, added together. Not our revenue — the money they
+          run through the product.
         </p>
+        <div className="mt-4">
+          <SpendArea data={data.spendDaily} />
+        </div>
       </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Every customer&rsquo;s advertising spend, added together. Not our revenue — the money they
-        run through the product.
-      </p>
 
       {/*
-        One series, so no legend: the heading names it. Total rather than a per-channel stack,
-        because --channel-google and --channel-meta sit 0.3 dE apart under deuteranopia on the dark
-        surface — two hues that cannot be told apart must not be asked to carry the split. That
-        breakdown is stated in numbers below instead.
+        The funnel that spend bought, as a rail. Ordered the way the money travels — shown, clicked,
+        converted, earned — so it reads as one chain rather than four unrelated counters.
       */}
-      <div className="mt-4 h-64 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data.spendDaily} margin={{ top: 4, right: 8, bottom: 0, left: 4 }}>
-            <defs>
-              <linearGradient id="platform-spend-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="var(--color-border)" vertical={false} />
-            <XAxis dataKey="date" tickFormatter={shortDate} {...AXIS} tickLine={false} />
-            <YAxis tickFormatter={axisMoney} width={56} {...AXIS} tickLine={false} axisLine={false} />
-            <Tooltip {...TOOLTIP} formatter={(v) => [moneyLabel(Number(v) * 100), "Spend"]} />
-            <Area
-              type="monotone"
-              dataKey="spend"
-              stroke="var(--color-primary)"
-              strokeWidth={2}
-              fill="url(#platform-spend-fill)"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+      <div className="min-w-0 p-5">
+        <h3 className="font-display text-sm font-semibold tracking-tight">What it bought</h3>
+        <dl className="mt-3 divide-y">
+          <Reading label="Impressions" value={compact(data.funnel.impressions)} />
+          <Reading label="Clicks" value={compact(data.funnel.clicks)} note={`${ctr.toFixed(2)}% CTR`} />
+          <Reading
+            label="Conversions"
+            value={compact(data.funnel.conversions)}
+            note={cpa > 0 ? `${moneyLabel(cpa * 100)} each` : undefined}
+          />
+          <Reading
+            label="Attributed revenue"
+            value={moneyLabel(data.funnel.revenue * 100)}
+            note={
+              data.totalSpend > 0
+                ? `${(data.funnel.revenue / data.totalSpend).toFixed(1)}x return`
+                : undefined
+            }
+          />
+          <Reading label="Cost per click" value={cpc > 0 ? moneyLabel(cpc * 100) : "—"} />
+        </dl>
       </div>
     </section>
   );
 }
 
-// ── 4. Three readings ────────────────────────────────────────────────────────
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Reading({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <div className="min-w-0 p-5">
-      <h3 className="font-display text-sm font-semibold tracking-tight">{title}</h3>
-      <div className="mt-3">{children}</div>
+    <div className="flex items-baseline justify-between gap-4 py-2">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="text-right">
+        <span className="font-mono text-sm tabular-nums">{value}</span>
+        {note && <span className="ml-2 text-xs text-muted-foreground">{note}</span>}
+      </dd>
     </div>
   );
 }
 
-function Subscriptions({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
+// ── Panels ───────────────────────────────────────────────────────────────────
+
+function ReturnPanel({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
+  const ratio =
+    data && data.totalSpend > 0 ? (data.funnel.revenue / data.totalSpend).toFixed(2) : null;
+  return (
+    <Panel
+      title="Return on that spend"
+      aside={ratio && <span className="font-mono text-xs tabular-nums">{ratio}x</span>}
+    >
+      {loading || !data ? (
+        <Skeleton className="h-28 w-full" />
+      ) : data.spendDaily.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nothing to measure yet.</p>
+      ) : (
+        <>
+          <ReturnLine data={data.spendDaily} />
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+            Attributed revenue divided by spend, for every customer together. It is the number the
+            product exists to move.
+          </p>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function OutcomesPanel({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
+  const total = data?.recommendationsByStatus.reduce((n, r) => n + r.count, 0) ?? 0;
+  const acted = data?.recommendationsByStatus.find((r) => r.status === "acted")?.count ?? 0;
+
+  return (
+    <Panel
+      title="What happens to our advice"
+      aside={
+        total > 0 && (
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+            {((acted / total) * 100).toFixed(0)}% acted on
+          </span>
+        )
+      }
+    >
+      {loading || !data ? (
+        <Skeleton className="h-28 w-full" />
+      ) : total === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Nothing generated yet. Recommendations appear once a workspace has data to work from.
+        </p>
+      ) : (
+        <>
+          <BarList
+            tone="muted"
+            rows={data.recommendationsByStatus
+              .slice()
+              .sort((x, y) => y.count - x.count)
+              .map((r) => ({
+                key: r.status,
+                label: recommendationStatusLabel(r.status),
+                value: String(r.count),
+                share: (r.count / total) * 100,
+              }))}
+          />
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            Every recommendation the engine has produced, and where it ended up. A queue that stays
+            pending is the product talking to itself.
+          </p>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+/** Storage slugs are not reading matter — same rule as `channelLabel`. */
+function recommendationStatusLabel(status: string): string {
+  const NAMES: Record<string, string> = {
+    pending: "Still waiting",
+    acted: "Acted on",
+    dismissed: "Dismissed",
+    snoozed: "Snoozed",
+  };
+  return NAMES[status] ?? status;
+}
+
+function SubscriptionsPanel({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
   return (
     <Panel title="Subscriptions">
       {loading || !data ? (
@@ -338,30 +427,22 @@ function Subscriptions({ data, loading }: { data?: PlatformOverview; loading: bo
   );
 }
 
-function GrowthChart({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
+function GrowthPanel({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
+  const joined = data?.growthDaily.reduce((n, d) => n + d.users, 0) ?? 0;
   return (
-    <Panel title="New people, per day">
+    <Panel
+      title="New people, per day"
+      aside={
+        data && <span className="font-mono text-xs tabular-nums text-muted-foreground">{joined}</span>
+      }
+    >
       {loading || !data ? (
         <Skeleton className="h-24 w-full" />
       ) : (
         <>
-          {/* Zero-filled, unlike the spend series: a day with no signups really had none. */}
-          <div className="h-24 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.growthDaily} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-                <XAxis dataKey="date" hide />
-                <Tooltip
-                  {...TOOLTIP}
-                  labelFormatter={(d) => String(d)}
-                  formatter={(v) => [String(v), "People"]}
-                  cursor={{ fill: "var(--color-secondary)" }}
-                />
-                <Bar dataKey="users" fill="var(--color-primary)" radius={[2, 2, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <SignupBars data={data.growthDaily} />
           <p className="mt-2 text-xs text-muted-foreground">
-            Last 30 days. {data.growthDaily.reduce((n, d) => n + d.users, 0)} people joined.
+            Last 30 days. {joined} {joined === 1 ? "person" : "people"} joined.
           </p>
         </>
       )}
@@ -369,40 +450,28 @@ function GrowthChart({ data, loading }: { data?: PlatformOverview; loading: bool
   );
 }
 
-function ChannelSplit({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
+function CampaignsPanel({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
   return (
-    <Panel title="Where it goes">
+    <Panel title="Biggest campaigns">
       {loading || !data ? (
         <Skeleton className="h-24 w-full" />
-      ) : data.spendByPlatform.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nothing connected yet.</p>
+      ) : data.topCampaigns.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nothing running yet.</p>
       ) : (
-        <ul className="space-y-3">
-          {data.spendByPlatform.map((p) => {
-            const share = data.totalSpend > 0 ? (p.spend / data.totalSpend) * 100 : 0;
-            return (
-              <li key={p.platform}>
-                <div className="flex items-baseline justify-between gap-4 text-sm">
-                  {/* Slugs never reach the screen — CLAUDE.md. */}
-                  <span className="truncate">{channelLabel(p.platform)}</span>
-                  <span className="shrink-0 font-mono text-xs tabular-nums">
-                    {moneyLabel(p.spend * 100)}
-                    <span className="ml-2 text-muted-foreground">{share.toFixed(0)}%</span>
-                  </span>
-                </div>
-                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                  <div className="h-full bg-primary" style={{ width: `${share}%` }} />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <BarList
+          rows={data.topCampaigns.map((c) => ({
+            key: `${c.platform}-${c.campaign}`,
+            label: c.campaign,
+            // Slugs never reach the screen — CLAUDE.md.
+            sub: channelLabel(c.platform),
+            value: moneyLabel(c.spend * 100),
+            share: data.totalSpend > 0 ? (c.spend / data.totalSpend) * 100 : 0,
+          }))}
+        />
       )}
     </Panel>
   );
 }
-
-// ── 5. Ways into an account ──────────────────────────────────────────────────
 
 function NewestAccounts({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
   return (
