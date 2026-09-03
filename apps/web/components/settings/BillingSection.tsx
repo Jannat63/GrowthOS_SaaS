@@ -6,7 +6,7 @@ import { Card } from "@growthos/ui/components/card";
 import { Badge } from "@growthos/ui/components/badge";
 import { Button } from "@growthos/ui/components/button";
 import { Skeleton } from "@growthos/ui/components/skeleton";
-import { PLAN_LIMITS, type Plan, type CountedMetric, type BooleanFeature } from "@growthos/types";
+import { PLAN_LIMITS, planPriceLabel, type Plan, type CountedMetric, type BooleanFeature } from "@growthos/types";
 import { useSubscription, useUsage, useCheckout, usePortal } from "@/lib/hooks/useBilling";
 import { trackEvent } from "@/lib/analytics";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
@@ -27,12 +27,6 @@ const STATUS_VARIANT: Record<string, "default" | "muted" | "outline"> = {
   trialing: "muted",
   past_due: "outline",
   canceled: "outline",
-};
-
-const PLAN_PRICE: Record<Plan, string> = {
-  starter: "$79/mo",
-  growth: "$199/mo",
-  scale: "$399/mo",
 };
 
 const PLAN_BLURB: Record<Plan, string[]> = {
@@ -127,7 +121,7 @@ export function BillingSection({
                 <div key={plan} className="flex flex-col rounded-lg border border-border p-4">
                   <div className="flex items-center justify-between">
                     <span className="font-display text-sm font-semibold capitalize">{plan}</span>
-                    <span className="text-sm text-muted-foreground">{PLAN_PRICE[plan]}</span>
+                    <span className="text-sm text-muted-foreground">{planPriceLabel(plan, { perMonth: true })}</span>
                   </div>
                   <ul className="mt-3 flex-1 space-y-1 text-xs text-muted-foreground">
                     {PLAN_BLURB[plan].map((line) => (

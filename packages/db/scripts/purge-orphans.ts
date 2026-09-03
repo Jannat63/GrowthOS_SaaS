@@ -6,7 +6,7 @@
  * but the API test suite does, in teardown, and `apps/api/vitest.config.ts` points it at the same
  * Neon database as development. Teardown removed the workspace row and a hand-maintained subset of
  * its children, so the rest were stranded: 747 rows across 9 tables against 15 live workspaces,
- * which `getPlatformHealth` then counted as real customers.
+ * which the admin overview then counted as real customers.
  *
  * Run this once before applying the FK migration — Postgres validates a new constraint against
  * existing rows, so the migration fails outright while orphans remain. Afterwards the cascade

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description:
     "Starter, Growth, and Scale plans for GrowthOS — one loop across SEO, Google Ads, and Meta Ads. 14-day free trial on Growth, no credit card required.",
 };
-import { PLAN_LIMITS, type Plan } from "@growthos/types";
+import { PLAN_LIMITS, planPriceLabel, type Plan } from "@growthos/types";
 
 // Every number on this page reads from @growthos/types PLAN_LIMITS — the same source
 // apps/api/src/plan-limits.ts enforces server-side. Nothing here is independently maintained,
@@ -17,7 +17,6 @@ import { PLAN_LIMITS, type Plan } from "@growthos/types";
 
 const PLANS: Plan[] = ["starter", "growth", "scale"];
 
-const PLAN_PRICE: Record<Plan, string> = { starter: "$79", growth: "$199", scale: "$399" };
 const PLAN_NAME: Record<Plan, string> = { starter: "Starter", growth: "Growth", scale: "Scale" };
 const PLAN_TAGLINE: Record<Plan, string> = {
   starter: "One brand, one operator.",
@@ -115,7 +114,7 @@ export default function PricingPage() {
               <h2 className="font-display text-lg font-semibold tracking-tight">{PLAN_NAME[plan]}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{PLAN_TAGLINE[plan]}</p>
               <p className="mt-5 flex items-baseline gap-1">
-                <span className="font-display text-4xl font-bold tracking-tight">{PLAN_PRICE[plan]}</span>
+                <span className="font-display text-4xl font-bold tracking-tight">{planPriceLabel(plan)}</span>
                 <span className="text-sm text-muted-foreground">/ month</span>
               </p>
               <Button asChild className="mt-6 w-full" variant={featured ? "default" : "outline"}>

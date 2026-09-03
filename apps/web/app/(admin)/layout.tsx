@@ -1,28 +1,20 @@
 "use client";
 import { useEffect } from "react";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ShieldAlert, LayoutGrid, Building2, Users, ScrollText } from "lucide-react";
+import { Search, ShieldAlert } from "lucide-react";
 import { Button } from "@growthos/ui/components/button";
 import { useAdminAccess } from "@/lib/hooks/useAdmin";
 import { useSession } from "@/lib/auth/client";
-import { cn } from "@/lib/utils/cn";
-
-const ADMIN_NAV = [
-  { href: "/admin", label: "Overview", icon: LayoutGrid },
-  { href: "/admin/workspaces", label: "Workspaces", icon: Building2 },
-  { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/audit-log", label: "Audit log", icon: ScrollText, superAdminOnly: true },
-];
-
-const ROLE_LABEL: Record<string, string> = {
-  super_admin: "Super admin",
-  support_agent: "Support agent",
-};
+import { AdminRail } from "@/components/admin/AdminRail";
+import { OperatorMenu } from "@/components/admin/OperatorMenu";
+import {
+  AdminCommandPalette,
+  useCommandPalette,
+} from "@/components/admin/AdminCommandPalette";
 
 /**
  * Everything under (admin) is gated here — a non-admin sees a plain "not authorized" screen, never
- * the panel itself. This is a UX gate, not the real security boundary: every API route under
+ * the console itself. This is a UX gate, not the real security boundary: every API route under
  * /admin/* independently requires a platform role server-side (apps/api/src/routes/admin.ts), so
  * there's no path where getting past this layout alone exposes real data.
  *
@@ -32,12 +24,17 @@ const ROLE_LABEL: Record<string, string> = {
  * a grey ramp means the shadcn primitives inside resolve to the graphite palette on their own —
  * `--card`, `--border`, `--input` and the rest all move together — so `<Button>` and `<Input>` are
  * usable here unmodified, and nothing has to be re-toned per instance.
+ *
+ * The shell is a 52px icon rail plus a single header bar, not the customer app's sidebar-and-
+ * header. Finding an account is the command palette's job; the rail carries only the destinations
+ * that are not an account. See docs/superpowers/specs/2026-09-03-admin-console-redesign-design.md.
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: access, isLoading } = useAdminAccess();
   const { data: session, isPending: sessionPending } = useSession();
   const pathname = usePathname();
   const router = useRouter();
+  const palette = useCommandPalette();
 
   /**
    * Platform staff complete their profile before the console opens.
@@ -59,9 +56,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (isLoading) {
     return (
       <div className="dark flex min-h-screen items-center justify-center bg-background">
-        <p className="font-mono text-xs tracking-[0.12em] text-muted-foreground">
-          Checking admin access…
-        </p>
+        <p className="text-sm text-muted-foreground">Checking admin access…</p>
       </div>
     );
   }
@@ -82,72 +77,69 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
+  const isSuperAdmin = access.platformRole === "super_admin";
+
   return (
-    <div className="dark min-h-screen bg-background text-foreground">
+    <div className="dark flex min-h-screen flex-col bg-background text-foreground">
       {/*
         The signature, and the one place this surface raises its voice.
 
         This replaced a hazard-striped bar. A stripe says "somewhere dangerous" and then leaves the
-        operator to remember why; the line says the thing that actually makes someone careful —
-        every view here, not just every change, is written to the audit log under their name. Gold
-        because in this design system gold already means "not the normal state" (it is the
-        sample-data colour), so the meaning is borrowed rather than invented.
+        operator to remember why; gold is the colour this design system already uses for "not the
+        normal state", so the meaning is borrowed rather than invented. What it stands for — that
+        every view here is recorded under your name — now lives in the operator menu, attached to
+        the name it is about, instead of as a caption addressed to nobody.
       */}
-      <div aria-hidden="true" className="h-0.5 w-full bg-warning" />
+      <div aria-hidden="true" className="h-0.5 w-full shrink-0 bg-warning" />
 
-      <header className="flex h-14 flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b px-6">
-        <div className="flex items-center gap-2.5">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b px-3 md:px-4">
+        <div className="flex shrink-0 items-center gap-2">
           <ShieldAlert className="h-4 w-4 text-warning" aria-hidden="true" />
           <span className="font-display text-sm font-semibold tracking-tight">Super Admin</span>
-          <span className="rounded-full bg-warning/10 px-2 py-0.5 font-mono text-[10px] tracking-[0.12em] text-warning">
-            {ROLE_LABEL[access.platformRole] ?? access.platformRole}
-          </span>
         </div>
 
-        <div className="flex items-center gap-5">
-          <p className="hidden font-mono text-[10px] tracking-[0.12em] text-muted-foreground sm:block">
-            Every view is recorded
-          </p>
-          <Link
-            href="/growth-hub"
-            className="rounded-sm text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            Exit to GrowthOS
-          </Link>
+        {/*
+          The search field is the console's primary navigation, so it sits in the centre of the
+          header rather than at the top of one page. It is a button, not an input: the palette owns
+          its own field, and two focusable text boxes for one search is a trap for keyboard users.
+        */}
+        {/* Hidden during the profile wall for the same reason the rail is: the palette navigates. */}
+        {!profileIncomplete && (
+        <button
+          type="button"
+          onClick={() => palette.setOpen(true)}
+          className="flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-md border border-input bg-transparent px-3 text-left text-sm text-muted-foreground transition-colors hover:border-ring/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-md"
+        >
+          <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">Find an account, a person, an id…</span>
+          <kbd className="ml-auto hidden shrink-0 rounded border border-border px-1.5 font-mono text-[10px] leading-4 text-muted-foreground sm:block">
+            ⌘K
+          </kbd>
+        </button>
+        )}
+
+        <div className="ml-auto shrink-0">
+          <OperatorMenu platformRole={access.platformRole} />
         </div>
       </header>
 
-      <div className="flex flex-col md:flex-row">
-        {!profileIncomplete && (
-        <nav
-          aria-label="Admin sections"
-          className="flex gap-1 overflow-x-auto border-b p-3 md:w-56 md:shrink-0 md:flex-col md:space-y-1 md:overflow-visible md:border-b-0 md:border-r md:p-4"
-        >
-          {ADMIN_NAV.map(({ href, label, icon: Icon, superAdminOnly }) => {
-            if (superAdminOnly && access.platformRole !== "super_admin") return null;
-            const active = pathname === href;
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  active
-                    ? "bg-secondary text-foreground"
-                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
-        )}
-        <main className="min-w-0 flex-1 p-6 md:p-8">{children}</main>
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        {/* The profile step is a wall, not a page: no navigation out of it until there is a name. */}
+        {!profileIncomplete && <AdminRail isSuperAdmin={isSuperAdmin} />}
+        {/*
+          No max-width container. The customer app centres its content because it is read; this is
+          scanned across, and every column of a directory is width the operator asked for.
+        */}
+        <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
       </div>
+
+      {!profileIncomplete && (
+        <AdminCommandPalette
+          open={palette.open}
+          onOpenChange={palette.setOpen}
+          isSuperAdmin={isSuperAdmin}
+        />
+      )}
     </div>
   );
 }

@@ -724,11 +724,70 @@ export interface AdminUserSummary {
   workspaceCount: number;
   createdAt: string;
 }
-export interface PlatformHealth {
+/**
+ * The admin overview.
+ *
+ * `attention` is the point of the page: the four things that need a person, each item carrying
+ * enough to render one row and link straight to the account. Every list is capped server-side —
+ * an operator works a queue, and a queue of two hundred is a report, not a queue. `*Total` says
+ * how many there really are so the UI can say "and 40 more" honestly.
+ *
+ * Structured, not prose: the wording belongs to the interface (and channel slugs must render
+ * through `channelLabel`, per CLAUDE.md), so the API sends facts and the client writes sentences.
+ */
+export interface PlatformOverview {
   totalWorkspaces: number;
   totalUsers: number;
+  /**
+   * Summed list price of subscriptions in `active`, in US cents. Trials are not revenue yet and
+   * `past_due` is revenue that did not arrive, so neither counts — they appear in `attention`
+   * instead, which is where they can actually be acted on.
+   */
+  mrrCents: number;
+  signupsLast7d: number;
   workspacesByPlan: { plan: string; count: number }[];
-  trialsEndingSoonCount: number;
+  attention: {
+    pastDue: PastDueItem[];
+    pastDueTotal: number;
+    trialsEnding: TrialEndingItem[];
+    trialsEndingTotal: number;
+    staleConnections: StaleConnectionItem[];
+    staleConnectionsTotal: number;
+    failedJobs: FailedJobItem[];
+    failedJobsTotal: number;
+  };
+}
+
+interface AttentionTarget {
+  workspaceId: string;
+  workspaceName: string;
+}
+
+export interface PastDueItem extends AttentionTarget {
+  plan: string;
+  /** When the subscription was last updated, which is when it went past due. */
+  since: string | null;
+}
+
+export interface TrialEndingItem extends AttentionTarget {
+  plan: string;
+  /** May be in the past — a trial that has already lapsed is more urgent, not less. */
+  trialEndsAt: string;
+}
+
+export interface StaleConnectionItem extends AttentionTarget {
+  /** Storage slug (`google_ads` etc.) — render it through `channelLabel`, never raw. */
+  platform: string;
+  accountName: string | null;
+  lastSyncedAt: string | null;
+  isActive: boolean;
+}
+
+export interface FailedJobItem extends AttentionTarget {
+  jobId: string;
+  type: string;
+  error: string | null;
+  failedAt: string | null;
 }
 export interface AdminAuditLogEntry {
   id: string;
@@ -801,6 +860,33 @@ export const PLAN_LIMITS = {
     apiRequestsPerMinute: 120,
   },
 } as const satisfies Record<Plan, Record<string, unknown>>;
+
+/**
+ * List price per plan, in US cents per month.
+ *
+ * Cents rather than dollars because this is the figure MRR is summed from, and floating-point
+ * dollars accumulate error once a few hundred subscriptions are added together. Rendering is the
+ * caller's job — `planPriceLabel` below produces the two forms the app actually uses.
+ *
+ * It lives here, beside PLAN_LIMITS, for the same reason the seeded demo figures live in exactly
+ * one file (CLAUDE.md): the price was previously written out three separate times — the pricing
+ * page, the pricing teaser, and the billing settings section — each with its own formatting. Two
+ * of those carried a comment claiming the number was derived from PLAN_LIMITS when it was a
+ * literal sitting next to it. Import this; do not retype the number.
+ *
+ * Stripe stays the authority on what a customer is actually charged (PLAN_PRICE_ENV in
+ * apps/api/src/billing.ts holds the price ids). This is the list price we quote and report on.
+ */
+export const PLAN_PRICE_USD_CENTS = {
+  starter: 7_900,
+  growth: 19_900,
+  scale: 39_900,
+} as const satisfies Record<Plan, number>;
+
+/** `$199`, or `$199/mo` with `perMonth`. Every list price is a whole number of dollars. */
+export function planPriceLabel(plan: Plan, opts?: { perMonth?: boolean }): string {
+  return `$${PLAN_PRICE_USD_CENTS[plan] / 100}${opts?.perMonth ? "/mo" : ""}`;
+}
 
 // Metered/gated features (M5 P5.2). `limit: null` means unlimited (Infinity isn't valid JSON).
 export type CountedMetric = "recommendations_generated" | "ai_creatives_generated";

@@ -6,7 +6,7 @@ import type {
   AdminWorkspaceDetail,
   AdminWorkspaceSummary,
   Plan,
-  PlatformHealth,
+  PlatformOverview,
 } from '@growthos/types'
 import { AppError } from '../errors.js'
 import { requireUser } from '../auth-context.js'
@@ -18,7 +18,7 @@ import {
   getWorkspaceDetail,
   overrideWorkspacePlan,
   listUsers,
-  getPlatformHealth,
+  getPlatformOverview,
   listAuditLog,
 } from '../admin.js'
 
@@ -98,12 +98,12 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     return result
   })
 
-  app.get('/api/v1/admin/health', async (request): Promise<PlatformHealth> => {
+  app.get('/api/v1/admin/overview', async (request): Promise<PlatformOverview> => {
     const user = await requireUser(request)
     await requirePlatformRole(user.id, 'support_agent')
-    const health = await getPlatformHealth()
+    const overview = await getPlatformOverview()
     await logAdminAction(user.id, 'health.view', 'workspace', 'all')
-    return health
+    return overview
   })
 
   // The audit log itself requires super_admin — a support_agent shouldn't be able to review

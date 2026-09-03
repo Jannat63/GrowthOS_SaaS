@@ -40,9 +40,20 @@ export const subscriptionStatusLabel = (s: string) => SUBSCRIPTION_STATUS[s] ?? 
 export const workspaceRoleLabel = (r: string) => WORKSPACE_ROLE[r] ?? titleCase(r);
 export const planLabel = (p: string) => titleCase(p);
 
-/** Only `active` and `trialing` are healthy; everything else needs someone to look at it. */
-export function subscriptionTone(status: string): "success" | "warning" | "muted" {
-  if (status === "active") return "success";
-  if (status === "trialing") return "warning";
-  return "muted";
+/**
+ * Money, from cents, without the cents — every list price is a whole number of dollars and a
+ * trailing `.00` on every figure in a column is two characters of noise per row.
+ */
+export function moneyLabel(cents: number): string {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
+}
+
+/** A count with its noun, pluralised: `1 workspace`, `14 workspaces`, `no workspaces`. */
+export function countLabel(n: number, singular: string, plural = `${singular}s`): string {
+  if (n === 0) return `no ${plural}`;
+  return `${n} ${n === 1 ? singular : plural}`;
 }

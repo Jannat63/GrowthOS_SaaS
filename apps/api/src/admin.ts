@@ -1,6 +1,6 @@
-import { and, count, desc, eq, ilike, inArray, lte, or } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, ilike, inArray, lt, lte, or } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
-import type { Plan } from '@growthos/types'
+import { PLAN_PRICE_USD_CENTS, type Plan, type PlatformOverview } from '@growthos/types'
 import { getCurrentSubscription } from './billing.js'
 import type { Page, Paged } from './pagination.js'
 
@@ -204,14 +204,16 @@ export async function listUsers(search: string | undefined, page: Page): Promise
   }
 }
 
-// ── Platform health ──────────────────────────────────────────────────────────
+// ── Platform overview ────────────────────────────────────────────────────────
 
-export interface PlatformHealth {
-  totalWorkspaces: number
-  totalUsers: number
-  workspacesByPlan: { plan: string; count: number }[]
-  trialsEndingSoonCount: number
-}
+/**
+ * How many rows each attention queue returns. An operator works a queue; a queue of two hundred is
+ * a report. The accompanying `*Total` says how many there really are, so the page can say "and 40
+ * more" without pretending the list is the whole truth.
+ */
+const ATTENTION_LIMIT = 6
+
+const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
  * Platform-wide counts for the admin overview.
@@ -227,12 +229,46 @@ export interface PlatformHealth {
  * subscription rows than workspaces it goes negative, and a `> 0` guard then dropped it silently
  * instead of surfacing the contradiction.
  */
-export async function getPlatformHealth(): Promise<PlatformHealth> {
-  const in3Days = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+export async function getPlatformOverview(): Promise<PlatformOverview> {
+  const now = Date.now()
+  const in3Days = new Date(now + 3 * DAY_MS)
+  const sevenDaysAgo = new Date(now - 7 * DAY_MS)
 
-  const [workspaceRows, userRows, byPlan, trialsRows] = await Promise.all([
+  const pastDueWhere = eq(schema.subscriptions.status, 'past_due')
+  const trialWhere = and(
+    eq(schema.subscriptions.status, 'trialing'),
+    lte(schema.subscriptions.trialEndsAt, in3Days),
+  )
+  // A connection that has never synced (`lastSyncedAt IS NULL`) is deliberately not stale: it is
+  // usually one that was connected minutes ago, and flagging those would fill the queue with
+  // healthy new accounts. Inactive is always worth surfacing.
+  const staleWhere = or(
+    eq(schema.platformConnections.isActive, false),
+    lt(schema.platformConnections.lastSyncedAt, sevenDaysAgo),
+  )
+  const failedWhere = and(
+    eq(schema.backgroundJobs.status, 'failed'),
+    gte(schema.backgroundJobs.queuedAt, sevenDaysAgo),
+  )
+
+  const [
+    workspaceRows,
+    userRows,
+    signupRows,
+    byPlan,
+    activeByPlan,
+    pastDue,
+    pastDueCount,
+    trials,
+    trialCount,
+    stale,
+    staleCount,
+    jobs,
+    jobCount,
+  ] = await Promise.all([
     db.select({ value: count() }).from(schema.workspaces),
     db.select({ value: count() }).from(schema.user),
+    db.select({ value: count() }).from(schema.user).where(gte(schema.user.createdAt, sevenDaysAgo)),
     // LEFT JOIN out of workspaces: one row per live workspace, and a workspace with no
     // subscription row surfaces as `plan: null` rather than being missing from the breakdown.
     db
@@ -240,34 +276,148 @@ export async function getPlatformHealth(): Promise<PlatformHealth> {
       .from(schema.workspaces)
       .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
       .groupBy(schema.subscriptions.plan),
+    // Revenue counts `active` only — see PlatformOverview.mrrCents for why trials and past_due are
+    // excluded.
+    db
+      .select({ plan: schema.subscriptions.plan, value: count() })
+      .from(schema.subscriptions)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.subscriptions.workspaceId))
+      .where(eq(schema.subscriptions.status, 'active'))
+      .groupBy(schema.subscriptions.plan),
+    db
+      .select({
+        workspaceId: schema.workspaces.id,
+        workspaceName: schema.workspaces.name,
+        plan: schema.subscriptions.plan,
+        since: schema.subscriptions.updatedAt,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.subscriptions.workspaceId))
+      .where(pastDueWhere)
+      .orderBy(asc(schema.subscriptions.updatedAt))
+      .limit(ATTENTION_LIMIT),
     db
       .select({ value: count() })
       .from(schema.subscriptions)
       .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.subscriptions.workspaceId))
-      .where(
-        and(
-          eq(schema.subscriptions.status, 'trialing'),
-          lte(schema.subscriptions.trialEndsAt, in3Days),
-        ),
-      ),
+      .where(pastDueWhere),
+    db
+      .select({
+        workspaceId: schema.workspaces.id,
+        workspaceName: schema.workspaces.name,
+        plan: schema.subscriptions.plan,
+        trialEndsAt: schema.subscriptions.trialEndsAt,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.subscriptions.workspaceId))
+      .where(trialWhere)
+      .orderBy(asc(schema.subscriptions.trialEndsAt))
+      .limit(ATTENTION_LIMIT),
+    db
+      .select({ value: count() })
+      .from(schema.subscriptions)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.subscriptions.workspaceId))
+      .where(trialWhere),
+    db
+      .select({
+        workspaceId: schema.workspaces.id,
+        workspaceName: schema.workspaces.name,
+        platform: schema.platformConnections.platform,
+        accountName: schema.platformConnections.accountName,
+        lastSyncedAt: schema.platformConnections.lastSyncedAt,
+        isActive: schema.platformConnections.isActive,
+      })
+      .from(schema.platformConnections)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.platformConnections.workspaceId))
+      .where(staleWhere)
+      .orderBy(asc(schema.platformConnections.lastSyncedAt))
+      .limit(ATTENTION_LIMIT),
+    db
+      .select({ value: count() })
+      .from(schema.platformConnections)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.platformConnections.workspaceId))
+      .where(staleWhere),
+    db
+      .select({
+        workspaceId: schema.workspaces.id,
+        workspaceName: schema.workspaces.name,
+        jobId: schema.backgroundJobs.id,
+        type: schema.backgroundJobs.type,
+        error: schema.backgroundJobs.error,
+        completedAt: schema.backgroundJobs.completedAt,
+        queuedAt: schema.backgroundJobs.queuedAt,
+      })
+      .from(schema.backgroundJobs)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.backgroundJobs.workspaceId))
+      .where(failedWhere)
+      .orderBy(desc(schema.backgroundJobs.queuedAt))
+      .limit(ATTENTION_LIMIT),
+    db
+      .select({ value: count() })
+      .from(schema.backgroundJobs)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.backgroundJobs.workspaceId))
+      .where(failedWhere),
   ])
-
-  const totalWorkspaces = workspaceRows[0]?.value ?? 0
-  const totalUsers = userRows[0]?.value ?? 0
 
   // No subscription row means starter/trialing (getCurrentSubscription's default), so it is
   // reported as 'starter' — the plan the workspace actually has, not a separate bucket. The
-  // breakdown now sums to totalWorkspaces by construction.
+  // breakdown therefore sums to totalWorkspaces by construction.
   const merged = new Map<string, number>()
   for (const row of byPlan) {
     const plan = row.plan ?? 'starter'
     merged.set(plan, (merged.get(plan) ?? 0) + row.value)
   }
-  const workspacesByPlan = [...merged].map(([plan, count]) => ({ plan, count }))
 
-  const trialsEndingSoonCount = trialsRows[0]?.value ?? 0
+  let mrrCents = 0
+  for (const row of activeByPlan) {
+    const price = PLAN_PRICE_USD_CENTS[row.plan as Plan]
+    // A plan name we do not price (a renamed tier, a bad row) contributes nothing rather than NaN,
+    // which would render the whole figure as "$NaN" and take every other plan's revenue with it.
+    if (typeof price === 'number') mrrCents += price * row.value
+  }
 
-  return { totalWorkspaces, totalUsers, workspacesByPlan, trialsEndingSoonCount }
+  return {
+    totalWorkspaces: workspaceRows[0]?.value ?? 0,
+    totalUsers: userRows[0]?.value ?? 0,
+    signupsLast7d: signupRows[0]?.value ?? 0,
+    mrrCents,
+    workspacesByPlan: [...merged].map(([plan, count]) => ({ plan, count })),
+    attention: {
+      pastDue: pastDue.map((r) => ({
+        workspaceId: r.workspaceId,
+        workspaceName: r.workspaceName,
+        plan: r.plan,
+        since: r.since?.toISOString() ?? null,
+      })),
+      pastDueTotal: pastDueCount[0]?.value ?? 0,
+      trialsEnding: trials.map((r) => ({
+        workspaceId: r.workspaceId,
+        workspaceName: r.workspaceName,
+        plan: r.plan,
+        // The WHERE clause cannot match a null trialEndsAt, so the fallback is unreachable.
+        trialEndsAt: r.trialEndsAt?.toISOString() ?? new Date(0).toISOString(),
+      })),
+      trialsEndingTotal: trialCount[0]?.value ?? 0,
+      staleConnections: stale.map((r) => ({
+        workspaceId: r.workspaceId,
+        workspaceName: r.workspaceName,
+        platform: r.platform,
+        accountName: r.accountName,
+        lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
+        isActive: r.isActive ?? true,
+      })),
+      staleConnectionsTotal: staleCount[0]?.value ?? 0,
+      failedJobs: jobs.map((r) => ({
+        workspaceId: r.workspaceId,
+        workspaceName: r.workspaceName,
+        jobId: r.jobId,
+        type: r.type,
+        error: r.error,
+        failedAt: (r.completedAt ?? r.queuedAt)?.toISOString() ?? null,
+      })),
+      failedJobsTotal: jobCount[0]?.value ?? 0,
+    },
+  }
 }
 
 // ── Audit log ─────────────────────────────────────────────────────────────────

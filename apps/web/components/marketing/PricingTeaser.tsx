@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { Button } from "@growthos/ui/components/button";
-import { PLAN_LIMITS, type Plan } from "@growthos/types";
+import { PLAN_LIMITS, planPriceLabel, type Plan } from "@growthos/types";
 import { cn } from "@/lib/utils/cn";
 
-// Pricing shown here is derived from @growthos/types PLAN_LIMITS — the same source
-// apps/api/src/plan-limits.ts enforces and BillingSection.tsx displays post-signup, so the
-// number a visitor sees here always matches what Stripe actually charges.
-const PLAN_PRICE: Record<Plan, string> = { starter: "$79", growth: "$199", scale: "$399" };
+// Every figure on this teaser reads from @growthos/types — limits from PLAN_LIMITS, price
+// from PLAN_PRICE_USD_CENTS via planPriceLabel. The price used to be a literal sitting under
+// a comment that claimed otherwise, in three files at once.
 const PLAN_NAME: Record<Plan, string> = { starter: "Starter", growth: "Growth", scale: "Scale" };
 const PLAN_TAGLINE: Record<Plan, string> = {
   starter: "One brand, one operator.",
@@ -78,7 +77,7 @@ export function PricingTeaser() {
                 <p className="mt-1 text-sm text-muted-foreground">{PLAN_TAGLINE[plan]}</p>
                 <p className="mt-6 flex items-baseline gap-1.5">
                   <span className="font-display text-4xl font-bold tracking-tight tabular">
-                    {PLAN_PRICE[plan]}
+                    {planPriceLabel(plan)}
                   </span>
                   <span className="text-sm text-muted-foreground">/ month</span>
                 </p>

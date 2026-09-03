@@ -14,7 +14,8 @@ import { Skeleton } from "@growthos/ui/components/skeleton";
 import { useAdminWorkspaces } from "@/lib/hooks/useAdmin";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { AdminSearch } from "@/components/admin/AdminSearch";
-import { planLabel, subscriptionStatusLabel, subscriptionTone } from "@/components/admin/labels";
+import { planLabel, subscriptionStatusLabel } from "@/components/admin/labels";
+import { badgeVariantForTone, subscriptionTone } from "@/components/admin/tone";
 
 export default function AdminWorkspacesPage() {
   const [search, setSearch] = useState("");
@@ -87,7 +88,7 @@ export default function AdminWorkspacesPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{planLabel(ws.plan)}</TableCell>
                   <TableCell>
-                    <Badge variant={subscriptionTone(ws.subscriptionStatus)}>
+                    <Badge variant={badgeVariantForTone(subscriptionTone(ws.subscriptionStatus))}>
                       {subscriptionStatusLabel(ws.subscriptionStatus)}
                     </Badge>
                   </TableCell>

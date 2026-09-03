@@ -13,9 +13,9 @@ import { useAdminWorkspaceDetail, usePlanOverride } from "@/lib/hooks/useAdmin";
 import {
   planLabel,
   subscriptionStatusLabel,
-  subscriptionTone,
   workspaceRoleLabel,
 } from "@/components/admin/labels";
+import { badgeVariantForTone, subscriptionTone } from "@/components/admin/tone";
 
 const PLANS: Plan[] = ["starter", "growth", "scale"];
 const MIN_REASON = 10;
@@ -100,7 +100,7 @@ export default function AdminWorkspaceDetailPage({
           <dl className="mt-4 space-y-2.5 text-sm">
             <Row label="Plan">{planLabel(ws.subscription.plan)}</Row>
             <Row label="Status">
-              <Badge variant={subscriptionTone(ws.subscription.status)}>
+              <Badge variant={badgeVariantForTone(subscriptionTone(ws.subscription.status))}>
                 {subscriptionStatusLabel(ws.subscription.status)}
               </Badge>
             </Row>
