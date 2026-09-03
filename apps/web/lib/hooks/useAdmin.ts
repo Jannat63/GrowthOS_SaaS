@@ -7,6 +7,7 @@ import type {
   AdminUserDetail,
   AdminUserFilter,
   AdminUserSort,
+  AdminUserSpend,
   AdminUserSummary,
   AdminWorkspaceDetail,
   AdminWorkspaceFilter,
@@ -32,8 +33,13 @@ import { api, ApiError } from "@/lib/api/client";
  */
 const ADMIN_STALE_MS = 60_000;
 
-/** How many rows a directory page holds. Also the page size the API defaults to. */
-export const DIRECTORY_PAGE_SIZE = 50;
+/**
+ * How many rows a directory page holds.
+ *
+ * Twenty, not fifty: a page you can take in without scrolling is easier to work than one you have
+ * to hunt through, and paging is now a single click rather than the dead end it used to be.
+ */
+export const DIRECTORY_PAGE_SIZE = 20;
 
 /**
  * Filtering, sorting and paging all happen server-side, so they all belong in the query string —
@@ -192,6 +198,20 @@ export function useAdminUserDetail(userId: string | null) {
     staleTime: ADMIN_STALE_MS,
     enabled: Boolean(userId),
     queryFn: () => api.get<AdminUserDetail>(`/admin/users/${userId}`),
+  });
+}
+
+/**
+ * What the person pays us and what they move through the product. Its own request rather than part
+ * of the detail: it reaches ClickHouse as well as Postgres, and the profile above it should render
+ * immediately rather than waiting on an analytics scan.
+ */
+export function useAdminUserSpend(userId: string | null) {
+  return useQuery<AdminUserSpend>({
+    queryKey: ["admin", "user", userId, "spend"],
+    staleTime: ADMIN_STALE_MS,
+    enabled: Boolean(userId),
+    queryFn: () => api.get<AdminUserSpend>(`/admin/users/${userId}/spend`),
   });
 }
 

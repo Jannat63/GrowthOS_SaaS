@@ -13,7 +13,7 @@ import { DIRECTORY_PAGE_SIZE, useAdminAuditLog } from "@/lib/hooks/useAdmin";
 import { FilterChips, Pager, type FilterOption } from "@/components/admin/Directory";
 import { AuditDetail, AuditTarget, auditActionLabel, isMutatingAction } from "@/components/admin/audit";
 import { absoluteTime, relativeTime } from "@/lib/utils/time";
-import { countLabel } from "@/components/admin/labels";
+
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -56,11 +56,6 @@ export default function AdminAuditLogPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
         <h1 className="font-display text-xl font-semibold tracking-tight">Audit log</h1>
-        {data && (
-          <p className="font-mono text-xs tabular-nums text-muted-foreground">
-            {countLabel(data.total, "entry", "entries")}
-          </p>
-        )}
       </div>
 
       <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
@@ -87,8 +82,9 @@ export default function AdminAuditLogPage() {
         />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
+      <div className="rounded-lg border">
+        <div className="overflow-x-auto">
+          <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead>When</TableHead>
@@ -155,16 +151,19 @@ export default function AdminAuditLogPage() {
                 );
               })
             )}
-          </TableBody>
-        </Table>
-      </div>
+            </TableBody>
+          </Table>
+        </div>
 
-      <Pager
-        offset={offset}
-        limit={DIRECTORY_PAGE_SIZE}
-        total={data?.total ?? 0}
-        onOffsetChange={setOffset}
-      />
+        <Pager
+          offset={offset}
+          limit={DIRECTORY_PAGE_SIZE}
+          total={data?.total ?? 0}
+          noun="entry"
+          nounPlural="entries"
+          onOffsetChange={setOffset}
+        />
+      </div>
     </div>
   );
 }

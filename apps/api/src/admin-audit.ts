@@ -16,6 +16,7 @@ export const READ_ACTION_NAMES = [
   'workspace.admin_history.view',
   'user.list',
   'user.view',
+  'user.spend.view',
   'health.view',
   'audit_log.view',
 ] as const

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@growthos/ui/components/button";
 import { Textarea } from "@growthos/ui/components/textarea";
 import { cn } from "@/lib/utils/cn";
@@ -36,8 +36,9 @@ export function ReasonAction({
   pending = false,
   onConfirm,
 }: {
-  title: string;
-  description: string;
+  /** Omitted when the surrounding dialog already states them (see ActionDialog). */
+  title?: string;
+  description?: string;
   /** The controls that decide *what* the action does — plan buttons, a day count, a role. */
   children?: React.ReactNode;
   /** Button text for the first press: what will happen, in the words used afterwards. */
@@ -52,6 +53,8 @@ export function ReasonAction({
 }) {
   const [reason, setReason] = useState("");
   const [confirming, setConfirming] = useState(false);
+  // Two of these can be on one page; a title-derived id would collide the label with the wrong box.
+  const fieldId = useId();
 
   const short = reason.trim().length < MIN_REASON;
   const blocked = short || !ready || pending;
@@ -65,19 +68,23 @@ export function ReasonAction({
 
   return (
     <div className="space-y-3">
-      <div>
-        <p className="text-sm font-medium">{title}</p>
-        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
-      </div>
+      {(title || description) && (
+        <div>
+          {title && <p className="text-sm font-medium">{title}</p>}
+          {description && (
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
+          )}
+        </div>
+      )}
 
       {children}
 
       <div className="space-y-2">
-        <label htmlFor={`reason-${title}`} className="block text-xs text-muted-foreground">
+        <label htmlFor={fieldId} className="block text-xs text-muted-foreground">
           Why
         </label>
         <Textarea
-          id={`reason-${title}`}
+          id={fieldId}
           value={reason}
           onChange={(e) => {
             setReason(e.target.value);

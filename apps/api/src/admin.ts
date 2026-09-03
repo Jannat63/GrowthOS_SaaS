@@ -6,6 +6,7 @@ import {
   type AdminUserFilter,
   type AdminUserDetail,
   type AdminUserSort,
+  type AdminUserSpend,
   type AdminUserSummary,
   type AdminWorkspaceDetail,
   type AdminWorkspaceFilter,
@@ -16,6 +17,7 @@ import {
   type PlatformRole,
 } from '@growthos/types'
 import { READ_ACTION_NAMES } from './admin-audit.js'
+import { REVENUE_FACTOR, getClickhouse } from './analytics.js'
 import { getCurrentSubscription } from './billing.js'
 import type { Page, Paged } from './pagination.js'
 
@@ -419,11 +421,17 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
       .select({
         workspaceId: schema.workspace_members.organizationId,
         role: schema.workspace_members.role,
+        joinedAt: schema.workspace_members.createdAt,
         workspaceName: schema.workspaces.name,
         workspaceSlug: schema.workspaces.slug,
+        plan: schema.subscriptions.plan,
+        subscriptionStatus: schema.subscriptions.status,
       })
       .from(schema.workspace_members)
       .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.workspace_members.organizationId))
+      // LEFT: a workspace that has never checked out has no subscriptions row, and dropping it from
+      // this list would make a person look like they belong to fewer accounts than they do.
+      .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
       .where(eq(schema.workspace_members.userId, userId)),
     // Live sessions only. An expired row is deleted by Better Auth rather than kept, so filtering
     // on expiry here is belt and braces against one that has not been swept yet.
@@ -455,6 +463,11 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
       workspaceName: m.workspaceName,
       workspaceSlug: m.workspaceSlug,
       role: m.role as AdminUserDetail['memberships'][number]['role'],
+      // Same fallback as getCurrentSubscription: no subscriptions row = starter/trialing.
+      plan: m.plan ?? 'starter',
+      subscriptionStatus: m.subscriptionStatus ?? 'trialing',
+      isOwner: m.role === 'owner',
+      joinedAt: m.joinedAt?.toISOString() ?? null,
     })),
     sessions: sessions.map((s) => ({
       id: s.id,
@@ -464,6 +477,145 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
       ipAddress: s.ipAddress,
       userAgent: s.userAgent,
     })),
+  }
+}
+
+/** How many days of daily spend the person's file charts. */
+const SPEND_WINDOW_DAYS = 30
+
+/**
+ * What one person is worth, and what they move through the product.
+ *
+ * Two different questions, deliberately answered together. `billingMonthlyCents` sums the list
+ * price of the workspaces they **own** — being a member of someone else's account costs them
+ * nothing, so membership alone contributes zero and an operator is never shown a support seat as
+ * though it were revenue.
+ *
+ * The ad figures come from ClickHouse `ad_performance` across every workspace they can reach, which
+ * is what says whether the account is actually running on this product. Revenue is derived with
+ * the shared `REVENUE_FACTOR` rather than a local constant — CLAUDE.md's rule about the seeded
+ * figures is that they are imported, never re-derived, because every past copy drifted.
+ *
+ * The window is the last 30 days *of available data*, not of wall-clock time. Seeded demo data ends
+ * on a fixed day, so anchoring to `now` would render an empty chart on a workspace that has plenty
+ * to show.
+ */
+export async function getUserSpend(userId: string): Promise<AdminUserSpend> {
+  const memberships = await db
+    .select({
+      workspaceId: schema.workspace_members.organizationId,
+      role: schema.workspace_members.role,
+      name: schema.workspaces.name,
+      plan: schema.subscriptions.plan,
+    })
+    .from(schema.workspace_members)
+    .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.workspace_members.organizationId))
+    .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
+    .where(eq(schema.workspace_members.userId, userId))
+
+  const owned = memberships.filter((m) => m.role === 'owner')
+  const billingMonthlyCents = owned.reduce((sum, m) => {
+    const price = PLAN_PRICE_USD_CENTS[(m.plan ?? 'starter') as Plan]
+    return sum + (typeof price === 'number' ? price : 0)
+  }, 0)
+
+  const empty: AdminUserSpend = {
+    windowFrom: null,
+    windowTo: null,
+    billingMonthlyCents,
+    ownedWorkspaceCount: owned.length,
+    totalSpend: 0,
+    totalRevenue: 0,
+    byPlatform: [],
+    byWorkspace: [],
+    daily: [],
+  }
+
+  const ids = memberships.map((m) => m.workspaceId)
+  if (ids.length === 0) return empty
+
+  const ch = getClickhouse()
+  const boundsRs = await ch.query({
+    query: `SELECT toString(max(date)) AS last FROM ad_performance WHERE workspace_id IN {ws:Array(String)}`,
+    query_params: { ws: ids },
+    format: 'JSONEachRow',
+  })
+  const bounds = (await boundsRs.json()) as { last: string | null }[]
+  const last = bounds[0]?.last
+  // ClickHouse returns the zero date for an empty set rather than null.
+  if (!last || last.startsWith('1970')) return empty
+
+  const to = new Date(`${last}T00:00:00Z`)
+  const from = new Date(to.getTime() - (SPEND_WINDOW_DAYS - 1) * DAY_MS)
+  const fromDay = from.toISOString().slice(0, 10)
+
+  const rs = await ch.query({
+    query: `
+      SELECT toString(date) AS day, platform, workspace_id AS workspaceId,
+        toFloat64(sum(spend)) AS spend,
+        toFloat64(sum(conversion_value)) AS convValue
+      FROM ad_performance
+      WHERE workspace_id IN {ws:Array(String)} AND date >= {from:Date} AND date <= {to:Date}
+      GROUP BY day, platform, workspaceId
+      ORDER BY day`,
+    query_params: { ws: ids, from: fromDay, to: last },
+    format: 'JSONEachRow',
+  })
+  const rows = (await rs.json()) as {
+    day: string
+    platform: string
+    workspaceId: string
+    spend: number
+    convValue: number
+  }[]
+
+  const round = (n: number) => Math.round(n * 100) / 100
+  const byDay = new Map<string, { spend: number; revenue: number }>()
+  const byPlatform = new Map<string, { spend: number; revenue: number }>()
+  const byWorkspace = new Map<string, { spend: number; revenue: number }>()
+  let totalSpend = 0
+  let totalRevenue = 0
+
+  for (const r of rows) {
+    const revenue = r.convValue * REVENUE_FACTOR
+    totalSpend += r.spend
+    totalRevenue += revenue
+
+    const day = byDay.get(r.day) ?? { spend: 0, revenue: 0 }
+    byDay.set(r.day, { spend: day.spend + r.spend, revenue: day.revenue + revenue })
+
+    const plat = byPlatform.get(r.platform) ?? { spend: 0, revenue: 0 }
+    byPlatform.set(r.platform, { spend: plat.spend + r.spend, revenue: plat.revenue + revenue })
+
+    const ws = byWorkspace.get(r.workspaceId) ?? { spend: 0, revenue: 0 }
+    byWorkspace.set(r.workspaceId, { spend: ws.spend + r.spend, revenue: ws.revenue + revenue })
+  }
+
+  const nameOf = new Map(memberships.map((m) => [m.workspaceId, m.name]))
+
+  return {
+    windowFrom: fromDay,
+    windowTo: last,
+    billingMonthlyCents,
+    ownedWorkspaceCount: owned.length,
+    totalSpend: round(totalSpend),
+    totalRevenue: Math.round(totalRevenue),
+    byPlatform: [...byPlatform]
+      .map(([platform, v]) => ({ platform, spend: round(v.spend), revenue: Math.round(v.revenue) }))
+      .sort((x, y) => y.spend - x.spend),
+    byWorkspace: [...byWorkspace]
+      .map(([workspaceId, v]) => ({
+        workspaceId,
+        name: nameOf.get(workspaceId) ?? workspaceId,
+        spend: round(v.spend),
+        revenue: Math.round(v.revenue),
+      }))
+      .sort((x, y) => y.spend - x.spend),
+    // Days with no rows are absent rather than zero-filled: a gap in the seed is a gap in the data,
+    // and drawing it as a zero would assert the customer spent nothing that day.
+    daily: [...byDay]
+      .map(([date, v]) => ({ date, spend: round(v.spend), revenue: Math.round(v.revenue) }))
+      .sort((x, y) => x.date.localeCompare(y.date)),
   }
 }
 

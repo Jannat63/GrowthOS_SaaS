@@ -80,7 +80,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isSuperAdmin = access.platformRole === "super_admin";
 
   return (
-    <div className="dark flex min-h-screen flex-col bg-background text-foreground">
+    <div className="dark flex h-screen flex-col overflow-hidden bg-background text-foreground">
       {/*
         The signature, and the one place this surface raises its voice.
 
@@ -123,14 +123,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      {/*
+        The shell owns the viewport height, and only the content column scrolls. The sidebar and
+        header were scrolling away with the page, which on a long directory left an operator with
+        no navigation and no way back without scrolling to the top first.
+      */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         {/* The profile step is a wall, not a page: no navigation out of it until there is a name. */}
         {!profileIncomplete && <AdminRail isSuperAdmin={isSuperAdmin} />}
         {/*
           No max-width container. The customer app centres its content because it is read; this is
           scanned across, and every column of a directory is width the operator asked for.
         */}
-        <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
       </div>
 
       {!profileIncomplete && (

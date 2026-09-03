@@ -22,7 +22,7 @@ import {
   SortSelect,
   type FilterOption,
 } from "@/components/admin/Directory";
-import { countLabel, platformRoleLabel } from "@/components/admin/labels";
+import { platformRoleLabel } from "@/components/admin/labels";
 import { absoluteTime, relativeTime } from "@/lib/utils/time";
 
 /**
@@ -68,12 +68,6 @@ export default function AdminUsersPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
         <h1 className="font-display text-xl font-semibold tracking-tight">People</h1>
-        {data && (
-          <p className="font-mono text-xs tabular-nums text-muted-foreground">
-            {countLabel(data.total, "person", "people")}
-            {filter ? " matching" : ""}
-          </p>
-        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -90,8 +84,9 @@ export default function AdminUsersPage() {
 
       <FilterChips options={FILTERS} value={filter} onChange={setFilter} label="Filter people" />
 
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
+      <div className="rounded-lg border">
+        <div className="overflow-x-auto">
+          <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead>Name</TableHead>
@@ -124,16 +119,19 @@ export default function AdminUsersPage() {
             ) : (
               rows.map((u) => <PersonRow key={u.id} user={u} />)
             )}
-          </TableBody>
-        </Table>
-      </div>
+            </TableBody>
+          </Table>
+        </div>
 
-      <Pager
-        offset={offset}
-        limit={DIRECTORY_PAGE_SIZE}
-        total={data?.total ?? 0}
-        onOffsetChange={setOffset}
-      />
+        <Pager
+          offset={offset}
+          limit={DIRECTORY_PAGE_SIZE}
+          total={data?.total ?? 0}
+          noun="person"
+          nounPlural="people"
+          onOffsetChange={setOffset}
+        />
+      </div>
     </div>
   );
 }

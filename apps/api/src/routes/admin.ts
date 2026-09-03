@@ -4,6 +4,7 @@ import type {
   AdminActivityItem,
   AdminAuditLogEntry,
   AdminUserDetail,
+  AdminUserSpend,
   AdminUserSummary,
   AdminWorkspaceDetail,
   AdminWorkspaceSummary,
@@ -26,6 +27,7 @@ import {
   extendTrial,
   listUsers,
   getUserDetail,
+  getUserSpend,
   setPlatformRole,
   revokeUserSessions,
   getPlatformOverview,
@@ -180,6 +182,15 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     }
     await logAdminAction(user.id, 'user.view', 'user', id)
     return detail
+  })
+
+  app.get('/api/v1/admin/users/:id/spend', async (request): Promise<AdminUserSpend> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'support_agent')
+    const { id } = request.params as { id: string }
+    const spend = await getUserSpend(id)
+    await logAdminAction(user.id, 'user.spend.view', 'user', id)
+    return spend
   })
 
   const platformRoleBody = z.object({

@@ -25,7 +25,7 @@ import {
   SortSelect,
   type FilterOption,
 } from "@/components/admin/Directory";
-import { countLabel, planLabel, subscriptionStatusLabel } from "@/components/admin/labels";
+import { planLabel, subscriptionStatusLabel } from "@/components/admin/labels";
 import { subscriptionTone, toneTextClass, trialTone, type Tone } from "@/components/admin/tone";
 import { absoluteTime, daysUntil, relativeTime } from "@/lib/utils/time";
 import { cn } from "@/lib/utils/cn";
@@ -82,12 +82,6 @@ export default function AdminWorkspacesPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
         <h1 className="font-display text-xl font-semibold tracking-tight">Workspaces</h1>
-        {data && (
-          <p className="font-mono text-xs tabular-nums text-muted-foreground">
-            {countLabel(data.total, "workspace")}
-            {filter ? " matching" : ""}
-          </p>
-        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -109,8 +103,9 @@ export default function AdminWorkspacesPage() {
         label="Filter workspaces"
       />
 
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
+      <div className="rounded-lg border">
+        <div className="overflow-x-auto">
+          <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead>Name</TableHead>
@@ -141,16 +136,18 @@ export default function AdminWorkspacesPage() {
             ) : (
               rows.map((ws) => <WorkspaceRow key={ws.id} ws={ws} />)
             )}
-          </TableBody>
-        </Table>
-      </div>
+            </TableBody>
+          </Table>
+        </div>
 
-      <Pager
-        offset={offset}
-        limit={DIRECTORY_PAGE_SIZE}
-        total={data?.total ?? 0}
-        onOffsetChange={setOffset}
-      />
+        <Pager
+          offset={offset}
+          limit={DIRECTORY_PAGE_SIZE}
+          total={data?.total ?? 0}
+          noun="workspace"
+          onOffsetChange={setOffset}
+        />
+      </div>
     </div>
   );
 }

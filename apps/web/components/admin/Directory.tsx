@@ -124,49 +124,68 @@ export function SortSelect<T extends string>({
 /**
  * Walking the whole table, one page at a time.
  *
- * The directories previously rendered the first fifty rows and said "Showing 50 of 52", with no
- * way to reach the other two — the API had supported `limit`/`offset` the whole time and nothing
- * ever sent them.
+ * The directories previously rendered the first fifty rows and said "Showing 50 of 52", with no way
+ * to reach the other two — the API had supported `limit`/`offset` the whole time and nothing ever
+ * sent them.
+ *
+ * It renders as the table's own footer rather than as a separate block floating below it: the
+ * controls that move you through a table belong attached to that table, and a right-aligned pair of
+ * arrows adrift in the whitespace under a bordered box reads as unrelated to it.
+ *
+ * Always rendered, even on a single page, so the row count is stated and the table's bottom edge
+ * does not move as you page through.
  */
 export function Pager({
   offset,
   limit,
   total,
+  noun,
+  nounPlural,
   onOffsetChange,
 }: {
   offset: number;
   limit: number;
   total: number;
+  /** Singular; used as "1-20 of 312 workspaces". */
+  noun: string;
+  /** Only where -s is wrong: entry/entries, person/people. */
+  nounPlural?: string;
   onOffsetChange: (offset: number) => void;
 }) {
-  if (total <= limit) return null;
-
-  const first = offset + 1;
+  const plural = nounPlural ?? `${noun}s`;
+  const first = total === 0 ? 0 : offset + 1;
   const last = Math.min(offset + limit, total);
   const atStart = offset === 0;
   const atEnd = last >= total;
+  const onePage = total <= limit;
 
   return (
-    <div className="flex items-center justify-between gap-4 pt-1">
+    <div className="flex items-center justify-between gap-4 border-t px-3 py-2">
       <p className="font-mono text-xs tabular-nums text-muted-foreground">
-        {first}–{last} of {total}
+        {total === 0
+          ? `No ${plural}`
+          : onePage
+            ? `${total} ${total === 1 ? noun : plural}`
+            : `${first}–${last} of ${total} ${plural}`}
       </p>
-      <div className="flex gap-1">
-        <PageButton
-          disabled={atStart}
-          onClick={() => onOffsetChange(Math.max(0, offset - limit))}
-          label="Previous page"
-        >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-        </PageButton>
-        <PageButton
-          disabled={atEnd}
-          onClick={() => onOffsetChange(offset + limit)}
-          label="Next page"
-        >
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </PageButton>
-      </div>
+      {!onePage && (
+        <div className="flex items-center gap-1">
+          <PageButton
+            disabled={atStart}
+            onClick={() => onOffsetChange(Math.max(0, offset - limit))}
+            label="Previous page"
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          </PageButton>
+          <PageButton
+            disabled={atEnd}
+            onClick={() => onOffsetChange(offset + limit)}
+            label="Next page"
+          >
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </PageButton>
+        </div>
+      )}
     </div>
   );
 }
@@ -188,7 +207,7 @@ function PageButton({
       disabled={disabled}
       onClick={onClick}
       aria-label={label}
-      className="flex h-8 w-8 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex h-7 w-7 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {children}
     </button>

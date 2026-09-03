@@ -742,6 +742,15 @@ export interface AdminUserDetail {
     workspaceName: string;
     workspaceSlug: string;
     role: Role;
+    /** The workspace's plan, so "what are they on" is answerable without opening each one. */
+    plan: string;
+    subscriptionStatus: string;
+    /**
+     * `role === "owner"`. Broken out because owning an account and being a member of it are
+     * different facts about a person — the owner is who pays and who to talk to.
+     */
+    isOwner: boolean;
+    joinedAt: string | null;
   }[];
   /**
    * Live sessions only — expired ones are deleted, so this is "where they are signed in now", the
@@ -785,6 +794,32 @@ export interface AdminWorkspaceDetail {
     /** Why the last sync failed, when it did. The first thing to read on a support ticket. */
     syncError: string | null;
   }[];
+}
+
+/**
+ * What one person is worth and what they are doing with the product — the two senses of "spend"
+ * that matter about a customer, kept apart because they answer different questions.
+ *
+ * `billingMonthlyCents` is what they pay **us**: the list price of the workspaces they own. Being a
+ * member of someone else's workspace costs nothing, so membership alone contributes zero.
+ *
+ * The rest is what they spend on **ads**, through every workspace they can reach, which is the
+ * measure of how much of their operation actually runs on this product. A person paying us $79 and
+ * moving $40,000 a month through the platform is a different conversation from one paying the same
+ * and moving nothing.
+ */
+export interface AdminUserSpend {
+  /** The window these figures cover — the last 30 days for which any of their workspaces has data. */
+  windowFrom: string | null;
+  windowTo: string | null;
+  billingMonthlyCents: number;
+  ownedWorkspaceCount: number;
+  totalSpend: number;
+  totalRevenue: number;
+  /** Storage slugs — render through `channelLabel`. */
+  byPlatform: { platform: string; spend: number; revenue: number }[];
+  byWorkspace: { workspaceId: string; name: string; spend: number; revenue: number }[];
+  daily: { date: string; spend: number; revenue: number }[];
 }
 
 /**

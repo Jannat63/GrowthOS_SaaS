@@ -20,7 +20,7 @@ import {
   useExtendTrial,
   usePlanOverride,
 } from "@/lib/hooks/useAdmin";
-import { ReasonAction } from "@/components/admin/ReasonAction";
+import { ActionDialog } from "@/components/admin/ActionDialog";
 import { AuditDetail, auditActionLabel } from "@/components/admin/audit";
 import {
   moneyLabel,
@@ -226,79 +226,91 @@ function AccountTab({ ws, isSuperAdmin }: { ws: AdminWorkspaceDetail; isSuperAdm
       </Card>
 
       {isSuperAdmin ? (
-        <Card className="space-y-6 p-5">
-          <ReasonAction
-            title="Move this workspace to another plan"
-            description="Changes the plan in GrowthOS without touching Stripe, so the two will disagree until billing is corrected too. For comps and for repairing a mismatch — not a substitute for checkout."
-            confirmLabel={selectedPlan ? `Move to ${planLabel(selectedPlan)}` : "Move plan"}
-            destructive
-            ready={Boolean(selectedPlan)}
-            pending={override.isPending}
-            confirmation={
-              <>
-                Move <span className="font-medium">{ws.name}</span> from {planLabel(sub.plan)} to{" "}
-                {selectedPlan ? planLabel(selectedPlan) : ""}, without changing Stripe?
-              </>
-            }
-            onConfirm={(reason) => {
-              if (!selectedPlan) return;
-              override.mutate(
-                { plan: selectedPlan, reason },
-                { onSuccess: () => setSelectedPlan("") }
-              );
-            }}
-          >
-            <div className="flex flex-wrap gap-2">
-              {PLANS.map((p) => (
-                <Button
-                  key={p}
-                  type="button"
-                  size="sm"
-                  variant={selectedPlan === p ? "default" : "outline"}
-                  disabled={p === sub.plan}
-                  aria-pressed={selectedPlan === p}
-                  onClick={() => setSelectedPlan(selectedPlan === p ? "" : p)}
-                >
-                  {planLabel(p)}
-                  {p === sub.plan && <span className="ml-1.5 text-xs opacity-70">current</span>}
-                </Button>
-              ))}
-            </div>
-          </ReasonAction>
+        <Card className="p-5">
+          <h2 className="font-display text-base font-semibold tracking-tight">Change the account</h2>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+            Both of these are recorded against your name with the reason you give.
+          </p>
 
-          <Separator />
+          {/*
+            Behind buttons, not lying open on the page. The controls used to sit permanently
+            expanded under the subscription card — a plan selector and a live "Move plan" button on
+            a page an operator opens mostly to read.
+          */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <ActionDialog
+              trigger="Move to another plan"
+              title="Move this workspace to another plan"
+              description="Changes the plan in GrowthOS without touching Stripe, so the two will disagree until billing is corrected too. For comps and for repairing a mismatch — not a substitute for checkout."
+              confirmLabel={selectedPlan ? `Move to ${planLabel(selectedPlan)}` : "Move plan"}
+              destructive
+              ready={Boolean(selectedPlan)}
+              pending={override.isPending}
+              onOpenChange={(open) => {
+                if (!open) setSelectedPlan("");
+              }}
+              confirmation={
+                <>
+                  Move <span className="font-medium">{ws.name}</span> from {planLabel(sub.plan)} to{" "}
+                  {selectedPlan ? planLabel(selectedPlan) : ""}, without changing Stripe?
+                </>
+              }
+              onConfirm={(reason) => {
+                if (!selectedPlan) return;
+                override.mutate({ plan: selectedPlan, reason }, { onSuccess: () => setSelectedPlan("") });
+              }}
+            >
+              <div className="flex flex-wrap gap-2">
+                {PLANS.map((p) => (
+                  <Button
+                    key={p}
+                    type="button"
+                    size="sm"
+                    variant={selectedPlan === p ? "default" : "outline"}
+                    disabled={p === sub.plan}
+                    aria-pressed={selectedPlan === p}
+                    onClick={() => setSelectedPlan(selectedPlan === p ? "" : p)}
+                  >
+                    {planLabel(p)}
+                    {p === sub.plan && <span className="ml-1.5 text-xs opacity-70">current</span>}
+                  </Button>
+                ))}
+              </div>
+            </ActionDialog>
 
-          <ReasonAction
-            title="Give them more trial"
-            description="Adds days to the end of the current trial, or to today if it has already lapsed — so extending a trial never shortens one."
-            confirmLabel={`Add ${days} ${days === 1 ? "day" : "days"}`}
-            ready={days >= 1 && days <= 90}
-            pending={extend.isPending}
-            confirmation={
-              <>
-                Extend <span className="font-medium">{ws.name}</span>&rsquo;s trial by {days}{" "}
-                {days === 1 ? "day" : "days"}
-                {sub.trialEndsAt && trialDays !== null && trialDays >= 0
-                  ? `, from ${relativeTime(sub.trialEndsAt)}`
-                  : ", starting today"}
-                ?
-              </>
-            }
-            onConfirm={(reason) => extend.mutate({ days, reason })}
-          >
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={1}
-                max={90}
-                value={days}
-                onChange={(e) => setDays(Number(e.target.value))}
-                className="w-24 font-mono"
-                aria-label="Days to add"
-              />
-              <span className="text-sm text-muted-foreground">days, up to 90</span>
-            </div>
-          </ReasonAction>
+            <ActionDialog
+              trigger="Extend the trial"
+              title="Give them more trial"
+              description="Adds days to the end of the current trial, or to today if it has already lapsed — so extending a trial never shortens one."
+              confirmLabel={`Add ${days} ${days === 1 ? "day" : "days"}`}
+              ready={days >= 1 && days <= 90}
+              pending={extend.isPending}
+              confirmation={
+                <>
+                  Extend <span className="font-medium">{ws.name}</span>&rsquo;s trial by {days}{" "}
+                  {days === 1 ? "day" : "days"}
+                  {sub.trialEndsAt && trialDays !== null && trialDays >= 0
+                    ? `, from ${relativeTime(sub.trialEndsAt)}`
+                    : ", starting today"}
+                  ?
+                </>
+              }
+              onConfirm={(reason) => extend.mutate({ days, reason })}
+            >
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={90}
+                  value={days}
+                  onChange={(e) => setDays(Number(e.target.value))}
+                  className="w-24 font-mono"
+                  aria-label="Days to add"
+                />
+                <span className="text-sm text-muted-foreground">days, up to 90</span>
+              </div>
+            </ActionDialog>
+          </div>
         </Card>
       ) : (
         <Card className="p-5">
