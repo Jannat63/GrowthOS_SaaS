@@ -696,10 +696,126 @@ const DAY_MS = 24 * 60 * 60 * 1000
  * subscription rows than workspaces it goes negative, and a `> 0` guard then dropped it silently
  * instead of surfacing the contradiction.
  */
+/** How many days of daily history the overview charts. */
+const OVERVIEW_WINDOW_DAYS = 30
+
+/**
+ * Platform-wide advertising spend, day by day and by channel, plus the accounts moving the most.
+ *
+ * This is the scale metric — what customers actually run through GrowthOS — and it was the largest
+ * dataset in the system with nothing on the console reading it. Anchored to the last day of
+ * *available* data rather than to now, so a seeded database still draws a chart instead of an empty
+ * frame.
+ *
+ * Every figure is scoped to live workspaces by an id list from Postgres. ClickHouse holds rows for
+ * workspaces that have since been deleted — 21 workspace ids against 15 live ones on the dev
+ * database — and summing without that filter would report spend for customers who no longer exist,
+ * the same class of error that made the old plan mix count 71 orphaned subscriptions.
+ */
+async function getPlatformSpend(liveWorkspaceIds: string[]): Promise<{
+  spendDaily: PlatformOverview['spendDaily']
+  spendWindow: PlatformOverview['spendWindow']
+  totalSpend: number
+  spendByPlatform: PlatformOverview['spendByPlatform']
+  topSpenders: { workspaceId: string; spend: number }[]
+}> {
+  const empty = {
+    spendDaily: [],
+    spendWindow: { from: null, to: null },
+    totalSpend: 0,
+    spendByPlatform: [],
+    topSpenders: [],
+  }
+  if (liveWorkspaceIds.length === 0) return empty
+
+  const ch = getClickhouse()
+  const boundsRs = await ch.query({
+    query: `SELECT toString(max(date)) AS last FROM ad_performance WHERE workspace_id IN {ws:Array(String)}`,
+    query_params: { ws: liveWorkspaceIds },
+    format: 'JSONEachRow',
+  })
+  const last = ((await boundsRs.json()) as { last: string | null }[])[0]?.last
+  // ClickHouse returns the zero date for an empty set rather than null.
+  if (!last || last.startsWith('1970')) return empty
+
+  const to = new Date(`${last}T00:00:00Z`)
+  const from = new Date(to.getTime() - (OVERVIEW_WINDOW_DAYS - 1) * DAY_MS)
+  const fromDay = from.toISOString().slice(0, 10)
+
+  const rs = await ch.query({
+    query: `
+      SELECT toString(date) AS day, platform, workspace_id AS workspaceId, toFloat64(sum(spend)) AS spend
+      FROM ad_performance
+      WHERE workspace_id IN {ws:Array(String)} AND date >= {from:Date} AND date <= {to:Date}
+      GROUP BY day, platform, workspaceId
+      ORDER BY day`,
+    query_params: { ws: liveWorkspaceIds, from: fromDay, to: last },
+    format: 'JSONEachRow',
+  })
+  const rows = (await rs.json()) as {
+    day: string
+    platform: string
+    workspaceId: string
+    spend: number
+  }[]
+
+  const round = (n: number) => Math.round(n * 100) / 100
+  const byDay = new Map<string, number>()
+  const byPlatform = new Map<string, number>()
+  const byWorkspace = new Map<string, number>()
+  let totalSpend = 0
+
+  for (const r of rows) {
+    totalSpend += r.spend
+    byDay.set(r.day, (byDay.get(r.day) ?? 0) + r.spend)
+    byPlatform.set(r.platform, (byPlatform.get(r.platform) ?? 0) + r.spend)
+    byWorkspace.set(r.workspaceId, (byWorkspace.get(r.workspaceId) ?? 0) + r.spend)
+  }
+
+  return {
+    // Absent days stay absent rather than being zero-filled: a gap in the data is not a day on
+    // which every customer spent nothing, and drawing it as zero would assert that it was.
+    spendDaily: [...byDay]
+      .map(([date, spend]) => ({ date, spend: round(spend) }))
+      .sort((x, y) => x.date.localeCompare(y.date)),
+    spendWindow: { from: fromDay, to: last },
+    totalSpend: round(totalSpend),
+    spendByPlatform: [...byPlatform]
+      .map(([platform, spend]) => ({ platform, spend: round(spend) }))
+      .sort((x, y) => y.spend - x.spend),
+    topSpenders: [...byWorkspace]
+      .map(([workspaceId, spend]) => ({ workspaceId, spend: round(spend) }))
+      .sort((x, y) => y.spend - x.spend)
+      .slice(0, 5),
+  }
+}
+
+/**
+ * New accounts per day, zero-filled across the window.
+ *
+ * Zero-filled on purpose, and the opposite choice to the spend series above: a day with no signups
+ * really did have none, so a gap in the bars would misread as missing data rather than a quiet
+ * Sunday.
+ */
+function fillDailyCounts(
+  rows: { day: string; n: number }[],
+  days: number,
+): Map<string, number> {
+  const counts = new Map(rows.map((r) => [r.day, r.n]))
+  const out = new Map<string, number>()
+  const today = new Date()
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today.getTime() - i * DAY_MS).toISOString().slice(0, 10)
+    out.set(d, counts.get(d) ?? 0)
+  }
+  return out
+}
+
 export async function getPlatformOverview(): Promise<PlatformOverview> {
   const now = Date.now()
   const in3Days = new Date(now + 3 * DAY_MS)
   const sevenDaysAgo = new Date(now - 7 * DAY_MS)
+  const windowStart = new Date(now - (OVERVIEW_WINDOW_DAYS - 1) * DAY_MS)
 
   const pastDueWhere = eq(schema.subscriptions.status, 'past_due')
   const trialWhere = and(
@@ -732,6 +848,15 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
     staleCount,
     jobs,
     jobCount,
+    sessionRows,
+    connectionRows,
+    recRows,
+    briefRows,
+    workspacesPerDay,
+    usersPerDay,
+    statusMix,
+    newestRows,
+    liveIdRows,
   ] = await Promise.all([
     db.select({ value: count() }).from(schema.workspaces),
     db.select({ value: count() }).from(schema.user),
@@ -824,6 +949,55 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       .from(schema.backgroundJobs)
       .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.backgroundJobs.workspaceId))
       .where(failedWhere),
+    // People with a session that has not expired. Distinct, because one person on a laptop and a
+    // phone is one person using the product, not two.
+    db
+      .select({ value: sql<number>`count(distinct ${schema.session.userId})::int` })
+      .from(schema.session)
+      .where(gte(schema.session.expiresAt, new Date())),
+    db
+      .select({ value: count() })
+      .from(schema.platformConnections)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.platformConnections.workspaceId))
+      .where(eq(schema.platformConnections.isActive, true)),
+    db.select({ value: count() }).from(schema.recommendations),
+    db.select({ value: count() }).from(schema.contentBriefs),
+    // Signups per day, both kinds, over the window.
+    db
+      .select({
+        day: sql<string>`to_char(${schema.workspaces.createdAt}, 'YYYY-MM-DD')`,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(schema.workspaces)
+      .where(gte(schema.workspaces.createdAt, windowStart))
+      .groupBy(sql`1`),
+    db
+      .select({
+        day: sql<string>`to_char(${schema.user.createdAt}, 'YYYY-MM-DD')`,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(schema.user)
+      .where(gte(schema.user.createdAt, windowStart))
+      .groupBy(sql`1`),
+    // Every live workspace with its status, so the mix counts customers rather than rows.
+    db
+      .select({ status: schema.subscriptions.status, value: count() })
+      .from(schema.workspaces)
+      .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
+      .groupBy(schema.subscriptions.status),
+    db
+      .select({
+        id: schema.workspaces.id,
+        name: schema.workspaces.name,
+        plan: schema.subscriptions.plan,
+        createdAt: schema.workspaces.createdAt,
+      })
+      .from(schema.workspaces)
+      .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
+      .orderBy(desc(schema.workspaces.createdAt))
+      .limit(5),
+    // The id list that scopes every ClickHouse figure to workspaces that still exist.
+    db.select({ id: schema.workspaces.id }).from(schema.workspaces),
   ])
 
   // No subscription row means starter/trialing (getCurrentSubscription's default), so it is
@@ -843,12 +1017,64 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
     if (typeof price === 'number') mrrCents += price * row.value
   }
 
+  const liveIds = liveIdRows.map((r) => r.id)
+  const spend = await getPlatformSpend(liveIds)
+  const nameOf = new Map(newestRows.map((r) => [r.id, r.name]))
+  // Top spenders come back as ids; the names they need live in Postgres. Anything already fetched
+  // is reused, and only the remainder is asked for.
+  const missingNames = spend.topSpenders.map((s) => s.workspaceId).filter((id) => !nameOf.has(id))
+  if (missingNames.length > 0) {
+    const rows = await db
+      .select({ id: schema.workspaces.id, name: schema.workspaces.name })
+      .from(schema.workspaces)
+      .where(inArray(schema.workspaces.id, missingNames))
+    for (const r of rows) nameOf.set(r.id, r.name)
+  }
+
+  const wsPerDay = fillDailyCounts(workspacesPerDay, OVERVIEW_WINDOW_DAYS)
+  const usrPerDay = fillDailyCounts(usersPerDay, OVERVIEW_WINDOW_DAYS)
+
   return {
     totalWorkspaces: workspaceRows[0]?.value ?? 0,
     totalUsers: userRows[0]?.value ?? 0,
     signupsLast7d: signupRows[0]?.value ?? 0,
     mrrCents,
     workspacesByPlan: [...merged].map(([plan, count]) => ({ plan, count })),
+    liveSessions: sessionRows[0]?.value ?? 0,
+    connectedPlatforms: connectionRows[0]?.value ?? 0,
+    recommendationsGenerated: recRows[0]?.value ?? 0,
+    briefsCreated: briefRows[0]?.value ?? 0,
+    // A workspace with no subscription row is on the implicit starter trial, the same fallback
+    // getCurrentSubscription applies — so a null status is reported as 'trialing' rather than as a
+    // fourth, meaningless bucket.
+    subscriptionMix: (() => {
+      const mix = new Map<string, number>()
+      for (const row of statusMix) {
+        const status = row.status ?? 'trialing'
+        mix.set(status, (mix.get(status) ?? 0) + row.value)
+      }
+      return [...mix].map(([status, count]) => ({ status, count }))
+    })(),
+    growthDaily: [...wsPerDay].map(([date, workspaces]) => ({
+      date,
+      workspaces,
+      users: usrPerDay.get(date) ?? 0,
+    })),
+    spendDaily: spend.spendDaily,
+    spendWindow: spend.spendWindow,
+    totalSpend: spend.totalSpend,
+    spendByPlatform: spend.spendByPlatform,
+    newestWorkspaces: newestRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      plan: r.plan ?? 'starter',
+      createdAt: r.createdAt.toISOString(),
+    })),
+    topSpenders: spend.topSpenders.map((s) => ({
+      id: s.workspaceId,
+      name: nameOf.get(s.workspaceId) ?? s.workspaceId,
+      spend: s.spend,
+    })),
     attention: {
       pastDue: pastDue.map((r) => ({
         workspaceId: r.workspaceId,

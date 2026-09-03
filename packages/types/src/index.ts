@@ -879,6 +879,32 @@ export interface PlatformOverview {
   mrrCents: number;
   signupsLast7d: number;
   workspacesByPlan: { plan: string; count: number }[];
+  /** People with a session that has not expired — who is actually using the product right now. */
+  liveSessions: number;
+  /** Active integrations across every workspace. Zero platform-wide is an activation problem. */
+  connectedPlatforms: number;
+  /** What the product has produced, ever. The clearest proof it is doing its job. */
+  recommendationsGenerated: number;
+  briefsCreated: number;
+  /** Counted from `workspaces`, so a workspace with no subscription row lands in `trialing`. */
+  subscriptionMix: { status: string; count: number }[];
+  /**
+   * New accounts per day over the last 30 days, zero-filled. A day with no signups is a real zero
+   * — unlike the spend series below, where an absent day means no data rather than no spend.
+   */
+  growthDaily: { date: string; workspaces: number; users: number }[];
+  /**
+   * Platform-wide advertising spend, the scale metric: what customers move through GrowthOS. The
+   * window is the last 30 days *of available data*, not of wall-clock time, so seeded data still
+   * draws a chart.
+   */
+  spendDaily: { date: string; spend: number }[];
+  spendWindow: { from: string | null; to: string | null };
+  totalSpend: number;
+  /** Storage slugs — render through `channelLabel`. */
+  spendByPlatform: { platform: string; spend: number }[];
+  newestWorkspaces: { id: string; name: string; plan: string; createdAt: string }[];
+  topSpenders: { id: string; name: string; spend: number }[];
   attention: {
     pastDue: PastDueItem[];
     pastDueTotal: number;
