@@ -16,6 +16,7 @@ import { registerBillingRoutes } from './routes/billing.js'
 import { registerPublicApiRoutes, isPublicApiDataRoute } from './routes/public-api.js'
 import { registerWsRoutes } from './routes/ws.js'
 import { registerAdminRoutes } from './routes/admin.js'
+import { registerBlogRoutes } from './routes/blog.js'
 
 interface HealthCheck {
   name: string
@@ -197,6 +198,9 @@ export function buildApp() {
   // Super Admin panel — platform-wide, no workspace membership required (deliberately separate
   // authorization path, see routes/admin.ts's own doc comment).
   app.register(registerAdminRoutes)
+  // The public marketing blog — the only unauthenticated routes under /api/v1. Reads published
+  // posts for apps/web's ISR-cached /blog pages; authoring lives in routes/admin.ts.
+  app.register(registerBlogRoutes)
 
   // Better Auth (D1) owns /api/auth/* — sign-up/in, sessions, and the organization
   // (workspace) endpoints. Convert Fastify's req/reply to the Web Request/Response

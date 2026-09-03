@@ -3,6 +3,8 @@ import { z } from 'zod'
 import type {
   AdminActivityItem,
   AdminAuditLogEntry,
+  BlogPost,
+  BlogPostSummary,
   AdminUserDetail,
   AdminUserSpend,
   AdminUserSummary,
@@ -35,6 +37,17 @@ import {
   getPlatformOverview,
   listAuditLog,
 } from '../admin.js'
+import {
+  createPost,
+  deletePost,
+  getPostById,
+  listAllPosts,
+  publishPost,
+  setFeatured,
+  unpublishPost,
+  updatePost,
+} from '../blog.js'
+import { revalidateBlog } from '../blog-revalidate.js'
 
 const searchQuery = z.object({ search: z.string().trim().max(200).optional() })
 
@@ -379,7 +392,7 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       .transform((v) => v !== 'false'),
     actorUserId: z.string().trim().max(200).optional().catch(undefined),
     action: z.string().trim().max(100).optional().catch(undefined),
-    targetType: z.enum(['workspace', 'user', 'subscription', 'audit_log']).optional().catch(undefined),
+    targetType: z.enum(['workspace', 'user', 'subscription', 'audit_log', 'blog_post']).optional().catch(undefined),
     from: z.coerce.date().optional().catch(undefined),
     to: z.coerce.date().optional().catch(undefined),
   })
@@ -397,5 +410,189 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       mutatingOnly: filters.mutatingOnly,
     })
     return result
+  })
+
+  // ── The marketing blog ────────────────────────────────────────────────────
+  //
+  // Deliberately the one part of this console with NO step-up and NO alert fan-out, and the reason
+  // is worth stating where someone will read it before copying the pattern.
+  //
+  // Everywhere else here, a write changes a customer's account: invisible to them, effectively
+  // irreversible, so it costs a typed reason and a re-entered password. A blog post is the
+  // opposite — visible to the entire internet the moment it ships, and reversible in one click.
+  // Demanding a password on every save would have an operator typing it repeatedly mid-writing
+  // session, which is exactly how you train the reflex that makes step-up worthless where it
+  // matters.
+  //
+  // What remains: super_admin to write, support_agent to read, every write in the audit log, and
+  // one hard rail — a published post cannot be deleted, only unpublished (enforced in ../blog.ts).
+  // See D-B4 in docs/superpowers/specs/2026-09-03-blog-cms-design.md.
+
+  const postListQuery = z.object({
+    filter: z.enum(['draft', 'scheduled', 'published']).optional().catch(undefined),
+    sort: z.enum(['updated', 'published', 'title']).optional().catch(undefined),
+  })
+
+  /**
+   * `body` is accepted as an opaque object rather than validated node by node.
+   *
+   * The document's shape is defined by the editor's schema and the renderer that consumes it, and a
+   * third definition here would be free to disagree with both — rejecting a legitimate document
+   * because this file had not heard of a node type yet. The safety that matters is downstream and
+   * structural: the renderer walks a fixed set of node types and ignores anything else, so an
+   * unexpected node cannot render, let alone execute. Nothing here is ever interpreted as HTML.
+   */
+  const postBody = z.object({
+    slug: z.string().trim().max(120).optional(),
+    title: z.string().trim().min(1, 'A title is required.').max(200),
+    description: z.string().trim().min(1, 'A description is required.').max(500),
+    body: z.object({ type: z.literal('doc') }).passthrough(),
+    tag: z.string().trim().max(60).optional(),
+    coverImageUrl: z.string().trim().max(2000).nullish(),
+    coverImageAlt: z.string().trim().max(300).nullish(),
+    authorName: z.string().trim().max(120).optional(),
+    authorRole: z.string().trim().max(120).nullish(),
+    authorAvatarUrl: z.string().trim().max(2000).nullish(),
+  })
+
+  function parsePost(input: unknown) {
+    const parsed = postBody.safeParse(input)
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid post.')
+    }
+    // The zod shape is structurally the input type; the cast is only to hand drizzle the document
+    // as the domain type rather than as a passthrough object.
+    return parsed.data as unknown as Parameters<typeof createPost>[0]
+  }
+
+  app.get('/api/v1/admin/blog', async (request): Promise<{ data: BlogPostSummary[]; total: number }> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'support_agent')
+    const page = parsePage(request.query, 20)
+    const query = searchQuery.safeParse(request.query)
+    const list = postListQuery.safeParse(request.query)
+    const search = query.success ? query.data.search : undefined
+    const options = list.success ? list.data : {}
+    const result = await listAllPosts(page, { ...options, search })
+    await logAdminAction(user.id, 'blog.list', 'blog_post', 'all', {
+      search,
+      filter: options.filter,
+      sort: options.sort,
+    })
+    return result
+  })
+
+  app.get('/api/v1/admin/blog/:id', async (request, reply): Promise<BlogPost | { error: unknown }> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'support_agent')
+    const { id } = request.params as { id: string }
+    const post = await getPostById(id)
+    if (!post) {
+      reply.status(404)
+      return { error: { code: 'NOT_FOUND', message: 'No post with that ID.', statusCode: 404 } }
+    }
+    await logAdminAction(user.id, 'blog.view', 'blog_post', id)
+    return post
+  })
+
+  app.post('/api/v1/admin/blog', async (request, reply): Promise<BlogPost> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const input = parsePost(request.body)
+    // The byline defaults to whoever wrote it, but stays editable — a byline is a credit, not an
+    // audit trail, and the audit trail is kept separately below.
+    const post = await createPost(input, { userId: user.id, name: user.name })
+    await logAdminAction(user.id, 'blog.create', 'blog_post', post.id, { title: post.title, slug: post.slug })
+    reply.status(201)
+    return post
+  })
+
+  app.patch('/api/v1/admin/blog/:id', async (request): Promise<BlogPost> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const before = await getPostById(id)
+    if (!before) throw new AppError('NOT_FOUND', 'No post with that ID.')
+
+    const post = await updatePost(id, parsePost(request.body))
+    await logAdminAction(user.id, 'blog.update', 'blog_post', id, {
+      title: post.title,
+      // Only recorded when it actually moved: a slug change on a live post breaks inbound links,
+      // and that is the one edit worth being able to find again later.
+      slugBefore: before.slug === post.slug ? undefined : before.slug,
+      slugAfter: before.slug === post.slug ? undefined : post.slug,
+    })
+    // Editing a live post changes what the public sees, so the cache hint is owed here too — not
+    // only on publish.
+    if (post.state === 'published') revalidateBlog(post.slug)
+    if (before.slug !== post.slug) revalidateBlog(before.slug)
+    return post
+  })
+
+  const publishBody = z.object({
+    /** Absent means now. A future date schedules, with no worker involved — see D-B5. */
+    publishedAt: z.coerce.date().optional(),
+  })
+
+  app.post('/api/v1/admin/blog/:id/publish', async (request): Promise<BlogPost> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const parsed = publishBody.safeParse(request.body ?? {})
+    const at = parsed.success ? parsed.data.publishedAt : undefined
+
+    const post = await publishPost(id, at)
+    await logAdminAction(user.id, 'blog.publish', 'blog_post', id, {
+      title: post.title,
+      slug: post.slug,
+      publishedAt: post.publishedAt,
+      scheduled: post.state === 'scheduled',
+    })
+    revalidateBlog(post.slug)
+    return post
+  })
+
+  app.post('/api/v1/admin/blog/:id/unpublish', async (request): Promise<BlogPost> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const post = await unpublishPost(id)
+    await logAdminAction(user.id, 'blog.unpublish', 'blog_post', id, { title: post.title, slug: post.slug })
+    revalidateBlog(post.slug)
+    return post
+  })
+
+  const featureBody = z.object({ featured: z.boolean() })
+
+  app.post('/api/v1/admin/blog/:id/feature', async (request): Promise<BlogPost> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const parsed = featureBody.safeParse(request.body)
+    if (!parsed.success) throw new AppError('VALIDATION_ERROR', 'Say whether to pin or unpin.')
+
+    const post = await setFeatured(id, parsed.data.featured)
+    await logAdminAction(user.id, 'blog.feature', 'blog_post', id, {
+      title: post.title,
+      featured: post.featured,
+    })
+    // Pinning reorders the index, so that page has to be rebuilt even though no post's own content
+    // changed.
+    revalidateBlog(null)
+    return post
+  })
+
+  app.delete('/api/v1/admin/blog/:id', async (request): Promise<{ success: true }> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const before = await getPostById(id)
+    // deletePost refuses a published post; reading it first is only so the log can name what went.
+    await deletePost(id)
+    await logAdminAction(user.id, 'blog.delete', 'blog_post', id, {
+      title: before?.title,
+      slug: before?.slug,
+    })
+    return { success: true }
   })
 }

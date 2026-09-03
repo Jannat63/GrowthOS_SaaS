@@ -155,6 +155,13 @@
       "when": 1788446531598,
       "tag": "0021_two_factor_lockout_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788458219762,
+      "tag": "0022_gorgeous_whizzer",
+      "breakpoints": true
     }
   ]
 }

@@ -1094,3 +1094,80 @@ export type WebSocketEvent =
   | { type: "meta:fatigue_alert"; workspaceId: string; adSetId: string }
   | { type: "analytics:mer_alert"; workspaceId: string }
   | { type: "report:ready"; workspaceId: string; periodStart: string };
+
+// ── Marketing blog (authored in the Super Admin console) ─────────────────────
+//
+// Platform content, not workspace content: a post belongs to GrowthOS, so nothing here carries a
+// workspaceId and the routes that write it check a platform role rather than membership. See
+// docs/superpowers/specs/2026-09-03-blog-cms-design.md.
+
+/**
+ * A post body, as a ProseMirror document.
+ *
+ * Kept structural rather than fully typed: the node set is decided by the editor's schema and the
+ * renderer's capability (apps/web/components/marketing/PostBody.tsx), and a mirror of ProseMirror's
+ * type here would be a second definition of that set, free to disagree with both.
+ */
+export interface RichTextNode {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: RichTextNode[];
+  marks?: Array<{ type: string; attrs?: Record<string, unknown> }>;
+  text?: string;
+}
+
+export interface RichTextDoc {
+  type: "doc";
+  content?: RichTextNode[];
+}
+
+/** Derived from `publishedAt` alone — there is no status column that could disagree with the date. */
+export type BlogPostState = "draft" | "scheduled" | "published";
+
+export interface BlogAuthor {
+  name: string;
+  role: string | null;
+  avatarUrl: string | null;
+}
+
+/** What a list needs. Deliberately without `body`, so listing never ships every document. */
+export interface BlogPostSummary {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  tag: string;
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
+  author: BlogAuthor;
+  featured: boolean;
+  /** ISO 8601, or null while it is a draft. */
+  publishedAt: string | null;
+  state: BlogPostState;
+  wordCount: number;
+  /** `ceil(wordCount / 220)`, floored at 1 — the figure the public page prints. */
+  readingMinutes: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BlogPost extends BlogPostSummary {
+  body: RichTextDoc;
+}
+
+/** The writable shape. `slug` is generated from the title on create when it is omitted. */
+export interface BlogPostInput {
+  slug?: string;
+  title: string;
+  description: string;
+  body: RichTextDoc;
+  tag?: string;
+  coverImageUrl?: string | null;
+  coverImageAlt?: string | null;
+  authorName?: string;
+  authorRole?: string | null;
+  authorAvatarUrl?: string | null;
+}
+
+export type BlogPostFilter = BlogPostState;
+export type BlogPostSort = "updated" | "published" | "title";

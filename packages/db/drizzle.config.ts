@@ -29,6 +29,7 @@ export default defineConfig({
     './src/schema/brand.ts',
     './src/schema/experiments.ts',
     './src/schema/admin.ts',
+    './src/schema/blog.ts',
   ],
   out: './drizzle',
   dbCredentials: {

@@ -32,3 +32,5 @@ export * from './experiments.js';
 // Super Admin panel — platform-wide admin audit log (cross-workspace; distinct from the
 // per-workspace audit_logs in ./audit.js).
 export * from './admin.js';
+// Marketing blog posts, authored in the Super Admin console. Platform content: no workspaceId.
+export * from './blog.js';

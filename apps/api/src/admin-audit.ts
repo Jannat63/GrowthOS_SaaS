@@ -1,7 +1,7 @@
 import { and, desc, eq, gte } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
 
-export type AdminTargetType = 'workspace' | 'user' | 'subscription' | 'audit_log'
+export type AdminTargetType = 'workspace' | 'user' | 'subscription' | 'audit_log' | 'blog_post'
 
 /**
  * Actions that only read. Everything else changes state and is recorded one row per occurrence,
@@ -19,6 +19,11 @@ export const READ_ACTION_NAMES = [
   'user.spend.view',
   'health.view',
   'audit_log.view',
+  // The blog is platform content rather than a customer's data, so these are logged for
+  // completeness rather than for accountability — but they still collapse, or opening the editor
+  // twice would outnumber the record of what was actually published.
+  'blog.list',
+  'blog.view',
 ] as const
 
 const READ_ACTIONS = new Set<string>(READ_ACTION_NAMES)
