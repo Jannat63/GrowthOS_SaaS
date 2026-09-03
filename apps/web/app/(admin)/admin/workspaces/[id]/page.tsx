@@ -9,7 +9,6 @@ import { Badge } from "@growthos/ui/components/badge";
 import { Button } from "@growthos/ui/components/button";
 import { Input } from "@growthos/ui/components/input";
 import { Skeleton } from "@growthos/ui/components/skeleton";
-import { Separator } from "@growthos/ui/components/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@growthos/ui/components/tabs";
 import {
   useAdminAccess,
