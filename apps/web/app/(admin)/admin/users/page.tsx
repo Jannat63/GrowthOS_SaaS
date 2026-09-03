@@ -1,71 +1,94 @@
 "use client";
 import { useState } from "react";
-import { Search } from "lucide-react";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@growthos/ui/components/table";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@growthos/ui/components/table";
 import { Badge } from "@growthos/ui/components/badge";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import { useAdminUsers } from "@/lib/hooks/useAdmin";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
+import { AdminSearch } from "@/components/admin/AdminSearch";
+import { platformRoleLabel } from "@/components/admin/labels";
 
 export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
-  const { data, isLoading } = useAdminUsers(search);
+  const debounced = useDebouncedValue(search);
+  const { data, isLoading } = useAdminUsers(debounced);
+
+  const rows = data?.data ?? [];
+  const truncated = data ? data.total > rows.length : false;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight">Users</h1>
-        <p className="mt-1 text-sm text-neutral-400">{data ? `${data.total} total` : "Loading…"}</p>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">People</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {!data
+            ? "Everyone with a GrowthOS account."
+            : truncated
+              ? `Showing ${rows.length} of ${data.total} people.`
+              : `${data.total} ${data.total === 1 ? "person" : "people"}.`}
+        </p>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name or email…"
-          aria-label="Search users"
-          className="h-9 w-full rounded-md border border-neutral-800 bg-neutral-900 pl-9 pr-3 text-sm text-neutral-100 placeholder:text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
-        />
-      </div>
+      <AdminSearch
+        value={search}
+        onChange={setSearch}
+        placeholder="Search by name or email"
+        label="Search people"
+      />
 
-      <div className="overflow-hidden rounded-lg border border-neutral-800">
+      <div className="overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader>
-            <TableRow className="border-neutral-800 hover:bg-transparent">
-              <TableHead className="text-neutral-500">Name</TableHead>
-              <TableHead className="text-neutral-500">Email</TableHead>
-              <TableHead className="text-neutral-500">Platform role</TableHead>
-              <TableHead className="text-neutral-500">Workspaces</TableHead>
-              <TableHead className="text-neutral-500">Joined</TableHead>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Platform role</TableHead>
+              <TableHead className="text-right">Workspaces</TableHead>
+              <TableHead>Joined</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow className="border-neutral-800">
+              <TableRow>
                 <TableCell colSpan={5}>
-                  <Skeleton className="h-24 w-full bg-neutral-800" />
+                  <Skeleton className="h-24 w-full" />
                 </TableCell>
               </TableRow>
-            ) : data?.data.length === 0 ? (
-              <TableRow className="border-neutral-800">
-                <TableCell colSpan={5} className="py-8 text-center text-sm text-neutral-500">
-                  No users match "{search}".
+            ) : rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                  {debounced ? `Nobody matches “${debounced}”.` : "No accounts yet."}
                 </TableCell>
               </TableRow>
             ) : (
-              data?.data.map((u) => (
-                <TableRow key={u.id} className="border-neutral-800 hover:bg-neutral-900">
-                  <TableCell className="font-medium text-neutral-100">{u.name}</TableCell>
-                  <TableCell className="text-neutral-300">{u.email}</TableCell>
+              rows.map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell className="font-medium">{u.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{u.email}</TableCell>
                   <TableCell>
+                    {/* Platform staff are the rows that matter on this page — everyone else is a
+                        customer with no elevated access, which is the unremarkable case. */}
                     {u.platformRole ? (
-                      <Badge variant="warning">{u.platformRole}</Badge>
+                      <Badge variant="warning">{platformRoleLabel(u.platformRole)}</Badge>
                     ) : (
-                      <span className="text-neutral-600">—</span>
+                      <span className="text-muted-foreground/60" aria-label="No platform role">
+                        —
+                      </span>
                     )}
                   </TableCell>
-                  <TableCell className="text-neutral-300">{u.workspaceCount}</TableCell>
-                  <TableCell className="text-neutral-500">{new Date(u.createdAt).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-right font-mono tabular-nums">
+                    {u.workspaceCount}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                    {new Date(u.createdAt).toLocaleDateString()}
+                  </TableCell>
                 </TableRow>
               ))
             )}

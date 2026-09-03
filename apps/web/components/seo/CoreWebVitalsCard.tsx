@@ -2,30 +2,43 @@
 import { useState } from "react";
 import { Gauge, Smartphone, Monitor } from "lucide-react";
 import { Card } from "@growthos/ui/components/card";
-import { Badge } from "@growthos/ui/components/badge";
+import { Button } from "@growthos/ui/components/button";
+import { Input } from "@growthos/ui/components/input";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import { cn } from "@/lib/utils/cn";
 import { useCoreWebVitals } from "@/lib/hooks/useCoreWebVitals";
 
-function scoreTone(score: number | null): string {
-  if (score == null) return "text-muted-foreground";
-  if (score >= 90) return "text-success";
-  if (score >= 50) return "text-warning";
-  return "text-destructive";
+type Tone = "good" | "fair" | "poor" | "none";
+
+const TONE_TEXT: Record<Tone, string> = {
+  good: "text-success",
+  fair: "text-warning",
+  poor: "text-destructive",
+  none: "text-muted-foreground",
+};
+
+const TONE_LABEL: Record<Tone, string> = {
+  good: "Good",
+  fair: "Needs work",
+  poor: "Poor",
+  none: "No data",
+};
+
+/**
+ * Google's own published cut-offs, not GrowthOS's opinion — which is exactly why they are printed
+ * next to each number instead of only being encoded as a colour. The card previously tinted "3.2s"
+ * amber and left the reader to guess what a good figure would have been; a threshold turns the
+ * colour from a mood into something someone can act on.
+ */
+function grade(value: number | null, good: number, fair: number): Tone {
+  if (value == null) return "none";
+  return value <= good ? "good" : value <= fair ? "fair" : "poor";
 }
 
-// Google's published thresholds for each field metric — "good" cutoffs, not GrowthOS's own opinion.
-function lcpTone(ms: number | null) {
-  if (ms == null) return undefined;
-  return ms <= 2500 ? "text-success" : ms <= 4000 ? "text-warning" : "text-destructive";
-}
-function clsTone(score: number | null) {
-  if (score == null) return undefined;
-  return score <= 0.1 ? "text-success" : score <= 0.25 ? "text-warning" : "text-destructive";
-}
-function inpTone(ms: number | null) {
-  if (ms == null) return undefined;
-  return ms <= 200 ? "text-success" : ms <= 500 ? "text-warning" : "text-destructive";
+/** The performance score runs the other way: higher is better. */
+function gradeScore(value: number | null): Tone {
+  if (value == null) return "none";
+  return value >= 90 ? "good" : value >= 50 ? "fair" : "poor";
 }
 
 export function CoreWebVitalsCard({ workspaceId }: { workspaceId: string | null }) {
@@ -37,16 +50,14 @@ export function CoreWebVitalsCard({ workspaceId }: { workspaceId: string | null 
 
   return (
     <Card className="p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Gauge className="h-4 w-4 text-muted-foreground" />
-          <h2 className="font-display text-lg font-semibold tracking-tight">Core Web Vitals</h2>
-        </div>
-        <Badge variant="muted">Google PageSpeed Insights — real data</Badge>
+      <div className="flex items-center gap-2">
+        <Gauge className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        <h2 className="font-display text-lg font-semibold tracking-tight">Page speed</h2>
       </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Real performance data for a single page, straight from Google. Uses real visitor data
-        (CrUX) where Google has enough traffic to report it, and a simulated lab run otherwise.
+      <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        How fast one page feels to the people loading it, measured by Google&rsquo;s PageSpeed
+        Insights. Speed is a ranking factor and a conversion factor, so a slow landing page costs
+        you twice — once in what you rank for, and again in what the traffic does when it arrives.
       </p>
 
       <form
@@ -56,82 +67,130 @@ export function CoreWebVitalsCard({ workspaceId }: { workspaceId: string | null 
         }}
         className="mt-4 flex flex-wrap items-center gap-2"
       >
-        <input
+        <Input
           type="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://yoursite.com/page-to-check"
           aria-label="Page URL to check"
           required
-          className="h-9 min-w-64 flex-1 rounded-md border border-input bg-background px-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="min-w-64 flex-1"
         />
-        <div className="flex overflow-hidden rounded-md border">
+        <div className="flex h-10 overflow-hidden rounded-md border" role="group" aria-label="Device">
           <button
             type="button"
             onClick={() => setStrategy("mobile")}
+            aria-pressed={strategy === "mobile"}
             className={cn(
-              "flex h-9 items-center gap-1.5 px-3 text-xs font-medium transition-colors",
+              "flex h-full items-center gap-1.5 px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
               strategy === "mobile" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"
             )}
           >
-            <Smartphone className="h-3.5 w-3.5" /> Mobile
+            <Smartphone className="h-3.5 w-3.5" aria-hidden="true" /> Mobile
           </button>
           <button
             type="button"
             onClick={() => setStrategy("desktop")}
+            aria-pressed={strategy === "desktop"}
             className={cn(
-              "flex h-9 items-center gap-1.5 px-3 text-xs font-medium transition-colors",
+              "flex h-full items-center gap-1.5 px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
               strategy === "desktop" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"
             )}
           >
-            <Monitor className="h-3.5 w-3.5" /> Desktop
+            <Monitor className="h-3.5 w-3.5" aria-hidden="true" /> Desktop
           </button>
         </div>
-        <button
-          type="submit"
-          disabled={isFetching}
-          className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <Button type="submit" disabled={isFetching}>
           {isFetching ? "Checking…" : "Check"}
-        </button>
+        </Button>
       </form>
 
       {isFetching ? (
-        <Skeleton className="mt-6 h-24 w-full" />
+        <Skeleton className="mt-6 h-40 w-full" />
       ) : isError ? (
         <p className="mt-6 text-sm text-destructive">
-          {error instanceof Error ? error.message : "Couldn't fetch Core Web Vitals for this URL."}
+          {error instanceof Error ? error.message : "Couldn't fetch page speed for this URL."}
         </p>
       ) : data ? (
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-lg border p-3 text-center">
-            <p className={cn("font-display text-2xl font-semibold tabular-nums", scoreTone(data.performanceScore))}>
+        <div className="mt-6">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b pb-4">
+            <span
+              className={cn(
+                "font-display text-4xl font-semibold tabular-nums",
+                TONE_TEXT[gradeScore(data.performanceScore)]
+              )}
+            >
               {data.performanceScore ?? "—"}
-            </p>
-            <p className="text-xs text-muted-foreground">Performance</p>
+            </span>
+            <span className="text-sm text-muted-foreground">
+              out of 100 on {strategy === "mobile" ? "mobile" : "desktop"} — good is 90 or above
+            </span>
           </div>
-          <div className="rounded-lg border p-3 text-center">
-            <p className={cn("font-display text-2xl font-semibold tabular-nums", lcpTone(data.lcpMs))}>
-              {data.lcpMs != null ? `${(data.lcpMs / 1000).toFixed(1)}s` : "—"}
-            </p>
-            <p className="text-xs text-muted-foreground">LCP</p>
-          </div>
-          <div className="rounded-lg border p-3 text-center">
-            <p className={cn("font-display text-2xl font-semibold tabular-nums", clsTone(data.clsScore))}>
-              {data.clsScore != null ? data.clsScore.toFixed(2) : "—"}
-            </p>
-            <p className="text-xs text-muted-foreground">CLS</p>
-          </div>
-          <div className="rounded-lg border p-3 text-center">
-            <p className={cn("font-display text-2xl font-semibold tabular-nums", inpTone(data.inpMs))}>
-              {data.inpMs != null ? `${data.inpMs}ms` : "—"}
-            </p>
-            <p className="text-xs text-muted-foreground">INP</p>
-          </div>
+
+          {/*
+            Named in plain language, with the acronym second. The people using GrowthOS run
+            marketing, not front-end performance work; "LCP" over a number told them nothing they
+            could act on, while "how long the main content takes to appear" does.
+          */}
+          <dl className="divide-y">
+            <Metric
+              name="Main content appears"
+              acronym="LCP"
+              display={data.lcpMs != null ? `${(data.lcpMs / 1000).toFixed(1)}s` : null}
+              threshold="under 2.5s"
+              tone={grade(data.lcpMs, 2500, 4000)}
+            />
+            <Metric
+              name="Layout stays put"
+              acronym="CLS"
+              display={data.clsScore != null ? data.clsScore.toFixed(2) : null}
+              threshold="under 0.10"
+              tone={grade(data.clsScore, 0.1, 0.25)}
+            />
+            <Metric
+              name="Responds to a tap"
+              acronym="INP"
+              display={data.inpMs != null ? `${data.inpMs}ms` : null}
+              threshold="under 200ms"
+              tone={grade(data.inpMs, 200, 500)}
+            />
+          </dl>
         </div>
       ) : (
-        <p className="mt-6 text-sm text-muted-foreground">Enter a page URL above to check it.</p>
+        <p className="mt-6 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+          Enter a page URL to check it. One page at a time — try the page your ads point at.
+        </p>
       )}
     </Card>
+  );
+}
+
+function Metric({
+  name,
+  acronym,
+  display,
+  threshold,
+  tone,
+}: {
+  name: string;
+  acronym: string;
+  display: string | null;
+  threshold: string;
+  tone: Tone;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3">
+      <dt className="min-w-0">
+        <span className="text-sm">{name}</span>{" "}
+        <span className="font-mono text-[11px] text-muted-foreground">{acronym}</span>
+        <span className="block text-xs text-muted-foreground">Good is {threshold}</span>
+      </dt>
+      <dd className="flex items-baseline gap-2.5">
+        <span className={cn("font-display text-lg font-semibold tabular-nums", TONE_TEXT[tone])}>
+          {display ?? "—"}
+        </span>
+        <span className={cn("text-xs font-medium", TONE_TEXT[tone])}>{TONE_LABEL[tone]}</span>
+      </dd>
+    </div>
   );
 }
