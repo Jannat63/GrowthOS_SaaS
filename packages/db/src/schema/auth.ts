@@ -74,6 +74,14 @@ export const twoFactor = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // The plugin's own lockout bookkeeping. All three were missing on the first pass, and the
+    // adapter checks the schema field-by-field: enabling 2FA failed with `The field "verified"
+    // does not exist in the "twoFactor" Drizzle schema` only at the moment of the insert, after the
+    // password had already been verified. Match the plugin's schema exactly — every field it
+    // declares, or none of it works.
+    verified: boolean("verified").default(true),
+    failedVerificationCount: integer("failed_verification_count").default(0),
+    lockedUntil: timestamp("locked_until"),
   },
   (table) => [index("twoFactor_userId_idx").on(table.userId)],
 );
