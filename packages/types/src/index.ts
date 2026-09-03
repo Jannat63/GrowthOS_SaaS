@@ -698,6 +698,63 @@ export interface AdminWorkspaceSummary {
   memberCount: number;
   connectedPlatformCount: number;
   createdAt: string;
+  /** Null unless the workspace is on a trial. Drives the "ends in 2 days" warning in the list. */
+  trialEndsAt: string | null;
+  /**
+   * The most recent entry in the workspace's own audit log — the closest thing to "is anyone
+   * actually using this". Null for a workspace that has never done anything, which is itself the
+   * answer to a question an operator asks.
+   */
+  lastActivityAt: string | null;
+}
+
+/** Directory filters. Each one is a question an operator has, not a column to sort by. */
+export type AdminWorkspaceFilter =
+  | "past_due"
+  | "trial_ending"
+  | "no_connections"
+  | "cancelling";
+
+export type AdminWorkspaceSort = "created" | "name" | "members" | "activity";
+
+export type AdminUserFilter = "staff" | "no_workspace";
+
+export type AdminUserSort = "created" | "name" | "last_seen";
+
+/**
+ * One person's file.
+ *
+ * `emailVerified` is deliberately absent. `apps/api/src/auth.ts` does not enable email
+ * verification, so the column is false for every account on the platform and showing it would
+ * read as a platform-wide fault rather than a fact about this person.
+ */
+export interface AdminUserDetail {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+  platformRole: PlatformRole | null;
+  phone: string | null;
+  createdAt: string;
+  lastSeenAt: string | null;
+  memberships: {
+    workspaceId: string;
+    workspaceName: string;
+    workspaceSlug: string;
+    role: Role;
+  }[];
+  /**
+   * Live sessions only — expired ones are deleted, so this is "where they are signed in now", the
+   * thing you want before deciding whether to sign someone out everywhere.
+   */
+  sessions: {
+    id: string;
+    createdAt: string;
+    lastUsedAt: string;
+    expiresAt: string;
+    ipAddress: string | null;
+    userAgent: string | null;
+  }[];
 }
 export interface AdminWorkspaceDetail {
   id: string;
@@ -723,6 +780,11 @@ export interface AdminUserSummary {
   platformRole: string | null;
   workspaceCount: number;
   createdAt: string;
+  /**
+   * Most recent activity on any live session. Sessions are deleted when they expire, so this goes
+   * null for anyone who has not signed in lately — which is the useful reading, not a gap.
+   */
+  lastSeenAt: string | null;
 }
 /**
  * The admin overview.

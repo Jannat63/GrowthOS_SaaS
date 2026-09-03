@@ -1,29 +1,86 @@
-import { and, asc, count, desc, eq, gte, ilike, inArray, lt, lte, or } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, lt, lte, max, or, sql } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
-import { PLAN_PRICE_USD_CENTS, type Plan, type PlatformOverview } from '@growthos/types'
+import {
+  PLAN_PRICE_USD_CENTS,
+  type AdminUserFilter,
+  type AdminUserDetail,
+  type AdminUserSort,
+  type AdminUserSummary,
+  type AdminWorkspaceFilter,
+  type AdminWorkspaceSort,
+  type AdminWorkspaceSummary,
+  type Plan,
+  type PlatformOverview,
+  type PlatformRole,
+} from '@growthos/types'
 import { getCurrentSubscription } from './billing.js'
 import type { Page, Paged } from './pagination.js'
 
 // ── Workspace directory ─────────────────────────────────────────────────────
 
-export interface AdminWorkspaceSummary {
-  id: string
-  name: string
-  slug: string
-  plan: string
-  subscriptionStatus: string
-  memberCount: number
-  connectedPlatformCount: number
-  createdAt: string
+/**
+ * The directory row shapes are re-exported from @growthos/types rather than declared here.
+ * They were declared in both places, which is two copies of one wire contract: adding a column
+ * meant editing the same interface twice, and forgetting the second copy is a type error in a file
+ * nobody was looking at.
+ */
+export type { AdminUserSummary, AdminWorkspaceSummary }
+
+export interface WorkspaceListOptions {
+  filter?: AdminWorkspaceFilter | undefined
+  sort?: AdminWorkspaceSort | undefined
 }
 
-export async function listWorkspaces(search: string | undefined, page: Page): Promise<Paged<AdminWorkspaceSummary>> {
-  const whereClause = search ? ilike(schema.workspaces.name, `%${search}%`) : undefined
+/**
+ * The workspace directory.
+ *
+ * Filtering happens in SQL, not on the page. The list is paginated, so a filter applied client-side
+ * would only narrow the fifty rows that happen to be loaded — an operator looking for every
+ * past-due account would be shown the past-due accounts on page one and told that was all of them.
+ *
+ * `subscriptions` is joined rather than fetched separately when a filter or sort needs it, because
+ * "which workspaces are past due" cannot be answered after the page has already been cut.
+ */
+export async function listWorkspaces(
+  search: string | undefined,
+  page: Page,
+  options: WorkspaceListOptions = {},
+): Promise<Paged<AdminWorkspaceSummary>> {
+  const now = new Date()
+  const in3Days = new Date(now.getTime() + 3 * DAY_MS)
 
-  const [totalRow] = await db.select({ value: count() }).from(schema.workspaces).where(whereClause)
-  const total = totalRow?.value ?? 0
+  const conditions = []
+  if (search) conditions.push(ilike(schema.workspaces.name, `%${search}%`))
 
-  const rows = await db
+  switch (options.filter) {
+    case 'past_due':
+      conditions.push(eq(schema.subscriptions.status, 'past_due'))
+      break
+    case 'trial_ending':
+      conditions.push(
+        and(eq(schema.subscriptions.status, 'trialing'), lte(schema.subscriptions.trialEndsAt, in3Days))!,
+      )
+      break
+    case 'cancelling':
+      conditions.push(and(isNotNull(schema.subscriptions.cancelAt), gte(schema.subscriptions.cancelAt, now))!)
+      break
+    case 'no_connections':
+      // A correlated NOT EXISTS rather than a join: a workspace with two connections would
+      // otherwise appear twice, and one with none would be dropped by an inner join entirely.
+      conditions.push(
+        sql`not exists (select 1 from ${schema.platformConnections} pc where pc.workspace_id = ${schema.workspaces.id} and pc.is_active = true)`,
+      )
+      break
+    default:
+      break
+  }
+
+  const whereClause = conditions.length ? and(...conditions) : undefined
+
+  // Every filter except no_connections reads a subscriptions column, so the join has to be present
+  // for the WHERE to compile. LEFT, so filtering off is not silently also filtering out the
+  // workspaces that have no subscription row.
+  const base = db
     .select({
       id: schema.workspaces.id,
       name: schema.workspaces.name,
@@ -31,14 +88,26 @@ export async function listWorkspaces(search: string | undefined, page: Page): Pr
       createdAt: schema.workspaces.createdAt,
     })
     .from(schema.workspaces)
+    .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
+    .$dynamic()
+
+  const orderBy =
+    options.sort === 'name'
+      ? asc(schema.workspaces.name)
+      : desc(schema.workspaces.createdAt)
+
+  const [totalRow] = await db
+    .select({ value: count() })
+    .from(schema.workspaces)
+    .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
     .where(whereClause)
-    .orderBy(desc(schema.workspaces.createdAt))
-    .limit(page.limit)
-    .offset(page.offset)
+  const total = totalRow?.value ?? 0
+
+  const rows = await base.where(whereClause).orderBy(orderBy).limit(page.limit).offset(page.offset)
 
   const ids = rows.map((r) => r.id)
 
-  const [memberCounts, connCounts, subRows] = await Promise.all([
+  const [memberCounts, connCounts, subRows, activityRows] = await Promise.all([
     ids.length
       ? db
           .select({ workspaceId: schema.workspace_members.organizationId, value: count() })
@@ -54,14 +123,25 @@ export async function listWorkspaces(search: string | undefined, page: Page): Pr
           .groupBy(schema.platformConnections.workspaceId)
       : Promise.resolve([]),
     ids.length ? db.select().from(schema.subscriptions).where(inArray(schema.subscriptions.workspaceId, ids)) : Promise.resolve([]),
+    // Last activity, from the workspace's own audit log. Grouped over the page's ids rather than
+    // joined, for the same reason the counts are: a join would multiply the rows.
+    ids.length
+      ? db
+          .select({ workspaceId: schema.auditLogs.workspaceId, value: max(schema.auditLogs.createdAt) })
+          .from(schema.auditLogs)
+          .where(inArray(schema.auditLogs.workspaceId, ids))
+          .groupBy(schema.auditLogs.workspaceId)
+      : Promise.resolve([]),
   ])
 
   const memberMap = new Map(memberCounts.map((r) => [r.workspaceId, r.value]))
   const connMap = new Map(connCounts.map((r) => [r.workspaceId, r.value]))
   const subMap = new Map(subRows.map((r) => [r.workspaceId, r]))
+  const activityMap = new Map(activityRows.map((r) => [r.workspaceId, r.value]))
 
   const data: AdminWorkspaceSummary[] = rows.map((r) => {
     const sub = subMap.get(r.id)
+    const lastActivity = activityMap.get(r.id)
     return {
       id: r.id,
       name: r.name,
@@ -72,8 +152,18 @@ export async function listWorkspaces(search: string | undefined, page: Page): Pr
       memberCount: memberMap.get(r.id) ?? 0,
       connectedPlatformCount: connMap.get(r.id) ?? 0,
       createdAt: r.createdAt.toISOString(),
+      trialEndsAt: sub?.trialEndsAt?.toISOString() ?? null,
+      lastActivityAt: lastActivity ? new Date(lastActivity).toISOString() : null,
     }
   })
+
+  // Sorts over a value that is assembled per page (members, last activity) are applied here rather
+  // than in SQL. They order the page, not the table — which is the honest behaviour to expose, and
+  // the alternative is a grouped subquery on every column for a directory of this size.
+  if (options.sort === 'members') data.sort((x, y) => y.memberCount - x.memberCount)
+  if (options.sort === 'activity') {
+    data.sort((x, y) => (y.lastActivityAt ?? '').localeCompare(x.lastActivityAt ?? ''))
+  }
 
   return { data, total }
 }
@@ -153,19 +243,29 @@ export async function overrideWorkspacePlan(workspaceId: string, plan: Plan): Pr
 
 // ── User directory ───────────────────────────────────────────────────────────
 
-export interface AdminUserSummary {
-  id: string
-  name: string
-  email: string
-  platformRole: string | null
-  workspaceCount: number
-  createdAt: string
+export interface UserListOptions {
+  filter?: AdminUserFilter | undefined
+  sort?: AdminUserSort | undefined
 }
 
-export async function listUsers(search: string | undefined, page: Page): Promise<Paged<AdminUserSummary>> {
-  const whereClause = search
-    ? or(ilike(schema.user.name, `%${search}%`), ilike(schema.user.email, `%${search}%`))
-    : undefined
+export async function listUsers(
+  search: string | undefined,
+  page: Page,
+  options: UserListOptions = {},
+): Promise<Paged<AdminUserSummary>> {
+  const conditions = []
+  if (search) {
+    conditions.push(or(ilike(schema.user.name, `%${search}%`), ilike(schema.user.email, `%${search}%`))!)
+  }
+  if (options.filter === 'staff') conditions.push(isNotNull(schema.user.platformRole))
+  if (options.filter === 'no_workspace') {
+    // The people worth finding here are the ones who signed up and stopped: an account with no
+    // membership never finished onboarding, or was invited and never accepted.
+    conditions.push(
+      sql`not exists (select 1 from ${schema.workspace_members} wm where wm.user_id = ${schema.user.id})`,
+    )
+  }
+  const whereClause = conditions.length ? and(...conditions) : undefined
 
   const [totalRow] = await db.select({ value: count() }).from(schema.user).where(whereClause)
   const total = totalRow?.value ?? 0
@@ -180,28 +280,158 @@ export async function listUsers(search: string | undefined, page: Page): Promise
     })
     .from(schema.user)
     .where(whereClause)
-    .orderBy(desc(schema.user.createdAt))
+    .orderBy(options.sort === 'name' ? asc(schema.user.name) : desc(schema.user.createdAt))
     .limit(page.limit)
     .offset(page.offset)
 
   const ids = rows.map((r) => r.id)
-  const wsCounts = ids.length
-    ? await db
-        .select({ userId: schema.workspace_members.userId, value: count() })
-        .from(schema.workspace_members)
-        .where(inArray(schema.workspace_members.userId, ids))
-        .groupBy(schema.workspace_members.userId)
-    : []
+  const [wsCounts, seenRows] = await Promise.all([
+    ids.length
+      ? db
+          .select({ userId: schema.workspace_members.userId, value: count() })
+          .from(schema.workspace_members)
+          .where(inArray(schema.workspace_members.userId, ids))
+          .groupBy(schema.workspace_members.userId)
+      : Promise.resolve([]),
+    // Sessions are deleted when they expire, so this is "recently seen" rather than a full history
+    // — which is the reading an operator wants from a column called Last seen.
+    ids.length
+      ? db
+          .select({ userId: schema.session.userId, value: max(schema.session.updatedAt) })
+          .from(schema.session)
+          .where(inArray(schema.session.userId, ids))
+          .groupBy(schema.session.userId)
+      : Promise.resolve([]),
+  ])
   const wsMap = new Map(wsCounts.map((r) => [r.userId, r.value]))
+  const seenMap = new Map(seenRows.map((r) => [r.userId, r.value]))
 
-  return {
-    data: rows.map((r) => ({
+  const data: AdminUserSummary[] = rows.map((r) => {
+    const seen = seenMap.get(r.id)
+    return {
       ...r,
       createdAt: r.createdAt.toISOString(),
       workspaceCount: wsMap.get(r.id) ?? 0,
-    })),
-    total,
+      lastSeenAt: seen ? new Date(seen).toISOString() : null,
+    }
+  })
+
+  // Assembled per page, so it orders the page rather than the table — see listWorkspaces.
+  if (options.sort === 'last_seen') {
+    data.sort((x, y) => (y.lastSeenAt ?? '').localeCompare(x.lastSeenAt ?? ''))
   }
+
+  return { data, total }
+}
+
+/** One person's file: who they are, where they belong, and where they are signed in. */
+export async function getUserDetail(userId: string): Promise<AdminUserDetail | null> {
+  const [row] = await db.select().from(schema.user).where(eq(schema.user.id, userId)).limit(1)
+  if (!row) return null
+
+  const [memberships, sessions] = await Promise.all([
+    db
+      .select({
+        workspaceId: schema.workspace_members.organizationId,
+        role: schema.workspace_members.role,
+        workspaceName: schema.workspaces.name,
+        workspaceSlug: schema.workspaces.slug,
+      })
+      .from(schema.workspace_members)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.workspace_members.organizationId))
+      .where(eq(schema.workspace_members.userId, userId)),
+    // Live sessions only. An expired row is deleted by Better Auth rather than kept, so filtering
+    // on expiry here is belt and braces against one that has not been swept yet.
+    db
+      .select({
+        id: schema.session.id,
+        createdAt: schema.session.createdAt,
+        lastUsedAt: schema.session.updatedAt,
+        expiresAt: schema.session.expiresAt,
+        ipAddress: schema.session.ipAddress,
+        userAgent: schema.session.userAgent,
+      })
+      .from(schema.session)
+      .where(and(eq(schema.session.userId, userId), gte(schema.session.expiresAt, new Date())))
+      .orderBy(desc(schema.session.updatedAt)),
+  ])
+
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    image: row.image ?? null,
+    platformRole: (row.platformRole as AdminUserDetail['platformRole']) ?? null,
+    phone: row.phone ?? null,
+    createdAt: row.createdAt.toISOString(),
+    lastSeenAt: sessions[0]?.lastUsedAt?.toISOString() ?? null,
+    memberships: memberships.map((m) => ({
+      workspaceId: m.workspaceId,
+      workspaceName: m.workspaceName,
+      workspaceSlug: m.workspaceSlug,
+      role: m.role as AdminUserDetail['memberships'][number]['role'],
+    })),
+    sessions: sessions.map((s) => ({
+      id: s.id,
+      createdAt: s.createdAt.toISOString(),
+      lastUsedAt: s.lastUsedAt.toISOString(),
+      expiresAt: s.expiresAt.toISOString(),
+      ipAddress: s.ipAddress,
+      userAgent: s.userAgent,
+    })),
+  }
+}
+
+/**
+ * Grant or remove a platform role. `null` removes it.
+ *
+ * The route is responsible for requiring super_admin, for refusing to change the caller's own row,
+ * and for the audit entry — this only performs the write. It does not weaken `input: false` on the
+ * Better Auth field: the role is still unsettable through any customer-facing form, and is now
+ * settable by an audited super-admin route as well as by packages/db/scripts/grant-admin.ts.
+ */
+export async function setPlatformRole(userId: string, role: PlatformRole | null): Promise<void> {
+  await db.update(schema.user).set({ platformRole: role }).where(eq(schema.user.id, userId))
+}
+
+/** Signs a person out of every device. Returns how many sessions were ended. */
+export async function revokeUserSessions(userId: string): Promise<number> {
+  const deleted = await db
+    .delete(schema.session)
+    .where(eq(schema.session.userId, userId))
+    .returning({ id: schema.session.id })
+  return deleted.length
+}
+
+/**
+ * Push a trial out by `days` from wherever it currently ends — or from now, if it has already
+ * lapsed. Extending from `now` in both cases would silently shorten a trial that still had a week
+ * left, which is the opposite of what "extend" means.
+ */
+export async function extendTrial(workspaceId: string, days: number): Promise<Date | null> {
+  const [existing] = await db
+    .select({ id: schema.subscriptions.id, trialEndsAt: schema.subscriptions.trialEndsAt })
+    .from(schema.subscriptions)
+    .where(eq(schema.subscriptions.workspaceId, workspaceId))
+    .limit(1)
+
+  const now = new Date()
+  const from = existing?.trialEndsAt && existing.trialEndsAt > now ? existing.trialEndsAt : now
+  const trialEndsAt = new Date(from.getTime() + days * DAY_MS)
+
+  if (existing) {
+    await db
+      .update(schema.subscriptions)
+      .set({ trialEndsAt, status: 'trialing', updatedAt: now })
+      .where(eq(schema.subscriptions.workspaceId, workspaceId))
+  } else {
+    // No row yet means the workspace is on the implicit starter trial (see getCurrentSubscription).
+    // Extending it has to write the row that was never created.
+    await db
+      .insert(schema.subscriptions)
+      .values({ workspaceId, plan: 'starter', status: 'trialing', trialEndsAt })
+  }
+  return trialEndsAt
 }
 
 // ── Platform overview ────────────────────────────────────────────────────────

@@ -60,8 +60,10 @@ export function AdminCommandPalette({
   // Only ask the server once there is something to look for. An empty palette showing the first
   // fifty of everything is noise, and it would write an audit row every time the palette opened.
   const searching = search.trim().length > 0;
-  const { data: workspaces } = useAdminWorkspaces(searching ? search : "", { enabled: searching });
-  const { data: people } = useAdminUsers(searching ? search : "", { enabled: searching });
+  // Six of each is what fits above the fold without scrolling; the palette is for jumping to a
+  // known account, and anyone browsing wants the directory instead.
+  const { data: workspaces } = useAdminWorkspaces({ search, limit: 6, enabled: searching });
+  const { data: people } = useAdminUsers({ search, limit: 6, enabled: searching });
 
   // Clear on close so reopening starts fresh rather than on a stale result set.
   useEffect(() => {
@@ -80,8 +82,8 @@ export function AdminCommandPalette({
     router.push(href);
   }
 
-  const workspaceHits = workspaces?.data.slice(0, 6) ?? [];
-  const peopleHits = people?.data.slice(0, 6) ?? [];
+  const workspaceHits = workspaces?.data ?? [];
+  const peopleHits = people?.data ?? [];
   const nothingFound =
     searching && destinations.length === 0 && workspaceHits.length === 0 && peopleHits.length === 0;
 

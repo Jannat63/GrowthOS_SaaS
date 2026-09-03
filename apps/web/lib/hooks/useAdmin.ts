@@ -3,8 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type {
   AdminAuditLogEntry,
+  AdminUserDetail,
+  AdminUserFilter,
+  AdminUserSort,
   AdminUserSummary,
   AdminWorkspaceDetail,
+  AdminWorkspaceFilter,
+  AdminWorkspaceSort,
   AdminWorkspaceSummary,
   Plan,
   PlatformOverview,
@@ -24,6 +29,30 @@ import { api, ApiError } from "@/lib/api/client";
  * `logAdminAction` covers the rest.
  */
 const ADMIN_STALE_MS = 60_000;
+
+/** How many rows a directory page holds. Also the page size the API defaults to. */
+export const DIRECTORY_PAGE_SIZE = 50;
+
+/**
+ * Filtering, sorting and paging all happen server-side, so they all belong in the query string —
+ * and in the query key, or two different filters would share one cache entry and show each other's
+ * rows. Absent values are omitted rather than sent empty, which keeps the URL (and the audit-log
+ * metadata that records the search) readable.
+ */
+function directoryQuery(params: Record<string, string | number | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") search.set(key, String(value));
+  }
+  const qs = search.toString();
+  return qs ? `?${qs}` : "";
+}
+
+export interface DirectoryPage {
+  offset?: number;
+  limit?: number;
+  enabled?: boolean;
+}
 
 /**
  * Whether the signed-in user has ANY platform admin role, and which. Used by the (admin) route
@@ -64,15 +93,20 @@ export function useOperatorIdentity() {
   });
 }
 
-export function useAdminWorkspaces(search: string, options?: { enabled?: boolean }) {
+export interface WorkspaceQuery extends DirectoryPage {
+  search?: string;
+  filter?: AdminWorkspaceFilter | undefined;
+  sort?: AdminWorkspaceSort | undefined;
+}
+
+export function useAdminWorkspaces(params: WorkspaceQuery = {}) {
+  const { search, filter, sort, offset = 0, limit = DIRECTORY_PAGE_SIZE, enabled = true } = params;
+  const qs = directoryQuery({ search, filter, sort, limit, offset });
   return useQuery<{ data: AdminWorkspaceSummary[]; total: number }>({
-    queryKey: ["admin", "workspaces", search],
+    queryKey: ["admin", "workspaces", qs],
     staleTime: ADMIN_STALE_MS,
-    enabled: options?.enabled ?? true,
-    queryFn: () =>
-      api.get<{ data: AdminWorkspaceSummary[]; total: number }>(
-        `/admin/workspaces${search ? `?search=${encodeURIComponent(search)}` : ""}`
-      ),
+    enabled,
+    queryFn: () => api.get<{ data: AdminWorkspaceSummary[]; total: number }>(`/admin/workspaces${qs}`),
   });
 }
 
@@ -101,15 +135,96 @@ export function usePlanOverride(workspaceId: string | null) {
   });
 }
 
-export function useAdminUsers(search: string, options?: { enabled?: boolean }) {
+export interface UserQuery extends DirectoryPage {
+  search?: string;
+  filter?: AdminUserFilter | undefined;
+  sort?: AdminUserSort | undefined;
+}
+
+export function useAdminUsers(params: UserQuery = {}) {
+  const { search, filter, sort, offset = 0, limit = DIRECTORY_PAGE_SIZE, enabled = true } = params;
+  const qs = directoryQuery({ search, filter, sort, limit, offset });
   return useQuery<{ data: AdminUserSummary[]; total: number }>({
-    queryKey: ["admin", "users", search],
+    queryKey: ["admin", "users", qs],
     staleTime: ADMIN_STALE_MS,
-    enabled: options?.enabled ?? true,
-    queryFn: () =>
-      api.get<{ data: AdminUserSummary[]; total: number }>(
-        `/admin/users${search ? `?search=${encodeURIComponent(search)}` : ""}`
+    enabled,
+    queryFn: () => api.get<{ data: AdminUserSummary[]; total: number }>(`/admin/users${qs}`),
+  });
+}
+
+export function useAdminUserDetail(userId: string | null) {
+  return useQuery<AdminUserDetail>({
+    queryKey: ["admin", "user", userId],
+    staleTime: ADMIN_STALE_MS,
+    enabled: Boolean(userId),
+    queryFn: () => api.get<AdminUserDetail>(`/admin/users/${userId}`),
+  });
+}
+
+/**
+ * Grant or remove a platform role. `null` removes it.
+ *
+ * The server refuses to let anyone change their own row, so the only failure worth handling here
+ * is the message coming back — which says why, and is worth showing verbatim rather than replacing
+ * with a generic apology.
+ */
+export function useSetPlatformRole(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { role: PlatformRole | null; reason: string }) =>
+      api.post<{ success: boolean }>(`/admin/users/${userId}/platform-role`, input),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "user", userId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      toast.success(
+        variables.role ? "Platform access granted." : "Platform access removed."
+      );
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't change platform access.");
+    },
+  });
+}
+
+export function useRevokeSessions(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { reason: string }) =>
+      api.post<{ success: boolean; revoked: number }>(
+        `/admin/users/${userId}/revoke-sessions`,
+        input
       ),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "user", userId] });
+      toast.success(
+        data.revoked === 1 ? "Signed out of 1 session." : `Signed out of ${data.revoked} sessions.`
+      );
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't sign this person out.");
+    },
+  });
+}
+
+export function useExtendTrial(workspaceId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { days: number; reason: string }) =>
+      api.post<{ success: boolean; trialEndsAt: string | null }>(
+        `/admin/workspaces/${workspaceId}/extend-trial`,
+        input
+      ),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "workspace", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "workspaces"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "overview"] });
+      toast.success(
+        variables.days === 1 ? "Trial extended by a day." : `Trial extended by ${variables.days} days.`
+      );
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't extend the trial.");
+    },
   });
 }
 
