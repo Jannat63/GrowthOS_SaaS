@@ -1122,12 +1122,18 @@ export async function getPlatformOverview(range: OverviewRange = {}): Promise<Pl
   }
 
   let mrrCents = 0
+  let payingCustomers = 0
+  const revenueByPlan: PlatformOverview['revenueByPlan'] = []
   for (const row of activeByPlan) {
+    payingCustomers += row.value
     const price = PLAN_PRICE_USD_CENTS[row.plan as Plan]
     // A plan name we do not price (a renamed tier, a bad row) contributes nothing rather than NaN,
     // which would render the whole figure as "$NaN" and take every other plan's revenue with it.
-    if (typeof price === 'number') mrrCents += price * row.value
+    if (typeof price !== 'number') continue
+    mrrCents += price * row.value
+    revenueByPlan.push({ plan: row.plan, customers: row.value, mrrCents: price * row.value })
   }
+  revenueByPlan.sort((x, y) => y.mrrCents - x.mrrCents)
 
   const liveIds = liveIdRows.map((r) => r.id)
   const spend = await getPlatformSpend(liveIds, range)
@@ -1159,8 +1165,18 @@ export async function getPlatformOverview(range: OverviewRange = {}): Promise<Pl
     // A workspace with no subscription row is on the implicit starter trial, the same fallback
     // getCurrentSubscription applies — so a null status is reported as 'trialing' rather than as a
     // fourth, meaningless bucket.
+    payingCustomers,
+    revenueByPlan,
     subscriptionMix: (() => {
-      const mix = new Map<string, number>()
+      // Seeded with every status so the zeros survive. A status that disappears when it is zero is
+      // indistinguishable from one that is not measured, and "nobody is paying" is exactly the
+      // reading this page has to be able to give.
+      const mix = new Map<string, number>([
+        ['active', 0],
+        ['trialing', 0],
+        ['past_due', 0],
+        ['canceled', 0],
+      ])
       for (const row of statusMix) {
         const status = row.status ?? 'trialing'
         mix.set(status, (mix.get(status) ?? 0) + row.value)

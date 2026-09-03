@@ -886,8 +886,21 @@ export interface PlatformOverview {
   /** What the product has produced, ever. The clearest proof it is doing its job. */
   recommendationsGenerated: number;
   briefsCreated: number;
-  /** Counted from `workspaces`, so a workspace with no subscription row lands in `trialing`. */
+  /**
+   * Counted from `workspaces`, so a workspace with no subscription row lands in `trialing`.
+   *
+   * Every status is always present, including the zeros. A status that vanishes when it is zero
+   * cannot be told apart from one nobody measures — "Active 0" and no Active row at all read
+   * identically, and only one of them is true.
+   */
   subscriptionMix: { status: string; count: number }[];
+  /** Subscriptions in `active`. The count behind `mrrCents`, stated rather than inferred. */
+  payingCustomers: number;
+  /**
+   * Where the revenue comes from. Only plans with a paying customer appear — a tier nobody is on
+   * contributes a zero to a bar chart and nothing to the reader.
+   */
+  revenueByPlan: { plan: string; customers: number; mrrCents: number }[];
   /**
    * New accounts per day over the last 30 days, zero-filled. A day with no signups is a real zero
    * — unlike the spend series below, where an absent day means no data rather than no spend.

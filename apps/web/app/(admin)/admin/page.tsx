@@ -259,10 +259,10 @@ function VitalSigns({ data, loading }: { data?: PlatformOverview; loading: boole
         hint="Distinct people with a session that has not expired."
       />
       <Figure
-        label="Recommendations"
-        value={data?.recommendationsGenerated}
+        label="Paying customers"
+        value={data?.payingCustomers}
         loading={loading}
-        hint="Everything the product has generated for customers, ever."
+        hint="Workspaces on an active subscription. The count behind the revenue figure."
       />
     </dl>
   );
@@ -488,13 +488,56 @@ function AccountsPanel({ data, loading }: { data?: PlatformOverview; loading: bo
             })}
           />
 
+          {/*
+            Revenue, said plainly either way. A bare "$0" leaves an operator to work out whether
+            that means nobody has paid or the figure is broken; naming the state answers it.
+          */}
+          <div className="border-t pt-3">
+            {data.payingCustomers === 0 ? (
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Nobody is paying yet — every workspace is still on trial, so monthly revenue is
+                genuinely {moneyLabel(0)} rather than unmeasured.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {data.revenueByPlan.map((r) => (
+                  <li key={r.plan} className="flex items-baseline justify-between gap-4 text-sm">
+                    <span>
+                      {planLabel(r.plan)}
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {countLabel(r.customers, "customer")}
+                      </span>
+                    </span>
+                    <span className="font-mono text-xs tabular-nums">
+                      {moneyLabel(r.mrrCents)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           <ul className="space-y-2 border-t pt-3">
             {data.subscriptionMix.map((row) => (
               <li key={row.status} className="flex items-baseline justify-between gap-4 text-sm">
-                <span className={cn(row.status === "past_due" && "text-destructive")}>
+                <span
+                  className={cn(
+                    row.status === "past_due" && row.count > 0 && "text-destructive",
+                    // A zero is context, not news: it stays legible but does not compete with the
+                    // rows that have something in them.
+                    row.count === 0 && "text-muted-foreground"
+                  )}
+                >
                   {subscriptionStatusLabel(row.status)}
                 </span>
-                <span className="font-mono text-xs tabular-nums">{row.count}</span>
+                <span
+                  className={cn(
+                    "font-mono text-xs tabular-nums",
+                    row.count === 0 && "text-muted-foreground"
+                  )}
+                >
+                  {row.count}
+                </span>
               </li>
             ))}
             <li className="flex items-baseline justify-between gap-4 text-sm">
@@ -507,10 +550,6 @@ function AccountsPanel({ data, loading }: { data?: PlatformOverview; loading: bo
               >
                 {data.connectedPlatforms}
               </span>
-            </li>
-            <li className="flex items-baseline justify-between gap-4 text-sm">
-              <span className="text-muted-foreground">Content briefs written</span>
-              <span className="font-mono text-xs tabular-nums">{data.briefsCreated}</span>
             </li>
           </ul>
         </div>
