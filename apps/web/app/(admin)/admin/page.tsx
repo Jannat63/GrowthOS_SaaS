@@ -213,22 +213,56 @@ function SectionHead({
   );
 }
 
+/**
+ * One reading inside a zone's container.
+ *
+ * A flex column with the footer pinned to the bottom. Grid cells stretch to the tallest sibling, so
+ * a short panel beside a long one left a quarter of its height empty — the footer both fills that
+ * and carries something worth reading, which is a better answer than shrinking the tall one until
+ * everything is equally thin.
+ */
 function Panel({
   title,
   aside,
+  footer,
   children,
 }: {
   title: string;
   aside?: React.ReactNode;
+  /** Pinned to the bottom edge. Supporting totals, not the panel's main point. */
+  footer?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-w-0 p-5">
+    <div className="flex h-full min-w-0 flex-col p-5">
       <div className="flex items-baseline justify-between gap-4">
         <h3 className="font-display text-sm font-semibold tracking-tight">{title}</h3>
         {aside}
       </div>
       <div className="mt-3">{children}</div>
+      {footer && <div className="mt-auto border-t pt-3">{footer}</div>}
+    </div>
+  );
+}
+
+/** A label and a figure, for a panel's footer. */
+function FootStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone?: "warning";
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span
+        className={cn("font-mono text-xs tabular-nums", tone === "warning" && "text-warning")}
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -322,50 +356,91 @@ function SpendChartPanel({ data }: { data: PlatformOverview }) {
  * What that spend bought, ordered the way the money travels — shown, clicked, converted, earned —
  * so it reads as one chain rather than five unrelated counters.
  */
+/**
+ * What that spend bought, drawn as the funnel it is.
+ *
+ * It was five rows in a list, which is five counters rather than one chain — and the interesting
+ * number in a funnel is never the count, it is what survives each step. The rate now sits *between*
+ * the steps, on the connector, so the drop from 4.9M impressions to 5.4k conversions reads as two
+ * decisions rather than two unrelated figures.
+ *
+ * No proportional bars. Clicks are 4.8% of impressions and conversions 2.3% of clicks, so a linear
+ * bar for the last step is a hairline and a log scale is a chart nobody can read a value off. The
+ * percentages carry it instead, which is what an operator quotes anyway.
+ *
+ * The money sits underneath, separated: revenue and unit costs are the result of the funnel rather
+ * than a fourth stage of it. Pinned to the bottom so this panel and the chart beside it share a
+ * baseline instead of trailing off into empty space.
+ */
 function FunnelPanel({ data }: { data: PlatformOverview }) {
-  const ctr = data.funnel.impressions > 0 ? (data.funnel.clicks / data.funnel.impressions) * 100 : 0;
-  const cpc = data.funnel.clicks > 0 ? data.totalSpend / data.funnel.clicks : 0;
-  const cpa = data.funnel.conversions > 0 ? data.totalSpend / data.funnel.conversions : 0;
+  const { impressions, clicks, conversions, revenue } = data.funnel;
+  const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+  const cvr = clicks > 0 ? (conversions / clicks) * 100 : 0;
+  const cpc = clicks > 0 ? data.totalSpend / clicks : 0;
+  const cpa = conversions > 0 ? data.totalSpend / conversions : 0;
 
   return (
-    <div className="min-w-0 p-5">
+    <div className="flex h-full min-w-0 flex-col p-5">
       <h3 className="font-display text-sm font-semibold tracking-tight">What it bought</h3>
-      <dl className="mt-3 divide-y">
-        <Reading label="Impressions" value={compact(data.funnel.impressions)} />
-        <Reading label="Clicks" value={compact(data.funnel.clicks)} note={`${ctr.toFixed(2)}% CTR`} />
+
+      <ol className="mt-4">
+        <Step label="Impressions" value={compact(impressions)} />
+        <Connector rate={ctr} verb="clicked" />
+        <Step label="Clicks" value={compact(clicks)} />
+        <Connector rate={cvr} verb="converted" />
+        <Step label="Conversions" value={compact(conversions)} last />
+      </ol>
+
+      <dl className="mt-auto space-y-2 border-t pt-4">
+        <Reading label="Attributed revenue" value={moneyLabel(revenue * 100)} />
         <Reading
-          label="Conversions"
-          value={compact(data.funnel.conversions)}
-          note={cpa > 0 ? `${moneyLabel(cpa * 100)} each` : undefined}
-        />
-        <Reading
-          label="Attributed revenue"
-          value={moneyLabel(data.funnel.revenue * 100)}
-          note={
-            data.totalSpend > 0
-              ? `${(data.funnel.revenue / data.totalSpend).toFixed(1)}x return`
-              : undefined
-          }
+          label="Return on spend"
+          value={data.totalSpend > 0 ? `${(revenue / data.totalSpend).toFixed(1)}x` : "—"}
         />
         <Reading label="Cost per click" value={cpc > 0 ? moneyLabel(cpc * 100) : "—"} />
+        <Reading label="Cost per conversion" value={cpa > 0 ? moneyLabel(cpa * 100) : "—"} />
       </dl>
     </div>
   );
 }
 
-function Reading({ label, value, note }: { label: string; value: string; note?: string }) {
+/** One stage of the funnel. The count is the headline; the label sits beside it, quiet. */
+function Step({ label, value, last }: { label: string; value: string; last?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-2">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="text-right">
-        <span className="font-mono text-sm tabular-nums">{value}</span>
-        {note && <span className="ml-2 text-xs text-muted-foreground">{note}</span>}
-      </dd>
-    </div>
+    <li className={cn("flex items-baseline justify-between gap-4", !last && "pb-1")}>
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="font-mono text-lg font-semibold tabular-nums">{value}</span>
+    </li>
   );
 }
 
-// ── Panels ───────────────────────────────────────────────────────────────────
+/**
+ * The drop between two stages.
+ *
+ * A short rule with the rate beside it rather than an arrow glyph: the line is the connector, and
+ * it says "these two are one journey" without borrowing a decoration nothing else here uses.
+ * Hidden from screen readers because the same rate is read out as part of the steps around it.
+ */
+function Connector({ rate, verb }: { rate: number; verb: string }) {
+  return (
+    <li className="flex items-center gap-2 py-1" aria-hidden="true">
+      <span className="ml-1 h-5 w-px shrink-0 bg-border" />
+      <span className="font-mono text-xs tabular-nums text-muted-foreground">
+        {rate.toFixed(2)}% {verb}
+      </span>
+    </li>
+  );
+}
+
+/** A label and its figure, for the funnel's summary. */
+function Reading({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="font-mono text-sm tabular-nums">{value}</dd>
+    </div>
+  );
+}
 
 function ReturnPanel({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
   const ratio =
@@ -404,6 +479,14 @@ function OutcomesPanel({ data, loading }: { data?: PlatformOverview; loading: bo
           <span className="font-mono text-xs tabular-nums text-muted-foreground">
             {((acted / total) * 100).toFixed(0)}% acted on
           </span>
+        )
+      }
+      footer={
+        data && (
+          <div className="space-y-2">
+            <FootStat label="Recommendations generated" value={data.recommendationsGenerated} />
+            <FootStat label="Content briefs written" value={data.briefsCreated} />
+          </div>
         )
       }
     >
@@ -469,6 +552,15 @@ function AccountsPanel({ data, loading }: { data?: PlatformOverview; loading: bo
           </span>
         )
       }
+      footer={
+        data && (
+          <FootStat
+            label="Connected integrations"
+            value={data.connectedPlatforms}
+            tone={data.connectedPlatforms === 0 ? "warning" : undefined}
+          />
+        )
+      }
     >
       {loading || !data ? (
         <Skeleton className="h-32 w-full" />
@@ -495,8 +587,7 @@ function AccountsPanel({ data, loading }: { data?: PlatformOverview; loading: bo
           <div className="border-t pt-3">
             {data.payingCustomers === 0 ? (
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Nobody is paying yet — every workspace is still on trial, so monthly revenue is
-                genuinely {moneyLabel(0)} rather than unmeasured.
+                Nobody is paying yet. Revenue is genuinely {moneyLabel(0)}, not unmeasured.
               </p>
             ) : (
               <ul className="space-y-2">
@@ -540,17 +631,6 @@ function AccountsPanel({ data, loading }: { data?: PlatformOverview; loading: bo
                 </span>
               </li>
             ))}
-            <li className="flex items-baseline justify-between gap-4 text-sm">
-              <span className="text-muted-foreground">Connected integrations</span>
-              <span
-                className={cn(
-                  "font-mono text-xs tabular-nums",
-                  data.connectedPlatforms === 0 && "text-warning"
-                )}
-              >
-                {data.connectedPlatforms}
-              </span>
-            </li>
           </ul>
         </div>
       )}
@@ -569,6 +649,14 @@ function GrowthPanel({ data, loading }: { data?: PlatformOverview; loading: bool
       aside={
         data && (
           <span className="font-mono text-xs tabular-nums text-muted-foreground">+{joined}</span>
+        )
+      }
+      footer={
+        data && (
+          <div className="space-y-2">
+            <FootStat label="People, all time" value={data.totalUsers} />
+            <FootStat label="Joined this week" value={data.signupsLast7d} />
+          </div>
         )
       }
     >

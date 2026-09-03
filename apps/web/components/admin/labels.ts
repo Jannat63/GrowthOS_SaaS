@@ -41,15 +41,25 @@ export const workspaceRoleLabel = (r: string) => WORKSPACE_ROLE[r] ?? titleCase(
 export const planLabel = (p: string) => titleCase(p);
 
 /**
- * Money, from cents, without the cents — every list price is a whole number of dollars and a
- * trailing `.00` on every figure in a column is two characters of noise per row.
+ * Money, from cents.
+ *
+ * Whole dollars above $10 — a trailing `.00` on every figure in a column of totals is two
+ * characters of noise per row, and no list price has cents.
+ *
+ * Below $10 it keeps them, because that is cost-per-click territory: rounding a real $0.24 to "$0"
+ * does not tidy the number, it deletes it. The admin console printed "Cost per click $0" against
+ * 238,050 clicks and $57,473 of spend, which is not a small figure rendered plainly — it is a
+ * wrong one.
  */
 export function moneyLabel(cents: number): string {
+  const dollars = cents / 100;
+  const digits = dollars !== 0 && Math.abs(dollars) < 10 ? 2 : 0;
   return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(cents / 100);
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(dollars);
 }
 
 /** A count with its noun, pluralised: `1 workspace`, `14 workspaces`, `no workspaces`. */
