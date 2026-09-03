@@ -9,6 +9,7 @@ import { Button } from "@growthos/ui/components/button";
 import { Input } from "@growthos/ui/components/input";
 import { Label } from "@growthos/ui/components/label";
 import { PasswordInput } from "@/components/auth/PasswordInput";
+import { QRCodeSVG } from "qrcode.react";
 import { twoFactor, useSession } from "@/lib/auth/client";
 
 /**
@@ -27,6 +28,10 @@ import { twoFactor, useSession } from "@/lib/auth/client";
  * Backup codes appear once and are never retrievable. That is the plugin's design rather than a
  * limitation to route around, so the copy says so plainly instead of implying they can be fetched
  * again later.
+ *
+ * The QR is rendered locally from the `otpauth://` URI. That URI *is* the TOTP secret, so the usual
+ * shortcut — handing it to a QR image service — would give a third party the exact credential this
+ * page exists to protect. `qrcode.react` draws it in the browser; nothing leaves the page.
  */
 export default function AdminSecurityPage() {
   const router = useRouter();
@@ -165,53 +170,67 @@ export default function AdminSecurityPage() {
         <>
           <Card className="space-y-4 p-5">
             <div>
-              <p className="text-sm font-medium">1. Add it to your authenticator</p>
+              <p className="text-sm font-medium">1. Scan this with your authenticator</p>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                1Password, Authy, Google Authenticator — whichever you use. Add it by setup key.
+                1Password, Authy, Google Authenticator — whichever you use.
               </p>
             </div>
 
             {/*
-              No QR code, and deliberately not a fake one.
+              White, in both themes, and not a token.
 
-              The `otpauth://` URI carries the TOTP secret, so the usual shortcut — handing it to a
-              QR image service — would give a third party the exact credential this page exists to
-              protect. Drawing one locally needs a real encoder (Reed-Solomon and the rest), which
-              is a dependency rather than something to hand-roll inside a security flow. Every
-              authenticator supports manual entry, so that is the honest option until the library is
-              added.
+              A QR reader needs dark modules on a light field; inverting it for dark mode is the
+              one change here that would stop the thing working. So the panel is `bg-white` and the
+              code keeps the library's black-on-white default — functional contrast, not styling,
+              which is why it does not go through the theme.
             */}
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs text-muted-foreground">Account</p>
-                <p className="mt-0.5 break-all font-mono text-sm">{accountLabel(totpUri)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Setup key</p>
-                <p className="mt-0.5 break-all rounded-md border bg-secondary/40 p-2.5 font-mono text-sm tracking-wider">
-                  {secretOf(totpUri) ?? totpUri}
+            <div className="flex justify-center rounded-lg bg-white p-4">
+              <QRCodeSVG
+                value={totpUri}
+                size={176}
+                // A quiet zone is part of the spec; without it, readers fail against a busy page.
+                marginSize={2}
+                aria-label="QR code for your authenticator app"
+              />
+            </div>
+
+            {/* The fallback, folded away: scanning is the path almost everyone takes. */}
+            <details className="group">
+              <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                Can&rsquo;t scan? Enter it by hand
+              </summary>
+              <div className="mt-3 space-y-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Account</p>
+                  <p className="mt-0.5 break-all font-mono text-sm">{accountLabel(totpUri)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Setup key</p>
+                  <p className="mt-0.5 break-all rounded-md border bg-secondary/40 p-2.5 font-mono text-sm tracking-wider">
+                    {secretOf(totpUri) ?? totpUri}
+                  </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => copy("secret")}>
+                  {copied === "secret" ? (
+                    <>
+                      <Check className="h-3.5 w-3.5" aria-hidden="true" /> Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5" aria-hidden="true" /> Copy the key
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Choose &ldquo;enter a setup key&rdquo; in your authenticator and paste this. On a
+                  phone,{" "}
+                  <a href={totpUri} className="underline underline-offset-4">
+                    this link opens it directly
+                  </a>
+                  .
                 </p>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={() => copy("secret")}>
-                {copied === "secret" ? (
-                  <>
-                    <Check className="h-3.5 w-3.5" aria-hidden="true" /> Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5" aria-hidden="true" /> Copy the key
-                  </>
-                )}
-              </Button>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Choose &ldquo;enter a setup key&rdquo; in your authenticator and paste this. On a
-                phone,{" "}
-                <a href={totpUri} className="underline underline-offset-4">
-                  this link opens it directly
-                </a>
-                .
-              </p>
-            </div>
+            </details>
           </Card>
 
           {backupCodes.length > 0 && (
