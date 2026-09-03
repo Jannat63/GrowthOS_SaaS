@@ -39,7 +39,7 @@ import { useConnections } from "@/lib/hooks/useConnections";
 import { platformToChannel, type ChannelKey } from "@/components/dashboard/channels";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
-import { ScoreGauge, computeGrowthScore } from "@/components/dashboard/ScoreGauge";
+import { ScoreGauge, computeGrowthScore, type ScoreDriver } from "@/components/dashboard/ScoreGauge";
 import { severityFromScore } from "@/components/dashboard/severity";
 import { GoalSimulator } from "@/components/dashboard/GoalSimulator";
 import { DateRangePicker } from "@/components/dashboard/DateRangePicker";
@@ -142,14 +142,37 @@ export default function GrowthHubPage() {
     trend.length >= 2 && trend[0]!.mer > 0
       ? ((trend[trend.length - 1]!.mer - trend[0]!.mer) / trend[0]!.mer) * 100
       : null;
+  const atRiskCreatives = countByType("fatigue_alert");
   const growthScore =
     recs && mer
-      ? computeGrowthScore({
-          merTrendPct,
-          atRiskCreatives: countByType("fatigue_alert"),
-          highUrgencyPending,
-        })
+      ? computeGrowthScore({ merTrendPct, atRiskCreatives, highUrgencyPending })
       : null;
+
+  // The same three figures computeGrowthScore just weighted (40/30/30), read back out for the
+  // gauge card rather than re-summarised — so the number and its explanation cannot disagree.
+  const scoreDrivers: ScoreDriver[] = [
+    {
+      icon: merTrendPct !== null && merTrendPct < 0 ? TrendingDown : TrendingUp,
+      label: "Blended efficiency",
+      value:
+        merTrendPct === null
+          ? "No trend yet"
+          : `${merTrendPct >= 0 ? "+" : ""}${merTrendPct.toFixed(1)}% this window`,
+      attention: merTrendPct !== null && merTrendPct < 0,
+    },
+    {
+      icon: Flame,
+      label: "Creatives at risk",
+      value: atRiskCreatives === 0 ? "None" : `${atRiskCreatives} fatiguing`,
+      attention: atRiskCreatives > 0,
+    },
+    {
+      icon: ListChecks,
+      label: "High-urgency work",
+      value: highUrgencyPending === 0 ? "None open" : `${highUrgencyPending} open`,
+      attention: highUrgencyPending > 0,
+    },
+  ];
 
   const connectedKeys = new Set(
     (conn?.data ?? [])
@@ -180,22 +203,23 @@ export default function GrowthHubPage() {
 
       {/* Growth score — a composite of this workspace's own signals (MER trend, creative health,
           open priority load). Sits above the tiles because it is the one figure that answers
-          "how are we doing" without reading the rest of the page. */}
-      <Card className="relative overflow-hidden p-6">
-        <span aria-hidden="true" className="ambient-glow -right-10 -top-16 h-64 w-64 bg-primary/20" />
-        <div className="glass-surface relative rounded-xl p-5">
-          {growthScore !== null ? (
-            <ScoreGauge score={growthScore} />
-          ) : (
-            <div className="flex items-center gap-4">
-              <Skeleton className="h-[120px] w-[120px] rounded-full" />
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-3 w-48" />
-              </div>
+          "how are we doing" without reading the rest of the page. The three drivers beside the
+          ring fill the row with the same weighted inputs rather than leaving it empty next to a
+          120px circle — see ScoreGauge's own doc comment. Plain Card, matching every other card
+          on this page; it was the one surface here dressed in glass/glow and it read as an
+          unrelated ad, not as this page's own headline figure. */}
+      <Card className="p-6">
+        {growthScore !== null ? (
+          <ScoreGauge score={growthScore} drivers={scoreDrivers} />
+        ) : (
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-[120px] w-[120px] rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-3 w-48" />
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </Card>
 
       {conn && connectedKeys.size === 0 && (

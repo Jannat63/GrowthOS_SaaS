@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Palette } from "lucide-react";
 import { Card } from "@growthos/ui/components/card";
 import { Button } from "@growthos/ui/components/button";
-import { Input } from "@growthos/ui/components/input";
+import { LockedField } from "@/components/LockedField";
 import { Label } from "@growthos/ui/components/label";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import { useBranding, useBrandingActions } from "@/lib/hooks/useBranding";
@@ -53,23 +53,24 @@ export function BrandingSection({ workspaceId }: { workspaceId: string | null })
         <div className="mt-4 grid max-w-xl gap-4">
           <div className="grid gap-1.5">
             <Label htmlFor="agencyName">Agency name</Label>
-            <Input
+            <LockedField
               id="agencyName"
+              label="agency name"
               value={agencyName}
-              onChange={(e) => setAgencyName(e.target.value)}
-              placeholder="GrowthOS"
-              maxLength={60}
+              onChange={setAgencyName}
+              inputProps={{ placeholder: "GrowthOS", maxLength: 60 }}
             />
           </div>
 
           <div className="grid gap-1.5">
             <Label htmlFor="logoUrl">Logo URL</Label>
-            <Input
+            <LockedField
               id="logoUrl"
-              value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
-              placeholder="https://…/logo.png"
+              label="logo URL"
               type="url"
+              value={logoUrl}
+              onChange={setLogoUrl}
+              inputProps={{ placeholder: "https://…/logo.png" }}
             />
           </div>
 
@@ -83,12 +84,13 @@ export function BrandingSection({ workspaceId }: { workspaceId: string | null })
                 onChange={(e) => setPrimaryColor(e.target.value)}
                 className="h-10 w-12 shrink-0 cursor-pointer rounded-md border border-input bg-background"
               />
-              <Input
+              <LockedField
                 id="primaryColor"
+                label="accent colour"
                 value={primaryColor}
-                onChange={(e) => setPrimaryColor(e.target.value)}
-                placeholder={DEFAULT_PRIMARY}
-                className="max-w-[160px] font-mono"
+                onChange={setPrimaryColor}
+                className="max-w-[17rem]"
+                inputProps={{ placeholder: DEFAULT_PRIMARY, className: "font-mono" }}
               />
               {!colorValid && (
                 <span className="text-xs text-destructive">Use a 6-digit hex, e.g. #ce4218.</span>

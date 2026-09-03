@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { buildFullFunnelPlan, type AccountMaturity, type AudienceTemperature } from "@growthos/logic";
 import { Card } from "@growthos/ui/components/card";
-import { Input } from "@growthos/ui/components/input";
+import { LockedField } from "@/components/LockedField";
 import { Label } from "@growthos/ui/components/label";
 import { cn } from "@/lib/utils/cn";
 
@@ -96,25 +96,19 @@ export function FunnelPlanner({
       </p>
 
       <div className="mt-4 flex flex-wrap items-end gap-x-6 gap-y-3">
-        <div className="grid w-full max-w-[13rem] gap-1.5">
+        <div className="grid w-full max-w-[19rem] gap-1.5">
           <Label htmlFor="funnel-budget">Monthly budget</Label>
-          <div className="relative">
-            {/* The unit belongs in the field, not in a parenthetical on the label. */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
-            >
-              $
-            </span>
-            <Input
-              id="funnel-budget"
-              type="number"
-              min={0}
-              className="pl-6 font-mono tabular-nums"
-              value={budget}
-              onChange={(e) => setTyped(Number(e.target.value))}
-            />
-          </div>
+          {/* The unit rides in the locked display (usd) rather than as an absolutely-positioned
+              prefix, which would have doubled up with it. */}
+          <LockedField
+            id="funnel-budget"
+            label="monthly budget"
+            type="number"
+            value={budget}
+            onChange={(v) => setTyped(Math.max(0, Number(v) || 0))}
+            display={(v) => usd(Number(v))}
+            inputProps={{ min: 0, className: "font-mono" }}
+          />
         </div>
         <div className="grid gap-1.5">
           <span className="text-sm font-medium">Account age</span>

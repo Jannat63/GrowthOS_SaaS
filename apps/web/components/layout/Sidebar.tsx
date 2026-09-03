@@ -99,22 +99,11 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "glass-ink sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-ink-border text-ink-foreground transition-[width] duration-200 ease-out md:flex",
+        "sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-ink-border bg-ink text-ink-foreground transition-[width] duration-200 ease-out md:flex",
         collapsed ? "w-16" : "w-60"
       )}
     >
-      {/* Ambient glow the frosted rail sits over — decorative, so it's aria-hidden and skipped by reduced-motion via .ambient-glow */}
-      <span
-        aria-hidden="true"
-        className="ambient-glow -left-10 top-24 h-56 w-56 bg-primary/30"
-      />
-      <span
-        aria-hidden="true"
-        className="ambient-glow -right-16 bottom-10 h-64 w-64 bg-warning/10"
-      />
-      {/* Everything visible stacks in its own layer above the glow (positioned elements paint
-          after static ones, so without this the blurred glow would sit on top of the nav text). */}
-      <div className="relative z-10 flex h-full flex-col">
+      <div className="flex h-full flex-col">
       <div
         className={cn(
           "flex h-16 shrink-0 items-center",

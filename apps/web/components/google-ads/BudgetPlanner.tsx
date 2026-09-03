@@ -8,7 +8,7 @@ import {
   type BusinessStage,
 } from "@growthos/logic";
 import { Card } from "@growthos/ui/components/card";
-import { Input } from "@growthos/ui/components/input";
+import { LockedField } from "@/components/LockedField";
 import { Label } from "@growthos/ui/components/label";
 import { cn } from "@/lib/utils/cn";
 
@@ -68,11 +68,27 @@ export function BudgetPlanner() {
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
               <Label htmlFor="price">Price ($)</Label>
-              <Input id="price" type="number" min={0} value={price} onChange={(e) => setPrice(+e.target.value)} />
+              <LockedField
+                id="price"
+                label="price"
+                type="number"
+                value={price}
+                onChange={(v) => setPrice(Math.max(0, Number(v) || 0))}
+                display={(v) => usd(Number(v))}
+                inputProps={{ min: 0 }}
+              />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="cogs">Cost of goods ($)</Label>
-              <Input id="cogs" type="number" min={0} value={cogs} onChange={(e) => setCogs(+e.target.value)} />
+              <LockedField
+                id="cogs"
+                label="cost of goods"
+                type="number"
+                value={cogs}
+                onChange={(v) => setCogs(Math.max(0, Number(v) || 0))}
+                display={(v) => usd(Number(v))}
+                inputProps={{ min: 0 }}
+              />
             </div>
             <div className="col-span-2 flex items-baseline justify-between rounded-md border bg-secondary/40 px-3 py-2">
               <span className="text-sm text-muted-foreground">Margin per sale</span>
@@ -104,7 +120,15 @@ export function BudgetPlanner() {
         <div className="space-y-4">
           <div className="grid gap-1.5">
             <Label htmlFor="budget">Monthly budget ($)</Label>
-            <Input id="budget" type="number" min={0} value={budget} onChange={(e) => setBudget(+e.target.value)} />
+            <LockedField
+              id="budget"
+              label="monthly budget"
+              type="number"
+              value={budget}
+              onChange={(v) => setBudget(Math.max(0, Number(v) || 0))}
+              display={(v) => usd(Number(v))}
+              inputProps={{ min: 0 }}
+            />
           </div>
           <div className="flex gap-2">
             {STAGES.map((s) => (

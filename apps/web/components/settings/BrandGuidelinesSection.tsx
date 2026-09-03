@@ -4,7 +4,7 @@ import { BookType } from "lucide-react";
 import { BRAND_TONES, type BrandTone } from "@growthos/logic";
 import { Card } from "@growthos/ui/components/card";
 import { Button } from "@growthos/ui/components/button";
-import { Input } from "@growthos/ui/components/input";
+import { LockedField } from "@/components/LockedField";
 import { Label } from "@growthos/ui/components/label";
 import { Textarea } from "@growthos/ui/components/textarea";
 import { Skeleton } from "@growthos/ui/components/skeleton";
@@ -159,23 +159,28 @@ export function BrandGuidelinesSection({ workspaceId }: { workspaceId: string | 
 
           <div className="grid gap-1.5">
             <Label htmlFor="targetPersona">Target persona</Label>
-            <Input
+            <LockedField
               id="targetPersona"
+              label="target persona"
               value={targetPersona}
-              onChange={(e) => setTargetPersona(e.target.value)}
-              placeholder="Ops leads at mid-market SaaS"
+              onChange={setTargetPersona}
+              inputProps={{ placeholder: "Ops leads at mid-market SaaS" }}
             />
           </div>
 
           <div className="grid gap-1.5">
             <Label htmlFor="readingLevel">Reading level</Label>
-            <Input
+            <LockedField
               id="readingLevel"
+              label="reading level"
               value={readingLevel}
-              onChange={(e) => setReadingLevel(e.target.value)}
-              placeholder="Any"
-              inputMode="numeric"
-              className={cn("max-w-[120px]", !readingLevelValid && "border-destructive")}
+              onChange={setReadingLevel}
+              className="max-w-[15rem]"
+              inputProps={{
+                placeholder: "Any",
+                inputMode: "numeric",
+                className: cn(!readingLevelValid && "border-destructive"),
+              }}
             />
             <p className="text-xs text-muted-foreground">
               US grade level, 1&ndash;20. Leave blank for no limit. Only applied to longer copy,

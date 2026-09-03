@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronsUpDown, LogOut, Check, ShieldAlert } from "lucide-react";
+import { ChevronsUpDown, LogOut, Check, Plus, ShieldAlert } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -65,30 +65,81 @@ export function TopBar() {
 
       {/* Workspace switcher */}
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <span className="flex h-5 w-5 items-center justify-center rounded bg-primary text-[0.6rem] font-semibold text-primary-foreground">
+        <DropdownMenuTrigger className="flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary text-[0.65rem] font-semibold text-primary-foreground">
             {(active?.workspace.name ?? "W")[0]?.toUpperCase()}
           </span>
-          <span className="max-w-[12rem] truncate">
-            {active?.workspace.name ?? "Workspace"}
+          <span className="min-w-0 text-left leading-tight">
+            <span className="block max-w-[11rem] truncate">
+              {active?.workspace.name ?? "Workspace"}
+            </span>
+            {active?.workspace.slug && (
+              <span className="block max-w-[11rem] truncate font-mono text-[0.65rem] font-normal text-muted-foreground">
+                /{active.workspace.slug}
+              </span>
+            )}
           </span>
-          <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {memberships.map((m) => (
-            <DropdownMenuItem
-              key={m.workspaceId}
-              onClick={() => setActiveWorkspaceId(m.workspaceId)}
-              className="flex items-center justify-between"
-            >
-              <span className="truncate">{m.workspace.name}</span>
-              {m.workspaceId === active?.workspaceId && (
-                <Check className="h-4 w-4 text-primary" />
-              )}
-            </DropdownMenuItem>
-          ))}
+        {/*
+          Every row carries its slug and role, not just its name.
+
+          Two workspaces are allowed to share a name and in practice do — the list rendered
+          "Shihab OS" twice with nothing to tell the two apart, so picking the right one was a
+          coin toss you could not even tell you had lost. The slug is the thing that is actually
+          unique, so it is what disambiguates; the role is there because which account you are in
+          and what you may do in it are the two things you need before you switch.
+        */}
+        <DropdownMenuContent align="start" className="w-[17.5rem] p-0">
+          <DropdownMenuLabel className="px-3 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Workspaces
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator className="m-0" />
+          {/* Capped rather than unbounded: an agency with twenty clients would otherwise render a
+              menu taller than the viewport, with the create action pushed off the bottom. */}
+          <div className="max-h-72 overflow-y-auto py-1">
+            {memberships.map((m) => {
+              const isActive = m.workspaceId === active?.workspaceId;
+              return (
+                <DropdownMenuItem
+                  key={m.workspaceId}
+                  onClick={() => setActiveWorkspaceId(m.workspaceId)}
+                  className="mx-1 flex items-start gap-2.5 rounded-md px-2 py-2"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded text-[0.65rem] font-semibold",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-muted-foreground"
+                    )}
+                  >
+                    {(m.workspace.name || "W")[0]?.toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{m.workspace.name}</span>
+                    <span className="mt-0.5 block truncate font-mono text-[0.7rem] text-muted-foreground">
+                      /{m.workspace.slug}
+                      <span className="ml-1.5 font-sans capitalize">· {m.role}</span>
+                    </span>
+                  </span>
+                  {isActive && (
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-label="Current workspace" />
+                  )}
+                </DropdownMenuItem>
+              );
+            })}
+          </div>
+          <DropdownMenuSeparator className="m-0" />
+          {/* There was no way to add a workspace from the one control whose whole subject is
+              which workspace you are in. */}
+          <DropdownMenuItem asChild className="mx-1 my-1 rounded-md px-2 py-2">
+            <Link href="/create-workspace" className="flex items-center gap-2.5 text-sm">
+              <Plus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              Create workspace
+            </Link>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       </div>

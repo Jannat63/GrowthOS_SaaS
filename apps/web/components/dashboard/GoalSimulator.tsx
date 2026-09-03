@@ -4,9 +4,9 @@ import { Target } from "lucide-react";
 import type { GrowthHubResponse } from "@growthos/types";
 import { simulateGoal } from "@growthos/logic";
 import { Card } from "@growthos/ui/components/card";
-import { Input } from "@growthos/ui/components/input";
 import { Badge } from "@growthos/ui/components/badge";
 import { Skeleton } from "@growthos/ui/components/skeleton";
+import { LockedField } from "@/components/LockedField";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -91,14 +91,18 @@ export function GoalSimulator({ baseline }: { baseline: GrowthHubResponse["basel
       <label htmlFor="target-sessions" className="mt-3 block text-xs text-muted-foreground">
         Target sessions
       </label>
-      <Input
+      {/* Locked until Edit. The presets below still set it in one click, which is the fast path -
+          the lock is there for the slow one, where a stray keystroke or a scroll used to rewrite
+          the target without anyone asking for it. */}
+      <LockedField
         id="target-sessions"
+        label="target sessions"
         type="number"
-        min={0}
-        step={1000}
         value={targetSessions}
-        onChange={(e) => setTarget(Math.max(0, Number(e.target.value) || 0))}
-        className="mt-1 tabular-nums"
+        onChange={(next) => setTarget(Math.max(0, Number(next) || 0))}
+        display={(v) => Number(v).toLocaleString()}
+        inputProps={{ min: 0, step: 1000 }}
+        className="mt-1"
       />
 
       <div className="mt-2 flex flex-wrap gap-1.5">
