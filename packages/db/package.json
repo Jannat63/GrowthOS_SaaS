@@ -25,7 +25,8 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:smoke": "tsx scripts/smoke.ts",
-    "grant-admin": "tsx scripts/grant-admin.ts"
+    "grant-admin": "tsx scripts/grant-admin.ts",
+    "purge-orphans": "tsx scripts/purge-orphans.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

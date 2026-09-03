@@ -21,6 +21,9 @@ export const user = pgTable("user", {
   // per-workspace `role` on workspace_members below; a platform admin isn't a member of every
   // workspace, they bypass workspace membership checks entirely.
   platformRole: text("platform_role"),
+  // Optional contact number for platform staff, collected on the admin profile step
+  // (app/(admin)/admin/welcome). Nullable and never required of customers.
+  phone: text("phone"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

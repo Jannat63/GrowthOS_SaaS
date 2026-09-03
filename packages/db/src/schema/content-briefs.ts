@@ -1,10 +1,11 @@
 import { jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { workspaces } from './auth.js';
 
 // Content briefs (M2 · P2.3b) — the actionable output attached to a paid->organic recommendation.
-// workspaceId app-layer enforced (no FK — see tenancy.ts).
+// workspaceId cascades from workspaces; access is app-layer enforced (no RLS — see tenancy.ts).
 export const contentBriefs = pgTable('content_briefs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: text('workspace_id').notNull(),
+  workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull(),
   recommendationId: uuid('recommendation_id'),
   keyword: text('keyword').notNull(),
   source: text('source').notNull(), // google_ads_search_term | organic_top_page | meta_hook | manual

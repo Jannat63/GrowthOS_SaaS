@@ -39,6 +39,15 @@ export interface AuthUser {
   email: string;
   name: string;
   image?: string | null;
+  /**
+   * Platform-wide staff access, null for every customer. Exposed here because sign-in has to route
+   * platform staff to the admin console rather than through workspace onboarding, and it had no
+   * way to know: the role was set on the row and read by the API guards, but never surfaced to the
+   * client. Set only by packages/db/scripts/grant-admin.ts — never through a form.
+   */
+  platformRole?: PlatformRole | null;
+  /** Optional contact number, collected on the admin profile step. */
+  phone?: string | null;
 }
 
 // Agency white-label branding for a workspace (M3 P3.5 Slice C). All fields optional —

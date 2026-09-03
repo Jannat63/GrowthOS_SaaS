@@ -8,6 +8,7 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { workspaces } from './auth.js';
 
 /**
  * Domain tenancy schema (M1 · P1.2).
@@ -30,7 +31,9 @@ export const platformConnections = pgTable(
   'platform_connections',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: text('workspace_id').notNull(), // → workspaces.id (app-layer enforced)
+    workspaceId: text('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade' })
+      .notNull(),
     platform: text('platform').notNull(),
     accountId: text('account_id').notNull(),
     accountName: text('account_name'),

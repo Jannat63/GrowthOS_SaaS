@@ -1,4 +1,5 @@
 import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { workspaces } from './auth.js';
 
 /**
  * Creative variant experiments (M4 · P4.2a-3).
@@ -13,7 +14,7 @@ export const creativeExperiments = pgTable(
   'creative_experiments',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull(),
 
     /** What the user expects to happen and why — the reason this test is worth running. */
     hypothesis: text('hypothesis').notNull(),

@@ -28,6 +28,9 @@ export const auth = betterAuth({
       // workspace_members. `input: false` — deliberately not settable via any signup/profile
       // form; only ever set directly in the database by someone who already has DB access.
       platformRole: { type: 'string', required: false, input: false },
+      // Unlike platformRole this IS settable by its owner — it is their own contact number, typed
+      // on the admin profile step and saved through Better Auth's own updateUser.
+      phone: { type: 'string', required: false, input: true },
     },
   },
   plugins: [

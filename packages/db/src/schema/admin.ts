@@ -8,8 +8,9 @@ import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-cor
  * nice-to-have. See apps/api/src/admin-audit.ts for the write helper, apps/api/src/guards.ts for
  * where it's invoked automatically on every admin route.
  *
- * actorUserId has no FK to `user` (same app-layer-enforced convention as workspaceId elsewhere in
- * this schema — see tenancy.ts) so this table survives independently of user-table changes.
+ * actorUserId deliberately has NO foreign key. Every workspace-scoped table cascades from
+ * `workspaces` so a deleted workspace cleans up after itself — but an admin audit trail must
+ * outlive the account it describes, or deleting a user would erase the record of what they did.
  */
 export const adminAuditLog = pgTable(
   'admin_audit_log',

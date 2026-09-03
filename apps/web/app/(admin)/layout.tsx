@@ -1,9 +1,11 @@
 "use client";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ShieldAlert, LayoutGrid, Building2, Users, ScrollText } from "lucide-react";
 import { Button } from "@growthos/ui/components/button";
 import { useAdminAccess } from "@/lib/hooks/useAdmin";
+import { useSession } from "@/lib/auth/client";
 import { cn } from "@/lib/utils/cn";
 
 const ADMIN_NAV = [
@@ -33,8 +35,26 @@ const ROLE_LABEL: Record<string, string> = {
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: access, isLoading } = useAdminAccess();
+  const { data: session, isPending: sessionPending } = useSession();
   const pathname = usePathname();
   const router = useRouter();
+
+  /**
+   * Platform staff complete their profile before the console opens.
+   *
+   * The gate lives here rather than in the sign-in handler because sign-in is not the only way in:
+   * the console is reachable by typing /admin, from the account menu, and from a bookmark. A check
+   * on one of those paths is a check that can be walked around.
+   *
+   * `name` is NOT NULL on the row, so an incomplete profile is an empty string, not null.
+   */
+  const profileIncomplete =
+    Boolean(access) && !sessionPending && (session?.user.name ?? "").trim().length === 0;
+  const onWelcome = pathname === "/admin/welcome";
+
+  useEffect(() => {
+    if (profileIncomplete && !onWelcome) router.replace("/admin/welcome");
+  }, [profileIncomplete, onWelcome, router]);
 
   if (isLoading) {
     return (
@@ -98,6 +118,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </header>
 
       <div className="flex flex-col md:flex-row">
+        {!profileIncomplete && (
         <nav
           aria-label="Admin sections"
           className="flex gap-1 overflow-x-auto border-b p-3 md:w-56 md:shrink-0 md:flex-col md:space-y-1 md:overflow-visible md:border-b-0 md:border-r md:p-4"
@@ -124,6 +145,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             );
           })}
         </nav>
+        )}
         <main className="min-w-0 flex-1 p-6 md:p-8">{children}</main>
       </div>
     </div>

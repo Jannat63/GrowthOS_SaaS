@@ -55,6 +55,17 @@ function SignInForm() {
     // accounts (no workspace) go through onboarding. Keep the spinner during the check.
     try {
       const me = await api.get<MeResponse>("/auth/me");
+
+      // Platform staff are not customers and do not own a workspace — every admin route checks
+      // `requirePlatformRole` and none of them touch workspace membership. Routing on membership
+      // alone sent them into customer onboarding to create a workspace they have no use for, with
+      // no link anywhere to the console they actually signed in for. The console's own layout
+      // decides whether they still owe it a profile.
+      if (me.user.platformRole) {
+        router.push("/admin");
+        return;
+      }
+
       router.push(me.memberships.length > 0 ? "/growth-hub" : "/welcome");
     } catch {
       // If we can't determine membership, avoid the onboarding loop — head to the dashboard.

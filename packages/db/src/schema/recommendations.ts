@@ -1,13 +1,15 @@
 import { index, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { workspaces } from './auth.js';
 
 // Backend-owned recommendations (M2 · P2.3a). Produced by the canonical @growthos/logic engine and
 // persisted so they can carry a status lifecycle (act/dismiss/snooze — P2.3b). workspaceId is
-// app-layer enforced (no FK — see tenancy.ts). compositeScore is app-computed, not a generated column.
+// cascading from workspaces; access is app-layer enforced (no RLS — see tenancy.ts).
+// compositeScore is app-computed, not a generated column.
 export const recommendations = pgTable(
   'recommendations',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull(),
     type: text('type').notNull(),
     sourceChannel: text('source_channel').notNull(),
     targetChannel: text('target_channel').notNull(),

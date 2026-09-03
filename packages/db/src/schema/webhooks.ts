@@ -8,6 +8,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { workspaces } from './auth.js';
 
 /**
  * Outbound webhooks (M4 · P4.4a-2) — the push half of the public API.
@@ -26,7 +27,7 @@ export const webhookEndpoints = pgTable(
   'webhook_endpoints',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull(),
     url: text('url').notNull(), // https only, validated on write
     /**
      * The signing secret, AES-256-GCM encrypted at rest with the same `crypto.ts` helper that
@@ -66,7 +67,7 @@ export const webhookDeliveries = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     endpointId: uuid('endpoint_id').notNull(),
     /** Denormalised from the endpoint so the sweep can scope by workspace without a join. */
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull(),
     eventType: text('event_type').notNull(),
     payload: jsonb('payload').notNull(),
     /** `pending` → `delivered`, or → `failed` between attempts, or → `exhausted` after the last. */

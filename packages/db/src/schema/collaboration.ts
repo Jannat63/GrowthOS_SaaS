@@ -1,4 +1,5 @@
 import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { workspaces } from './auth.js';
 
 /**
  * Team collaboration on recommendations (M3 · P3.5). A comment thread per recommendation.
@@ -8,13 +9,14 @@ import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
  * `recommendations` row (see `assignedTo` / `dueDate` there) rather than in a redundant parallel
  * status machine. This table holds only the discussion thread.
  *
- * workspaceId / recommendationId / authorId are app-layer enforced (no FK — see tenancy.ts).
+ * workspaceId cascades from workspaces; recommendationId / authorId remain app-layer enforced.
+ * Access control is app-layer throughout (no RLS — see tenancy.ts).
  */
 export const recommendationComments = pgTable(
   'recommendation_comments',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull(),
     recommendationId: uuid('recommendation_id').notNull(),
     authorId: text('author_id').notNull(), // → user.id
     body: text('body').notNull(),

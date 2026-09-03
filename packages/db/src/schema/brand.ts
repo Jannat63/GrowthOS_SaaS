@@ -1,4 +1,5 @@
 import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { workspaces } from './auth.js';
 
 /**
  * Brand guidelines (M4 · P4.2a-1) — the record that turns the deterministic copy generators from
@@ -18,7 +19,7 @@ import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 export const brandGuidelines = pgTable('brand_guidelines', {
   id: uuid('id').primaryKey().defaultRandom(),
   /** Unique: one guidelines record per workspace. See the table comment. */
-  workspaceId: text('workspace_id').notNull().unique(),
+  workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull().unique(),
 
   /**
    * `professional` | `friendly` | `bold` | `technical` | `playful`.
