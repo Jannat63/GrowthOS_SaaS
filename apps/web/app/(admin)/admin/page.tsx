@@ -63,36 +63,45 @@ export default function AdminOverviewPage() {
     (a?.failedJobsTotal ?? 0);
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="space-y-8 pb-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-xl font-semibold tracking-tight">Overview</h1>
         {/*
-          Placed against the page title rather than against one chart, because it governs several
-          sections. The strip below is labelled 'right now' so the half it does NOT govern is
-          visible rather than something to be worked out.
+          Against the page title rather than one chart, because it governs a whole zone. Which zone
+          is stated where the figures are, not left to be worked out.
         */}
         <DateRangePicker value={range} onChange={setRange} />
       </div>
 
-      <section aria-labelledby="needs-you">
-        <div className="flex items-baseline justify-between gap-4 border-b pb-2">
-          <h2 id="needs-you" className="font-display text-base font-semibold tracking-tight">
-            Needs you
-          </h2>
-          {!isLoading && total > 0 && (
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">
-              {countLabel(total, "item")}
-            </span>
-          )}
-        </div>
+      {/*
+        Three zones, not eight stacked bands.
+
+        The page had grown into a flat run of bordered blocks with nothing saying which belonged
+        together, so reading it meant working out the grouping every time. It now says what it is
+        organised by — what needs you, the money, the customers — and the related panels share one
+        container instead of each getting its own frame.
+      */}
+      <section aria-labelledby="needs-you" className="space-y-3">
+        <SectionHead
+          id="needs-you"
+          title="Needs you"
+          aside={
+            !isLoading &&
+            total > 0 && (
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                {countLabel(total, "item")}
+              </span>
+            )
+          }
+        />
 
         {isLoading ? (
-          <div className="space-y-2 pt-3">
+          <div className="space-y-2">
             <Skeleton className="h-11 w-full" />
             <Skeleton className="h-11 w-full" />
           </div>
         ) : total === 0 ? (
-          <p className="flex items-center gap-2 pt-4 text-sm text-muted-foreground">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
             No accounts need attention. No payments are late, no trial ends in the next three days,
             every integration has synced this week, and nothing has failed.
@@ -115,52 +124,91 @@ export default function AdminOverviewPage() {
             <More shown={a?.failedJobs.length ?? 0} total={a?.failedJobsTotal ?? 0} noun="failed job" />
           </div>
         )}
+
+        <VitalSigns data={data} loading={isLoading} />
+        <p className="text-xs text-muted-foreground">
+          These are as of right now. The date range governs the two sections below.
+        </p>
       </section>
 
-      <section aria-labelledby="right-now">
-        <div className="flex items-baseline justify-between gap-4 border-b pb-2">
-          <h2 id="right-now" className="font-display text-base font-semibold tracking-tight">
-            Right now
-          </h2>
-          <span className="text-xs text-muted-foreground">Not affected by the date range</span>
-        </div>
-        <div className="pt-3">
-          <VitalSigns data={data} loading={isLoading} />
+      <section aria-labelledby="money" className="space-y-3">
+        <SectionHead
+          id="money"
+          title="Money"
+          aside={
+            data?.spendWindow.from && (
+              <span className="font-mono text-xs text-muted-foreground">
+                {data.spendWindow.from} to {data.spendWindow.to}
+              </span>
+            )
+          }
+        />
+
+        {isLoading ? (
+          <Skeleton className="h-72 w-full" />
+        ) : !data || data.spendDaily.length === 0 ? (
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            No advertising data in this window. Either nothing is connected yet, or the range falls
+            outside what has been synced — widen it and this fills in.
+          </p>
+        ) : (
+          <div className="rounded-lg border">
+            <div className="grid divide-y lg:grid-cols-[2fr_1fr] lg:divide-x lg:divide-y-0">
+              <SpendChartPanel data={data} />
+              <FunnelPanel data={data} />
+            </div>
+            <div className="grid divide-y border-t lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+              <ChannelSpark
+                data={data.spendByChannelDaily}
+                channel="google"
+                total={data.spendByPlatform.find((p) => p.platform === "google_ads")?.spend ?? 0}
+              />
+              <ChannelSpark
+                data={data.spendByChannelDaily}
+                channel="meta"
+                total={data.spendByPlatform.find((p) => p.platform === "meta_ads")?.spend ?? 0}
+              />
+              <ReturnPanel data={data} loading={false} />
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section aria-labelledby="customers" className="space-y-3">
+        <SectionHead id="customers" title="Customers" />
+        <div className="rounded-lg border">
+          <div className="grid divide-y lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+            <AccountsPanel data={data} loading={isLoading} />
+            <GrowthPanel data={data} loading={isLoading} />
+            <OutcomesPanel data={data} loading={isLoading} />
+          </div>
+          <div className="grid divide-y border-t lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+            <NewestAccounts data={data} loading={isLoading} />
+            <TopSpenders data={data} loading={isLoading} />
+            <CampaignsPanel data={data} loading={isLoading} />
+          </div>
         </div>
       </section>
-      <SpendBand data={data} loading={isLoading} />
+    </div>
+  );
+}
 
-      {/* The channel split, as small multiples rather than a stack. */}
-      {data && data.spendByChannelDaily.length > 0 && (
-        <div className="grid divide-y rounded-lg border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-          <ChannelSpark
-            data={data.spendByChannelDaily}
-            channel="google"
-            total={data.spendByPlatform.find((p) => p.platform === "google_ads")?.spend ?? 0}
-          />
-          <ChannelSpark
-            data={data.spendByChannelDaily}
-            channel="meta"
-            total={data.spendByPlatform.find((p) => p.platform === "meta_ads")?.spend ?? 0}
-          />
-        </div>
-      )}
-
-      <div className="grid divide-y rounded-lg border lg:grid-cols-2 lg:divide-x lg:divide-y-0">
-        <ReturnPanel data={data} loading={isLoading} />
-        <OutcomesPanel data={data} loading={isLoading} />
-      </div>
-
-      <div className="grid divide-y rounded-lg border lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-        <AccountsPanel data={data} loading={isLoading} />
-        <GrowthPanel data={data} loading={isLoading} />
-        <CampaignsPanel data={data} loading={isLoading} />
-      </div>
-
-      <div className="grid divide-y rounded-lg border lg:grid-cols-2 lg:divide-x lg:divide-y-0">
-        <NewestAccounts data={data} loading={isLoading} />
-        <TopSpenders data={data} loading={isLoading} />
-      </div>
+/** A zone's name, and whatever qualifies it — a count, the window it covers. */
+function SectionHead({
+  id,
+  title,
+  aside,
+}: {
+  id: string;
+  title: string;
+  aside?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-b pb-2">
+      <h2 id={id} className="font-display text-base font-semibold tracking-tight">
+        {title}
+      </h2>
+      {aside}
     </div>
   );
 }
@@ -243,79 +291,65 @@ function Figure({
 
 // ── The hero, beside the funnel it came from ─────────────────────────────────
 
-function SpendBand({ data, loading }: { data?: PlatformOverview; loading: boolean }) {
-  if (loading) return <Skeleton className="h-72 w-full" />;
-  if (!data || data.spendDaily.length === 0) {
-    return (
-      <section className="rounded-lg border p-5">
-        <h2 className="font-display text-base font-semibold tracking-tight">
+/**
+ * The page's one bold element: what every customer put through the platform, day by day.
+ *
+ * Split from the funnel beside it so both can sit in the Money zone's single container rather than
+ * each carrying its own frame. The window is stated once, on the zone heading, instead of being
+ * repeated on every panel inside it.
+ */
+function SpendChartPanel({ data }: { data: PlatformOverview }) {
+  return (
+    <div className="min-w-0 p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+        <h3 className="font-display text-sm font-semibold tracking-tight">
           Money moving through GrowthOS
-        </h2>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          No advertising data yet. This fills in once a workspace connects Google or Meta and the
-          first sync lands.
-        </p>
-      </section>
-    );
-  }
+        </h3>
+        <p className="font-mono text-sm tabular-nums">{moneyLabel(data.totalSpend * 100)}</p>
+      </div>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Every customer&rsquo;s advertising spend, added together. Not our revenue — the money they
+        run through the product.
+      </p>
+      <div className="mt-4">
+        <SpendArea data={data.spendDaily} />
+      </div>
+    </div>
+  );
+}
 
+/**
+ * What that spend bought, ordered the way the money travels — shown, clicked, converted, earned —
+ * so it reads as one chain rather than five unrelated counters.
+ */
+function FunnelPanel({ data }: { data: PlatformOverview }) {
   const ctr = data.funnel.impressions > 0 ? (data.funnel.clicks / data.funnel.impressions) * 100 : 0;
   const cpc = data.funnel.clicks > 0 ? data.totalSpend / data.funnel.clicks : 0;
   const cpa = data.funnel.conversions > 0 ? data.totalSpend / data.funnel.conversions : 0;
 
   return (
-    <section
-      className="grid divide-y rounded-lg border lg:grid-cols-[2fr_1fr] lg:divide-x lg:divide-y-0"
-      aria-labelledby="spend"
-    >
-      <div className="min-w-0 p-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-          <h2 id="spend" className="font-display text-base font-semibold tracking-tight">
-            Money moving through GrowthOS
-          </h2>
-          <p className="font-mono text-sm tabular-nums">
-            {moneyLabel(data.totalSpend * 100)}
-            <span className="ml-2 text-xs text-muted-foreground">
-              {data.spendWindow.from} to {data.spendWindow.to}
-            </span>
-          </p>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Every customer&rsquo;s advertising spend, added together. Not our revenue — the money they
-          run through the product.
-        </p>
-        <div className="mt-4">
-          <SpendArea data={data.spendDaily} />
-        </div>
-      </div>
-
-      {/*
-        The funnel that spend bought, as a rail. Ordered the way the money travels — shown, clicked,
-        converted, earned — so it reads as one chain rather than four unrelated counters.
-      */}
-      <div className="min-w-0 p-5">
-        <h3 className="font-display text-sm font-semibold tracking-tight">What it bought</h3>
-        <dl className="mt-3 divide-y">
-          <Reading label="Impressions" value={compact(data.funnel.impressions)} />
-          <Reading label="Clicks" value={compact(data.funnel.clicks)} note={`${ctr.toFixed(2)}% CTR`} />
-          <Reading
-            label="Conversions"
-            value={compact(data.funnel.conversions)}
-            note={cpa > 0 ? `${moneyLabel(cpa * 100)} each` : undefined}
-          />
-          <Reading
-            label="Attributed revenue"
-            value={moneyLabel(data.funnel.revenue * 100)}
-            note={
-              data.totalSpend > 0
-                ? `${(data.funnel.revenue / data.totalSpend).toFixed(1)}x return`
-                : undefined
-            }
-          />
-          <Reading label="Cost per click" value={cpc > 0 ? moneyLabel(cpc * 100) : "—"} />
-        </dl>
-      </div>
-    </section>
+    <div className="min-w-0 p-5">
+      <h3 className="font-display text-sm font-semibold tracking-tight">What it bought</h3>
+      <dl className="mt-3 divide-y">
+        <Reading label="Impressions" value={compact(data.funnel.impressions)} />
+        <Reading label="Clicks" value={compact(data.funnel.clicks)} note={`${ctr.toFixed(2)}% CTR`} />
+        <Reading
+          label="Conversions"
+          value={compact(data.funnel.conversions)}
+          note={cpa > 0 ? `${moneyLabel(cpa * 100)} each` : undefined}
+        />
+        <Reading
+          label="Attributed revenue"
+          value={moneyLabel(data.funnel.revenue * 100)}
+          note={
+            data.totalSpend > 0
+              ? `${(data.funnel.revenue / data.totalSpend).toFixed(1)}x return`
+              : undefined
+          }
+        />
+        <Reading label="Cost per click" value={cpc > 0 ? moneyLabel(cpc * 100) : "—"} />
+      </dl>
+    </div>
   );
 }
 
