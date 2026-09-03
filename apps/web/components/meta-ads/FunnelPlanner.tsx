@@ -123,7 +123,7 @@ export function FunnelPlanner({
                   "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
                   maturity === m.value
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:bg-secondary/60"
+                    : "border-border text-muted-foreground hover:bg-primary/10"
                 )}
               >
                 {m.label}

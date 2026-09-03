@@ -145,7 +145,7 @@ export function SiteAuditPanel({ workspaceId }: { workspaceId: string | null }) 
                     onClick={() => setExpanded(isOpen ? null : page.url)}
                     aria-expanded={isOpen}
                     aria-controls={panelId}
-                    className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                   >
                     {isOpen ? (
                       <ChevronDown

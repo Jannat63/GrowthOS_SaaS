@@ -118,7 +118,7 @@ export function GoalSimulator({ baseline }: { baseline: GrowthHubResponse["basel
                 "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
                 targetSessions === value
                   ? "border-primary/40 bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                  : "text-muted-foreground hover:border-primary/40 hover:text-primary"
               )}
             >
               {p.label}
@@ -133,7 +133,7 @@ export function GoalSimulator({ baseline }: { baseline: GrowthHubResponse["basel
             "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
             targetSessions === baseline.currentSessions
               ? "border-primary/40 bg-primary/10 text-primary"
-              : "text-muted-foreground hover:border-primary/40 hover:text-foreground"
+              : "text-muted-foreground hover:border-primary/40 hover:text-primary"
           )}
         >
           Today

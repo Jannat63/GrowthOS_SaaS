@@ -73,7 +73,7 @@ export function Calendar({ className, classNames, showOutsideDays = true, ...pro
         day: "relative h-9 w-9 p-0 text-center text-sm",
         day_button: cn(
           "inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md p-0 font-normal tabular-nums",
-          "transition-colors hover:bg-accent hover:text-accent-foreground",
+          "transition-colors hover:bg-primary/10 hover:text-primary",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
           "disabled:pointer-events-none"
         ),
@@ -115,7 +115,7 @@ Calendar.displayName = "Calendar";
 
 const navButton = cn(
   "inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md",
-  "text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
+  "text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
   "aria-disabled:pointer-events-none aria-disabled:opacity-30"
 );

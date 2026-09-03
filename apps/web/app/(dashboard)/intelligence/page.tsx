@@ -276,7 +276,7 @@ function StepButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex h-8 w-8 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-30"
+      className="inline-flex h-8 w-8 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-30"
     >
       {children}
     </button>
@@ -558,7 +558,7 @@ function NextUp({
         {open > 0 && (
           <Link
             href="/recommendations"
-            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary"
           >
             All {open} open <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
@@ -616,7 +616,7 @@ function OpportunityCard({
     o.sourceChannel !== "unified";
 
   const body = (
-    <Card className="flex items-start gap-3 p-5 transition-colors hover:border-primary/40 hover:bg-secondary/40">
+    <Card className="flex items-start gap-3 p-5 transition-colors hover:border-primary/40 hover:bg-primary/10">
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
         <Lightbulb className="h-4 w-4" />
       </span>

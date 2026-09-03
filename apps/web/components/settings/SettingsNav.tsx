@@ -92,7 +92,7 @@ function NavItem({
         "lg:whitespace-normal",
         active
           ? "border-primary/30 bg-primary/[0.06]"
-          : "border-transparent hover:border-border hover:bg-secondary/60",
+          : "border-transparent hover:border-border hover:bg-primary/10",
       )}
     >
       <span className="flex items-center gap-2">

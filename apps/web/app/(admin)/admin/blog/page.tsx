@@ -239,7 +239,7 @@ function PostRow({ post }: { post: BlogPostSummary }) {
           <Link
             href={`/admin/blog/${post.id}`}
             aria-label={`Edit ${post.title}`}
-            className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Pencil className="h-3 w-3" aria-hidden="true" />
             Edit
@@ -251,7 +251,7 @@ function PostRow({ post }: { post: BlogPostSummary }) {
               rel="noopener noreferrer"
               aria-label={`Open ${post.title} on the site`}
               title="Open on the site"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             </a>

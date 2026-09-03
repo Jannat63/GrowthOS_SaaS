@@ -104,7 +104,7 @@ export function SampleDataNotice() {
         onClick={dismiss}
         aria-label="Hide the sample-data notice for this session"
         title="Hide for this session"
-        className="-my-1 -mr-2 ml-auto h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+        className="-my-1 -mr-2 ml-auto h-8 w-8 shrink-0 text-muted-foreground hover:text-primary"
       >
         <X aria-hidden />
       </Button>

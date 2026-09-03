@@ -54,7 +54,7 @@ export function SiteFooter() {
                   <li key={l.label}>
                     <Link
                       href={l.href}
-                      className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      className="text-sm text-muted-foreground transition-colors hover:text-primary"
                     >
                       {l.label}
                     </Link>
@@ -72,13 +72,13 @@ export function SiteFooter() {
           <div className="flex gap-6">
             <Link
               href="/sign-in"
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="text-sm text-muted-foreground transition-colors hover:text-primary"
             >
               Sign in
             </Link>
             <Link
               href="/sign-up"
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="text-sm text-muted-foreground transition-colors hover:text-primary"
             >
               Start free
             </Link>

@@ -142,7 +142,7 @@ export function AdCopyStudio({
                   "rounded-md border px-2.5 py-1 font-mono text-sm font-medium transition-colors",
                   duration === d
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:bg-secondary/60"
+                    : "border-border text-muted-foreground hover:bg-primary/10"
                 )}
               >
                 {d}s

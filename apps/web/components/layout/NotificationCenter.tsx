@@ -41,7 +41,7 @@ export function NotificationCenter({ workspaceId }: { workspaceId: string | null
         aria-label="Notifications"
         className={cn(
           "relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors",
-          "hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          "hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         )}
       >
         <Bell className="h-4.5 w-4.5" />
@@ -67,7 +67,7 @@ export function NotificationCenter({ workspaceId }: { workspaceId: string | null
               <li key={r.id}>
                 <Link
                   href={ROUTE[r.type] ?? "/growth-hub"}
-                  className="flex flex-col gap-1 px-2 py-2 transition-colors hover:bg-secondary"
+                  className="flex flex-col gap-1 px-2 py-2 transition-colors hover:bg-primary/10"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium text-muted-foreground">

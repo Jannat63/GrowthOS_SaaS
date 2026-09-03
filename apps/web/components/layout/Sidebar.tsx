@@ -30,7 +30,7 @@ import { RailMarker } from "@/components/layout/RailMarker";
 // Ghost icon button restyled for the dark ink rail (tailwind-merge overrides the
 // default light accent hover). Reused for both collapse/expand affordances.
 const INK_ICON_BTN =
-  "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground focus-visible:ring-primary/60 focus-visible:ring-offset-0";
+  "text-ink-muted hover:bg-primary/10 hover:text-primary focus-visible:ring-primary/60 focus-visible:ring-offset-0";
 
 export type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; ready: boolean };
 export type NavGroup = { label: string | null; items: NavItem[] };
@@ -214,7 +214,7 @@ export function Sidebar() {
                       spacing,
                       active
                         ? "bg-ink-2 text-ink-foreground"
-                        : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
+                        : "text-ink-muted hover:bg-primary/10 hover:text-primary"
                     )}
                   >
                     <Icon
@@ -222,7 +222,7 @@ export function Sidebar() {
                         "h-4 w-4 shrink-0 transition-colors",
                         active
                           ? "text-primary"
-                          : "text-ink-muted group-hover:text-ink-foreground"
+                          : "text-ink-muted group-hover:text-primary"
                       )}
                     />
                     {!collapsed && label}
@@ -249,7 +249,7 @@ export function Sidebar() {
             collapsed ? "justify-center px-0" : "gap-3 px-3",
             pathname === "/settings"
               ? "bg-ink-2 text-ink-foreground"
-              : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
+              : "text-ink-muted hover:bg-primary/10 hover:text-primary"
           )}
         >
           <Settings className="h-4 w-4 shrink-0" />

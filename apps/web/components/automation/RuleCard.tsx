@@ -129,7 +129,7 @@ export function RuleCard({
                     "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                     "disabled:opacity-50",
-                    !active && "text-muted-foreground hover:text-foreground",
+                    !active && "text-muted-foreground hover:text-primary",
                     active && m.key === "off" && "bg-secondary text-foreground",
                     active && m.key === "suggest" && "bg-primary/10 text-primary",
                     active && m.key === "auto" && "bg-warning/10 text-warning",

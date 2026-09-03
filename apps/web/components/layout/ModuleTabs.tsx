@@ -20,7 +20,7 @@ export function ModuleTabs({
               "-mb-px border-b-2 py-3 text-sm font-medium transition-colors",
               active
                 ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                : "border-transparent text-muted-foreground hover:text-primary"
             )}
           >
             {tab.label}

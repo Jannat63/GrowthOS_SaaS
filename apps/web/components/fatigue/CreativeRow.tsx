@@ -76,7 +76,7 @@ export function CreativeRow({
         // Same gap as the Recommendations queue: a dense `divide-y` list where every row carries
         // its own controls, and nothing responded to the pointer — so which row an action belonged
         // to was only knowable by aiming carefully. `focus-within` gives keyboard users the anchor.
-        "hover:bg-secondary/40 focus-within:bg-secondary/40"
+        "hover:bg-primary/10 focus-within:bg-secondary/40"
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">

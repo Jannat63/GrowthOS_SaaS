@@ -275,7 +275,7 @@ export default function GrowthHubPage() {
             <h2 className="font-display text-lg font-semibold tracking-tight text-foreground">
               Blended MER trend
             </h2>
-            <Link href="/analytics" className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
+            <Link href="/analytics" className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary">
               Analytics <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -341,7 +341,7 @@ export default function GrowthHubPage() {
                   <li key={r.id}>
                     <Link
                       href={TYPE_HREF[r.type] ?? "/recommendations"}
-                      className="-mx-2 flex items-start gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-secondary"
+                      className="-mx-2 flex items-start gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-primary/10"
                     >
                       <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", TYPE_DOT[r.type] ?? "bg-primary")} />
                       <span className="min-w-0 flex-1">
@@ -443,7 +443,7 @@ function ChannelStrip({
       ) : (
         <Link
           href="/settings"
-          className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary"
         >
           Manage <ArrowUpRight className="h-3.5 w-3.5" />
         </Link>
@@ -534,7 +534,7 @@ function StatTile({
   series?: number[];
 }) {
   const body = (
-    <Card className={cn("@container flex h-full flex-col p-5", href && "transition-colors hover:border-primary/40 hover:bg-secondary/40")}>
+    <Card className={cn("@container flex h-full flex-col p-5", href && "transition-colors hover:border-primary/40 hover:bg-primary/10")}>
       {/* Two lines reserved whether the label needs them or not. At six columns "Organic clicks
           (30d)" wraps while "Revenue (30d)" does not, which pushed half the row's values a line
           lower than the other half and broke the one thing a row of tiles is for — comparing them
@@ -610,7 +610,7 @@ function WorkQueue({
             <li key={type}>
               <Link
                 href={href}
-                className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-secondary"
+                className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-3 transition-colors hover:bg-primary/10"
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Icon className="h-4 w-4" />

@@ -125,7 +125,7 @@ export default function RecommendationsPage() {
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 view === v.key
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:bg-secondary/60"
+                  : "border-border text-muted-foreground hover:bg-primary/10"
               )}
             >
               {v.label}
@@ -145,7 +145,7 @@ export default function RecommendationsPage() {
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
               mineOnly
                 ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:bg-secondary/60"
+                : "border-border text-muted-foreground hover:bg-primary/10"
             )}
           >
             Assigned to me

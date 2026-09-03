@@ -83,7 +83,7 @@ export function CoreWebVitalsCard({ workspaceId }: { workspaceId: string | null 
             aria-pressed={strategy === "mobile"}
             className={cn(
               "flex h-full items-center gap-1.5 px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-              strategy === "mobile" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"
+              strategy === "mobile" ? "bg-primary text-primary-foreground" : "hover:bg-primary/10"
             )}
           >
             <Smartphone className="h-3.5 w-3.5" aria-hidden="true" /> Mobile
@@ -94,7 +94,7 @@ export function CoreWebVitalsCard({ workspaceId }: { workspaceId: string | null 
             aria-pressed={strategy === "desktop"}
             className={cn(
               "flex h-full items-center gap-1.5 px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-              strategy === "desktop" ? "bg-primary text-primary-foreground" : "hover:bg-secondary"
+              strategy === "desktop" ? "bg-primary text-primary-foreground" : "hover:bg-primary/10"
             )}
           >
             <Monitor className="h-3.5 w-3.5" aria-hidden="true" /> Desktop

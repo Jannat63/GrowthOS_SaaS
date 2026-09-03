@@ -111,7 +111,7 @@ export default function CookiesPage() {
           <p className="mt-2 text-muted-foreground">
             Questions about this policy? Contact us at{" "}
             <Detail value={LEGAL.privacyEmail} label="PRIVACY EMAIL" />. See also our{" "}
-            <a href="/privacy" className="underline underline-offset-4 hover:text-foreground">
+            <a href="/privacy" className="underline underline-offset-4 hover:text-primary">
               Privacy Policy
             </a>
             .

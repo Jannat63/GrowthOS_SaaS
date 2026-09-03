@@ -43,7 +43,7 @@ export const PasswordInput = forwardRef<
         aria-pressed={visible}
         className={cn(
           "absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md",
-          "text-muted-foreground transition-colors hover:text-foreground",
+          "text-muted-foreground transition-colors hover:text-primary",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         )}
       >

@@ -74,7 +74,7 @@ export function WebhooksSection({ workspaceId }: { workspaceId: string | null })
           href="https://www.standardwebhooks.com"
           target="_blank"
           rel="noreferrer"
-          className="underline underline-offset-4 hover:text-foreground"
+          className="underline underline-offset-4 hover:text-primary"
         >
           Standard Webhooks
         </a>{" "}

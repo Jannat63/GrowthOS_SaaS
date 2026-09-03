@@ -115,7 +115,7 @@ export function RecommendationRow({
           `focus-within` gives keyboard users the same anchor, which the pointer-only version left
           out. Both sit above the status tints above, so an acted row still reads as acted.
         */
-        "hover:bg-secondary/40 focus-within:bg-secondary/40"
+        "hover:bg-primary/10 focus-within:bg-secondary/40"
       )}
     >
       {/* Scan line: the same four facts in the same order on every row, so the eye can run down

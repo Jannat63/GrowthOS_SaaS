@@ -45,7 +45,7 @@ export function OperatorMenu({ platformRole }: { platformRole: PlatformRole }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         className={
-          "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         }
       >
         <span className="max-w-[10rem] truncate font-medium text-foreground">

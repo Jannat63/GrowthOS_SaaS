@@ -104,7 +104,7 @@ export default function TermsPage() {
             You retain ownership of the content and data you connect to or upload into the
             Service (&quot;Customer Data&quot;). You grant us a license to host, process, and
             display Customer Data solely to provide and improve the Service. See our{" "}
-            <a href="/privacy" className="underline underline-offset-4 hover:text-foreground">
+            <a href="/privacy" className="underline underline-offset-4 hover:text-primary">
               Privacy Policy
             </a>{" "}
             for how we handle personal data.

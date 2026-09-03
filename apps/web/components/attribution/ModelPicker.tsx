@@ -67,7 +67,7 @@ export function ModelPicker({
                 "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 active
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                  : "border-border text-muted-foreground hover:bg-primary/10 hover:text-primary",
               )}
             >
               <WeightGlyph model={m.key} active={active} />

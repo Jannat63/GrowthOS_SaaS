@@ -44,7 +44,7 @@ export function ApiKeysSection({ workspaceId }: { workspaceId: string | null }) 
       <p className="mt-1 text-sm text-muted-foreground">
         Read access to your recommendations, keyword rankings, and weekly report from your own
         scripts or tools like Zapier.{" "}
-        <a href={`${API_URL}/api/public/v1/docs`} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">
+        <a href={`${API_URL}/api/public/v1/docs`} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-primary">
           View API docs
         </a>
         .

@@ -78,7 +78,7 @@ export function RecommendationQueue({
                   onBlur={() => onHoverChannels(null)}
                   className={cn(
                     "-mx-2 flex w-full flex-col gap-1 rounded-lg px-2 py-3 text-left",
-                    "transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
+                    "transition-colors hover:bg-primary/10 focus-visible:bg-secondary focus-visible:outline-none"
                   )}
                 >
                   <div className="flex items-center justify-between gap-3">

@@ -26,7 +26,7 @@ export function MobileNav() {
   return (
     <Dialog>
       <DialogTrigger
-        className="flex h-9 w-9 items-center justify-center rounded-lg border transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+        className="flex h-9 w-9 items-center justify-center rounded-lg border transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
         aria-label="Open navigation menu"
       >
         <Menu className="h-4 w-4" />
@@ -81,7 +81,7 @@ export function MobileNav() {
                             "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                             active
                               ? "bg-ink-2 text-ink-foreground"
-                              : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
+                              : "text-ink-muted hover:bg-primary/10 hover:text-primary"
                           )}
                         >
                           <Icon className={cn("h-4 w-4 shrink-0", active && "text-primary")} />
@@ -103,7 +103,7 @@ export function MobileNav() {
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                   pathname === "/settings"
                     ? "bg-ink-2 text-ink-foreground"
-                    : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
+                    : "text-ink-muted hover:bg-primary/10 hover:text-primary"
                 )}
               >
                 <Settings className="h-4 w-4 shrink-0" />

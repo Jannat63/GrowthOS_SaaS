@@ -108,7 +108,7 @@ export function SchemaMarkupGenerator({ workspaceId }: { workspaceId: string | n
             </pre>
             <button
               onClick={copyJson}
-              className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+              className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-primary/10"
             >
               {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "Copied" : "Copy"}

@@ -82,7 +82,7 @@ function Chip({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         active
           ? "border-primary/40 bg-primary/10 text-primary"
-          : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
+          : "border-border text-muted-foreground hover:bg-primary/10 hover:text-primary"
       )}
     >
       {children}
@@ -207,7 +207,7 @@ function PageButton({
       disabled={disabled}
       onClick={onClick}
       aria-label={label}
-      className="flex h-7 w-7 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex h-7 w-7 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {children}
     </button>
@@ -234,7 +234,7 @@ export function LinkedRow({ tone = "neutral", children }: { tone?: Tone; childre
       className={cn(
         // `group` so a cell can react to the row being hovered — the title turning into a link
         // colour, chiefly, which is what tells you the row is clickable before you click it.
-        "group relative border-l-2 transition-colors hover:bg-secondary/50 focus-within:bg-secondary/50",
+        "group relative border-l-2 transition-colors hover:bg-primary/10 focus-within:bg-secondary/50",
         spineClass(tone)
       )}
     >

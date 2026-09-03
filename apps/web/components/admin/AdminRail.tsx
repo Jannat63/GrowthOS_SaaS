@@ -41,7 +41,7 @@ import { RailMarker } from "@/components/layout/RailMarker";
 // Ghost icon button restyled for the dark ink rail (tailwind-merge overrides the default light
 // accent hover). Same constant as the dashboard sidebar, for the same reason.
 const INK_ICON_BTN =
-  "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground focus-visible:ring-primary/60 focus-visible:ring-offset-0";
+  "text-ink-muted hover:bg-primary/10 hover:text-primary focus-visible:ring-primary/60 focus-visible:ring-offset-0";
 
 type Item = { href: string; label: string; icon: typeof LayoutGrid; superAdminOnly?: boolean };
 
@@ -160,13 +160,13 @@ export function AdminRail({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                 collapsed ? "justify-center px-0" : "gap-3 px-3",
                 active
                   ? "bg-ink-2 text-ink-foreground"
-                  : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
+                  : "text-ink-muted hover:bg-primary/10 hover:text-primary"
               )}
             >
               <Icon
                 className={cn(
                   "h-4 w-4 shrink-0 transition-colors",
-                  active ? "text-primary" : "text-ink-muted group-hover:text-ink-foreground"
+                  active ? "text-primary" : "text-ink-muted group-hover:text-primary"
                 )}
                 aria-hidden="true"
               />
@@ -192,7 +192,7 @@ export function AdminRail({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             collapsed ? "justify-center px-0" : "gap-3 px-3",
             pathname === "/admin/security"
               ? "bg-ink-2 text-ink-foreground"
-              : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
+              : "text-ink-muted hover:bg-primary/10 hover:text-primary"
           )}
         >
           <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -230,7 +230,7 @@ export function AdminNavStrip({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               active
                 ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
             )}
           >
             <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />

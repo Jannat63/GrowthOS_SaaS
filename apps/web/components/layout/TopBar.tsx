@@ -65,7 +65,7 @@ export function TopBar() {
 
       {/* Workspace switcher */}
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <DropdownMenuTrigger className="flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary text-[0.65rem] font-semibold text-primary-foreground">
             {(active?.workspace.name ?? "W")[0]?.toUpperCase()}
           </span>
@@ -136,7 +136,7 @@ export function TopBar() {
               which workspace you are in. */}
           <DropdownMenuItem asChild className="mx-1 my-1 rounded-md px-2 py-2">
             <Link href="/create-workspace" className="flex items-center gap-2.5 text-sm">
-              <Plus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <Plus className="h-4 w-4" aria-hidden="true" />
               Create workspace
             </Link>
           </DropdownMenuItem>

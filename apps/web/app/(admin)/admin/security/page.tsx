@@ -196,7 +196,7 @@ export default function AdminSecurityPage() {
 
             {/* The fallback, folded away: scanning is the path almost everyone takes. */}
             <details className="group">
-              <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+              <summary className="cursor-pointer text-sm text-muted-foreground hover:text-primary">
                 Can&rsquo;t scan? Enter it by hand
               </summary>
               <div className="mt-3 space-y-3">

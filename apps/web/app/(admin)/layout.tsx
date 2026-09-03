@@ -144,7 +144,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <button
                 type="button"
                 onClick={() => palette.setOpen(true)}
-                className="flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-md border border-input bg-transparent px-3 text-left text-sm text-muted-foreground transition-colors hover:border-ring/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-md"
+                className="flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-md border border-input bg-transparent px-3 text-left text-sm text-muted-foreground transition-colors hover:border-ring/50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-md"
               >
                 <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="truncate">Find an account, a person, an id…</span>

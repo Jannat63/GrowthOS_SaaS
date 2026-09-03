@@ -77,7 +77,7 @@ export function ModelMatrix({
                       className={cn(
                         "h-12 w-full whitespace-nowrap px-4 text-right font-medium transition-colors",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                        active ? "text-primary" : "hover:text-foreground",
+                        active ? "text-primary" : "hover:text-primary",
                       )}
                     >
                       {m.label}

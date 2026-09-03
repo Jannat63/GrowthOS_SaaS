@@ -183,7 +183,7 @@ function ExperimentRow({
 
   // Carries its own conclude controls, so it takes the same hover as the other action rows.
   return (
-    <li className="rounded-lg border bg-secondary/30 p-4 transition-colors hover:bg-secondary/50 focus-within:bg-secondary/50">
+    <li className="rounded-lg border bg-secondary/30 p-4 transition-colors hover:bg-primary/10 focus-within:bg-secondary/50">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <p className="text-sm font-medium">{experiment.hypothesis}</p>
         <Badge variant={STATUS_VARIANT[experiment.status]}>{experiment.status}</Badge>

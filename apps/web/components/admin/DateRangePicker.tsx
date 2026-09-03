@@ -100,7 +100,7 @@ export function DateRangePicker({
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 p.days === null && !value
                   ? "border-primary/40 bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  : "border-border text-muted-foreground hover:bg-primary/10 hover:text-primary"
               )}
             >
               {p.label}

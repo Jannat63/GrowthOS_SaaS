@@ -222,7 +222,7 @@ function PresetButton({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         active
           ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+          : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
       )}
     >
       {label}

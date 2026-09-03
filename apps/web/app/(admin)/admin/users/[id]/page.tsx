@@ -168,7 +168,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                         "rounded-lg border px-3 py-2 text-left transition-colors",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         "disabled:cursor-default disabled:opacity-60",
-                        selected ? "border-primary/50 bg-primary/10" : "border-border hover:bg-secondary"
+                        selected ? "border-primary/50 bg-primary/10" : "border-border hover:bg-primary/10"
                       )}
                     >
                       <span className="flex items-center gap-2 text-sm font-medium">
@@ -331,7 +331,7 @@ function BackLink() {
   return (
     <Link
       href="/admin/users"
-      className="inline-flex items-center gap-1.5 rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="inline-flex items-center gap-1.5 rounded-sm text-sm text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> All people
     </Link>

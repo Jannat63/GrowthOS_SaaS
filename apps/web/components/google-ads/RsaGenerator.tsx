@@ -124,7 +124,7 @@ function RsaList({
                 type="button"
                 onClick={() => onCopy(text)}
                 aria-label="Copy"
-                className="text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                className="text-muted-foreground opacity-0 transition-opacity hover:text-primary group-hover:opacity-100"
               >
                 {copied === text ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
               </button>

@@ -105,7 +105,7 @@ function SignInForm() {
             <Label htmlFor="password">Password</Label>
             <Link
               href="/sign-in"
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-xs text-muted-foreground hover:text-primary"
             >
               Forgot password?
             </Link>

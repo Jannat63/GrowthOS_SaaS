@@ -826,7 +826,7 @@ function Row({
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-3 border-l-2 py-2.5 pl-3 pr-2 transition-colors hover:bg-secondary/60",
+        "flex items-center gap-3 border-l-2 py-2.5 pl-3 pr-2 transition-colors hover:bg-primary/10",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
         spineClass(tone)
       )}

@@ -108,7 +108,7 @@ export default function AdminWorkspaceDetailPage({
               href={ws.websiteUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 rounded-sm underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex items-center gap-1 rounded-sm underline-offset-4 hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {ws.websiteUrl.replace(/^https?:\/\//, "")}
               <ExternalLink className="h-3 w-3" aria-hidden="true" />
@@ -617,7 +617,7 @@ function BackLink() {
   return (
     <Link
       href="/admin/workspaces"
-      className="inline-flex items-center gap-1.5 rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="inline-flex items-center gap-1.5 rounded-sm text-sm text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> All workspaces
     </Link>

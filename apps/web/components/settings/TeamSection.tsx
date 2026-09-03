@@ -144,7 +144,7 @@ export function TeamSection({
               className="max-w-xs"
             />
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium capitalize transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium capitalize transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 {role}
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
               </DropdownMenuTrigger>

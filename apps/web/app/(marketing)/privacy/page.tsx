@@ -115,7 +115,7 @@ export default function PrivacyPage() {
             are read-only; each workspace&apos;s data is isolated and every data request is checked
             against your membership and role in it; and platform staff accounts require two-factor
             authentication. We hold no third-party security certification — our{" "}
-            <a href="/security" className="underline underline-offset-4 hover:text-foreground">
+            <a href="/security" className="underline underline-offset-4 hover:text-primary">
               security page
             </a>{" "}
             says so in more detail. No method of transmission or storage is completely secure, and
@@ -143,7 +143,7 @@ export default function PrivacyPage() {
             where analytics is enabled for this deployment — one analytics cookie. You are asked
             once, in a banner, and can change the answer at any time from the Cookie Policy. See
             our{" "}
-            <a href="/cookies" className="underline underline-offset-4 hover:text-foreground">
+            <a href="/cookies" className="underline underline-offset-4 hover:text-primary">
               Cookie Policy
             </a>{" "}
             for the full list and how to control them.

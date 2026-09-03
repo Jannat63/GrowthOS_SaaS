@@ -28,7 +28,7 @@ export function SiteHeader() {
             <Link
               key={l.href}
               href={l.href}
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="text-sm text-muted-foreground transition-colors hover:text-primary"
             >
               {l.label}
             </Link>
@@ -49,7 +49,7 @@ export function SiteHeader() {
             aria-expanded={open}
             aria-controls="mobile-nav"
             aria-label={open ? "Close menu" : "Open menu"}
-            className="ml-0.5 inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
+            className="ml-0.5 inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -68,7 +68,7 @@ export function SiteHeader() {
                 <Link
                   href={l.href}
                   onClick={() => setOpen(false)}
-                  className="block rounded-md py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  className="block rounded-md py-2.5 text-sm text-muted-foreground transition-colors hover:text-primary"
                 >
                   {l.label}
                 </Link>
@@ -78,7 +78,7 @@ export function SiteHeader() {
               <Link
                 href="/sign-in"
                 onClick={() => setOpen(false)}
-                className="block rounded-md py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                className="block rounded-md py-2.5 text-sm text-muted-foreground transition-colors hover:text-primary"
               >
                 Sign in
               </Link>
