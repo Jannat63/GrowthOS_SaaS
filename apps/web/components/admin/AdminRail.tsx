@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   PanelLeftClose,
   PanelLeftOpen,
+  PenLine,
   ScrollText,
   ShieldAlert,
   ShieldCheck,
@@ -44,10 +45,28 @@ const INK_ICON_BTN =
 
 type Item = { href: string; label: string; icon: typeof LayoutGrid; superAdminOnly?: boolean };
 
+/**
+ * Which section you are in.
+ *
+ * A section owns its subtree, so reading a post keeps Blog lit and opening an account keeps People
+ * lit — previously this was an exact match and every detail page put the rail in a state that
+ * claimed you were nowhere.
+ *
+ * `/admin` is the exception and the reason the exact match existed: it is a prefix of every other
+ * href, so as a prefix rule it would light Overview on every page in the console.
+ */
+function isActive(pathname: string, href: string): boolean {
+  if (href === "/admin") return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 const SECTIONS: Item[] = [
   { href: "/admin", label: "Overview", icon: LayoutGrid },
   { href: "/admin/workspaces", label: "Workspaces", icon: Building2 },
   { href: "/admin/users", label: "People", icon: Users },
+  // Super-admin only, matching who can actually write one. The API lets a support agent read the
+  // list, but a section offering "New post" to someone whose save will 403 is worse than no section.
+  { href: "/admin/blog", label: "Blog", icon: PenLine, superAdminOnly: true },
   { href: "/admin/audit-log", label: "Audit log", icon: ScrollText, superAdminOnly: true },
 ];
 
@@ -126,8 +145,7 @@ export function AdminRail({ isSuperAdmin }: { isSuperAdmin: boolean }) {
         <RailMarker />
         <div className="space-y-1">
         {sections.map(({ href, label, icon: Icon }) => {
-          // Exact match only: /admin must not light up while you are on /admin/users.
-          const active = pathname === href;
+          const active = isActive(pathname, href);
           return (
             <Link
               key={href}
@@ -201,7 +219,7 @@ export function AdminNavStrip({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       className="flex gap-1 overflow-x-auto border-b p-2 md:hidden"
     >
       {sections.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href;
+        const active = isActive(pathname, href);
         return (
           <Link
             key={href}

@@ -30,6 +30,14 @@ export const AUDIT_ACTIONS: Record<string, { label: string; mutating?: boolean }
   "user.revoke_sessions": { label: "Signed someone out", mutating: true },
   "health.view": { label: "Viewed the overview" },
   "audit_log.view": { label: "Read the audit log" },
+  "blog.list": { label: "Browsed the blog" },
+  "blog.view": { label: "Opened a post" },
+  "blog.create": { label: "Started a post", mutating: true },
+  "blog.update": { label: "Edited a post", mutating: true },
+  "blog.publish": { label: "Published a post", mutating: true },
+  "blog.unpublish": { label: "Unpublished a post", mutating: true },
+  "blog.feature": { label: "Changed the pinned post", mutating: true },
+  "blog.delete": { label: "Deleted a draft", mutating: true },
 };
 
 export function auditActionLabel(action: string): string {
@@ -112,6 +120,38 @@ export function AuditDetail({ action, metadata }: { action: string; metadata: un
     );
   }
 
+  if (action.startsWith("blog.")) {
+    // Deliberately not routed through `Detail`: that helper flags a missing reason in gold, which
+    // is right for a change to a customer's account and wrong here — blog writes carry no reason by
+    // design (see D-B4), so warning about every one of them would be the log crying wolf.
+    const title = str(meta?.title);
+    const slug = str(meta?.slug);
+    const slugBefore = str(meta?.slugBefore);
+    const slugAfter = str(meta?.slugAfter);
+
+    return (
+      <div className="space-y-1">
+        {title ? (
+          <p className="text-sm leading-relaxed">{title}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground/60">
+            —
+            <Repeats metadata={meta} />
+          </p>
+        )}
+        {slugBefore && slugAfter ? (
+          // The one blog edit that breaks something outside the console, so it is the one spelled
+          // out rather than left to be inferred from a title.
+          <p className="font-mono text-xs text-warning">
+            /blog/{slugBefore} → /blog/{slugAfter}
+          </p>
+        ) : (
+          slug && <p className="font-mono text-xs text-muted-foreground">/blog/{slug}</p>
+        )}
+      </div>
+    );
+  }
+
   if (action === "workspace.list" || action === "user.list") {
     const term = str(meta?.search);
     const filter = str(meta?.filter);
@@ -183,7 +223,9 @@ export function AuditTarget({ entry }: { entry: AdminAuditLogEntry }) {
       ? `/admin/workspaces/${entry.targetId}`
       : entry.targetType === "user"
         ? `/admin/users/${entry.targetId}`
-        : null;
+        : entry.targetType === "blog_post"
+          ? `/admin/blog/${entry.targetId}`
+          : null;
 
   if (!href) {
     return (

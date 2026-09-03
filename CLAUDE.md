@@ -149,6 +149,20 @@ pnpm --filter @growthos/web build  # next build (verifies all pages compile)
   dev CSS (every page rendered with zero styles), and once the dev server recompiled onto production
   chunks and every request died with `__webpack_modules__[moduleId] is not a function`. If either
   symptom appears, stop the dev server, delete both output dirs, and restart — don't debug the app.
+- **`@better-fetch/fetch` must resolve to exactly one version, and it must be the one `better-auth`
+  pins.** This has broken three times and never looks like what it is. The symptom is a wall of
+  Better Auth *client* type errors — `organizationClient()` / `twoFactorClient()` "not assignable to
+  `BetterAuthClientPlugin`" — and, following from that, the `additionalFields` disappearing:
+  `phone` and `platformRole` stop existing on `session.user`, breaking admin pages that never
+  touched auth. The cause is that `better-call` asks for `^1.1.21` while `better-auth` pins `1.3.1`
+  exactly, so two copies exist, `@better-auth/core` gets resolved against both, and a plugin built
+  by one copy is a structurally different type from the one the other expects.
+  **The fix is to keep `apps/web`'s direct dependency on the version `better-auth` uses (1.3.1) —
+  `apps/web/middleware.ts` imports `betterFetch` directly, so the dependency is real and must not be
+  removed.** `pnpm dedupe` does NOT fix it: the lockfile already satisfies `^1.1.21` at 1.1.21, so
+  there is nothing to dedupe. A `pnpm.overrides` entry in the root `package.json` guards fresh
+  installs; note it has no effect on an already-resolved lockfile, and that pnpm 11.0.9 does not read
+  an `overrides:` key from `pnpm-workspace.yaml` at all.
 
 Tests use **vitest**. The engine unit suite lives in `@growthos/logic`; `apps/api` has route/integration
 tests (they need local Redis + ClickHouse via Docker, and Neon via `apps/api/.env`); `apps/web` keeps a small

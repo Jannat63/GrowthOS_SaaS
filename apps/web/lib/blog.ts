@@ -1,73 +1,84 @@
-import fs from "node:fs";
-import path from "node:path";
-import matter from "gray-matter";
+import type { BlogPost, BlogPostSummary } from "@growthos/types";
 
 /**
- * Local MDX, read at build time. No CMS and no database call — posts are files in the repo, so
- * they version with the code and cost nothing to serve. Swap the reader if that ever changes;
- * every consumer goes through these three functions.
+ * The public blog's reader.
+ *
+ * These were MDX files read off disk with `fs` at build time. They are rows now, written in the
+ * Super Admin console, so this reads the API's public endpoints instead. The shape of the module is
+ * unchanged on purpose — every consumer still goes through these functions, which is what made
+ * swapping the source a contained change rather than a rewrite.
+ *
+ * **Still statically rendered.** Each call is cached by Next with a 300s revalidate window, so a
+ * crawler and a reader both get pre-rendered HTML exactly as before. Publishing does not wait for
+ * that window: the API pings /api/revalidate on write (see apps/api/src/blog-revalidate.ts), so a
+ * post appears immediately.
+ *
+ * **A failure here is never a 500.** The marketing site used to be files that could not fail, and
+ * moving it behind a service must not make an API blip take the front of the site down with it —
+ * so the list falls back to empty, a post falls back to null, and the pages render their existing
+ * "no posts" and 404 states. Loudly logged, quietly survived.
  */
 
-const BLOG_DIR = path.join(process.cwd(), "content", "blog");
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
-export type PostMeta = {
-  slug: string;
-  title: string;
-  description: string;
-  /** ISO date. */
-  date: string;
-  tag: string;
-  readingMinutes: number;
-};
+/** Long enough that the blog costs the API almost nothing; irrelevant in practice, because a
+ *  publish revalidates on demand rather than waiting this out. */
+const REVALIDATE_SECONDS = 300;
 
-export type Post = PostMeta & { body: string };
+/** The tag every blog fetch carries, so one `revalidateTag` can clear all of them at once. */
+export const BLOG_CACHE_TAG = "blog";
 
-function readFileForSlug(slug: string) {
-  const full = path.join(BLOG_DIR, `${slug}.mdx`);
-  if (!fs.existsSync(full)) return null;
-  return fs.readFileSync(full, "utf8");
+export type { BlogPost, BlogPostSummary };
+
+async function read<T>(path: string, fallback: T): Promise<T> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1${path}`, {
+      next: { revalidate: REVALIDATE_SECONDS, tags: [BLOG_CACHE_TAG] },
+    });
+    // 404 is an answer, not a failure — a post that does not exist should not log an error on every
+    // crawl of a stale link.
+    if (res.status === 404) return fallback;
+    if (!res.ok) {
+      console.error(`[blog] ${path} returned ${res.status}`);
+      return fallback;
+    }
+    return (await res.json()) as T;
+  } catch (err) {
+    console.error(`[blog] could not reach the API for ${path}`, err);
+    return fallback;
+  }
 }
 
-function toMeta(slug: string, raw: string): Post {
-  const { data, content } = matter(raw);
-  const words = content.trim().split(/\s+/).length;
-  return {
-    slug,
-    title: String(data.title ?? slug),
-    description: String(data.description ?? ""),
-    date: String(data.date ?? ""),
-    tag: String(data.tag ?? "Notes"),
-    // 220wpm is a reasonable pace for this kind of prose; rounded up so a 30-second read
-    // never displays as "0 min".
-    readingMinutes: Math.max(1, Math.round(words / 220)),
-    body: content,
-  };
+export async function getAllPosts(): Promise<BlogPostSummary[]> {
+  const result = await read<{ data: BlogPostSummary[]; total: number }>("/blog?limit=100", {
+    data: [],
+    total: 0,
+  });
+  return result.data;
 }
 
-export function getPostSlugs(): string[] {
-  if (!fs.existsSync(BLOG_DIR)) return [];
-  return fs
-    .readdirSync(BLOG_DIR)
-    .filter((f) => f.endsWith(".mdx"))
-    .map((f) => f.replace(/\.mdx$/, ""));
+export async function getPost(slug: string): Promise<BlogPost | null> {
+  return read<BlogPost | null>(`/blog/${encodeURIComponent(slug)}`, null);
 }
 
-export function getPost(slug: string): Post | null {
-  const raw = readFileForSlug(slug);
-  return raw ? toMeta(slug, raw) : null;
+/** The two posts under "keep reading". Its own endpoint, so a post page never loads the whole index. */
+export async function getRelatedPosts(slug: string): Promise<BlogPostSummary[]> {
+  const result = await read<{ data: BlogPostSummary[] }>(
+    `/blog/${encodeURIComponent(slug)}/related`,
+    { data: [] }
+  );
+  return result.data;
 }
 
-export function getAllPosts(): PostMeta[] {
-  return getPostSlugs()
-    .map((slug) => getPost(slug))
-    .filter((p): p is Post => p !== null)
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .map(({ body: _body, ...meta }) => meta);
+export async function getPostSlugs(): Promise<string[]> {
+  const result = await read<{ data: string[] }>("/blog/slugs", { data: [] });
+  return result.data;
 }
 
-export function formatPostDate(iso: string): string {
+/** `July 15, 2026`. Unchanged from the file-based version — the same posts must read the same way. */
+export function formatPostDate(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
+  if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
