@@ -389,6 +389,28 @@
   animation: view-enter var(--motion-view) var(--ease-settle) both;
 }
 
+/* Switching a tab replaces the panel under the strip, so the panel settles down onto
+   the strip you just clicked - the vertical axis, because that is where the tabs sit
+   relative to it. Same reasoning as .page-enter coming off the rail horizontally.
+
+   4px rather than the 8px a full-screen view uses: this is one panel inside a page
+   that is otherwise holding still, and the heading it lands under does not move.
+   Radix unmounts the inactive panel, so the animation plays on mount, which is
+   exactly the moment the content changed. */
+@keyframes tab-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.tab-enter {
+  animation: tab-enter var(--motion-page) var(--ease-settle) both;
+}
+
 /* The ember edge on the active rail item, which travels between sections instead of
    cutting. It is the one place the navigation raises its voice, so everything else
    in the transition stays quiet. `top`/`height` rather than a transform: the bar is
@@ -409,7 +431,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .page-enter,
-  .view-enter {
+  .view-enter,
+  .tab-enter {
     animation: none;
   }
   .rail-marker,
