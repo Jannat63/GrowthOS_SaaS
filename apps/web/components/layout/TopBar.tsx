@@ -1,7 +1,8 @@
 "use client";
 import { useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronsUpDown, LogOut, Check } from "lucide-react";
+import { ChevronsUpDown, LogOut, Check, ShieldAlert } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -13,9 +14,8 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { signOut } from "@/lib/auth/client";
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
+import { useAdminAccess } from "@/lib/hooks/useAdmin";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
-import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
-import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationCenter } from "@/components/layout/NotificationCenter";
 import { MobileNav } from "@/components/layout/MobileNav";
@@ -27,6 +27,12 @@ export function TopBar() {
 
   const memberships = data?.data.memberships ?? [];
   const user = data?.data.user;
+
+  // Returns null (not an error) for everyone without a platform role, and `/admin/me` is the one
+  // admin route that writes no audit-log row — so asking on every dashboard load costs a cached
+  // request and nothing in the compliance record.
+  const { data: adminAccess } = useAdminAccess();
+  const platformRole = adminAccess?.platformRole ?? null;
 
   // Default the active workspace to the first membership once loaded.
   useEffect(() => {
@@ -88,8 +94,10 @@ export function TopBar() {
       </div>
 
       {/* Right side */}
+      {/* The cross-channel DataSourceBadge used to sit here as well as in each page header —
+          same words, same colour, ~130px apart. The page-level one is the more useful of the two
+          because it is scoped to the module being read, so this copy is gone. */}
       <div className="flex items-center gap-2.5">
-        <DataSourceBadge source={data?.source ?? "mock"} platform={MODULE_PLATFORMS.crossChannel} />
         <NotificationCenter workspaceId={active?.workspaceId ?? null} />
         <ThemeToggle />
         <DropdownMenu>
@@ -109,6 +117,26 @@ export function TopBar() {
               </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {/*
+              The only route into the admin console from inside the product.
+
+              Platform staff sign in through the ordinary customer flow, so an admin with no
+              workspace of their own lands in onboarding with nothing anywhere on screen saying the
+              panel exists — the URL had to be known and typed. It sits in the account menu rather
+              than the sidebar because a platform role belongs to the person, not to the workspace
+              they happen to be looking at.
+            */}
+            {platformRole && (
+              <>
+                <DropdownMenuItem asChild>
+                  <Link href="/admin">
+                    <ShieldAlert className="mr-2 h-4 w-4 text-warning" />
+                    Admin console
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign out

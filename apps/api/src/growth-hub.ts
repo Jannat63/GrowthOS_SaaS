@@ -1,4 +1,12 @@
-import type { GrowthHubResponse } from '@growthos/types'
+import type { GrowthHubDaily, GrowthHubResponse } from '@growthos/types'
+import {
+  getDataBounds,
+  previousWindow,
+  resolveWindow,
+  windowLength,
+  type DateWindow,
+  type DateWindowQuery,
+} from './date-window.js'
 import { getClickhouse, ensureAdPerformanceSeed, REVENUE_FACTOR } from './analytics.js'
 import { ensureOrganicTrafficSeed } from './seo.js'
 
@@ -8,20 +16,16 @@ import { ensureOrganicTrafficSeed } from './seo.js'
  * Also carries the Goal Simulator's baseline, since it is derived from exactly these aggregates —
  * a separate endpoint would run the same two queries again.
  *
- * WINDOWING — the important detail. Both windows are measured backwards from the most recent date
- * *present in the data*, not from `today()`. Every seeded workspace is anchored at a fixed base date
- * (see `seedRows` in analytics.ts / seo.ts), so a calendar-relative `date >= today() - 30` returns
- * zero rows for them while returning real numbers for a GSC-connected workspace — the dashboard
- * would read as empty for exactly the workspaces that have no live integration yet. Measuring from
- * `max(date)` gives "the last 30 days of data you have", which is the same semantics `getMerTrend`
- * already uses (`ORDER BY date DESC LIMIT days`) and stays correct once real syncs stamp today.
+ * WINDOWING. The window is an explicit inclusive `[from, to]` (see date-window.ts), and every
+ * delta compares it against the equal-length window immediately before it. When the caller sends no
+ * range, the default is anchored to the newest day with DATA rather than to `today()`: seeded
+ * workspaces sit at a fixed date in the past, so a calendar-relative default would return zero rows
+ * for exactly the workspaces that have no live integration yet and the dashboard would read as
+ * empty. The date picker anchors its presets the same way, against the `dataFrom`/`dataThrough`
+ * bounds returned here.
  *
- * Paid and organic are windowed independently against their own `max(date)`: they are fed by
- * different pipelines (ad_performance is seeded/ads-synced, organic_traffic is GSC-synced) and can
- * legitimately be current to different days.
- */
-
-const DEFAULT_WINDOW_DAYS = 30
+ * Both tables are queried over the same window. `getDataBounds` narrows the bounds to the span both
+ * pipelines cover, so a range the picker allows is never half-empty. */
 
 interface AdAggregates {
   googleSpendCur: number
@@ -37,27 +41,25 @@ interface AdAggregates {
   clicksCur: number
 }
 
-async function queryAdAggregates(workspaceId: string, days: number): Promise<AdAggregates> {
+async function queryAdAggregates(workspaceId: string, w: DateWindow): Promise<AdAggregates> {
+  const prev = previousWindow(w)
   const rs = await getClickhouse().query({
     query: `
-      WITH (SELECT max(date) FROM ad_performance WHERE workspace_id = {ws:String}) AS maxDate,
-           subtractDays(maxDate, {days:UInt32}) AS curStart,
-           subtractDays(maxDate, {days2:UInt32}) AS prevStart
       SELECT
-        toFloat64(sumIf(spend, platform = 'google_ads' AND date > curStart)) AS googleSpendCur,
-        toFloat64(sumIf(spend, platform = 'google_ads' AND date > prevStart AND date <= curStart)) AS googleSpendPrev,
-        toFloat64(sumIf(spend, platform = 'meta_ads' AND date > curStart)) AS metaSpendCur,
-        toFloat64(sumIf(spend, platform = 'meta_ads' AND date > prevStart AND date <= curStart)) AS metaSpendPrev,
-        toFloat64(sumIf(conversion_value, date > curStart)) AS convValueCur,
-        toFloat64(sumIf(conversion_value, date > prevStart AND date <= curStart)) AS convValuePrev,
-        toFloat64(sumIf(conversions, date > curStart)) AS conversionsCur,
-        toFloat64(sumIf(conversions, date > prevStart AND date <= curStart)) AS conversionsPrev,
-        toFloat64(sumIf(conversions, platform = 'google_ads' AND date > curStart)) AS googleConversionsCur,
-        toFloat64(sumIf(conversions, platform = 'meta_ads' AND date > curStart)) AS metaConversionsCur,
-        toFloat64(sumIf(clicks, date > curStart)) AS clicksCur
+        toFloat64(sumIf(spend, platform = 'google_ads' AND date >= {from:Date} AND date <= {to:Date})) AS googleSpendCur,
+        toFloat64(sumIf(spend, platform = 'google_ads' AND date >= {pFrom:Date} AND date <= {pTo:Date})) AS googleSpendPrev,
+        toFloat64(sumIf(spend, platform = 'meta_ads' AND date >= {from:Date} AND date <= {to:Date})) AS metaSpendCur,
+        toFloat64(sumIf(spend, platform = 'meta_ads' AND date >= {pFrom:Date} AND date <= {pTo:Date})) AS metaSpendPrev,
+        toFloat64(sumIf(conversion_value, date >= {from:Date} AND date <= {to:Date})) AS convValueCur,
+        toFloat64(sumIf(conversion_value, date >= {pFrom:Date} AND date <= {pTo:Date})) AS convValuePrev,
+        toFloat64(sumIf(conversions, date >= {from:Date} AND date <= {to:Date})) AS conversionsCur,
+        toFloat64(sumIf(conversions, date >= {pFrom:Date} AND date <= {pTo:Date})) AS conversionsPrev,
+        toFloat64(sumIf(conversions, platform = 'google_ads' AND date >= {from:Date} AND date <= {to:Date})) AS googleConversionsCur,
+        toFloat64(sumIf(conversions, platform = 'meta_ads' AND date >= {from:Date} AND date <= {to:Date})) AS metaConversionsCur,
+        toFloat64(sumIf(clicks, date >= {from:Date} AND date <= {to:Date})) AS clicksCur
       FROM ad_performance
       WHERE workspace_id = {ws:String}`,
-    query_params: { ws: workspaceId, days, days2: days * 2 },
+    query_params: { ws: workspaceId, from: w.from, to: w.to, pFrom: prev.from, pTo: prev.to },
     format: 'JSONEachRow',
   })
   const [row] = (await rs.json()) as AdAggregates[]
@@ -83,37 +85,86 @@ interface OrganicAggregates {
   clicksPrev: number
 }
 
-async function queryOrganicAggregates(workspaceId: string, days: number): Promise<OrganicAggregates> {
+async function queryOrganicAggregates(workspaceId: string, w: DateWindow): Promise<OrganicAggregates> {
+  const prev = previousWindow(w)
   const rs = await getClickhouse().query({
     query: `
-      WITH (SELECT max(date) FROM organic_traffic WHERE workspace_id = {ws:String}) AS maxDate,
-           subtractDays(maxDate, {days:UInt32}) AS curStart,
-           subtractDays(maxDate, {days2:UInt32}) AS prevStart
       SELECT
-        toFloat64(sumIf(clicks, date > curStart)) AS clicksCur,
-        toFloat64(sumIf(clicks, date > prevStart AND date <= curStart)) AS clicksPrev
+        toFloat64(sumIf(clicks, date >= {from:Date} AND date <= {to:Date})) AS clicksCur,
+        toFloat64(sumIf(clicks, date >= {pFrom:Date} AND date <= {pTo:Date})) AS clicksPrev
       FROM organic_traffic
       WHERE workspace_id = {ws:String}`,
-    query_params: { ws: workspaceId, days, days2: days * 2 },
+    query_params: { ws: workspaceId, from: w.from, to: w.to, pFrom: prev.from, pTo: prev.to },
     format: 'JSONEachRow',
   })
   const [row] = (await rs.json()) as OrganicAggregates[]
   return row ?? { clicksCur: 0, clicksPrev: 0 }
 }
 
+/**
+ * Per-day values across the current window, for the tile sparklines. Windowed exactly like the
+ * aggregates above — from `max(date)`, not `today()` — so the sparkline covers the same span the
+ * headline number does.
+ *
+ * The day column is aliased `day`, not `date`. Aliasing it `date` shadows the Date column of the
+ * same name, and `GROUP BY date` then resolves to the String alias while `WHERE date > curStart`
+ * still compares the Date — which ClickHouse rejects outright ("no supertype for types String,
+ * Date"). `getMerTrend` gets away with `AS date` only because it has no date comparison.
+ */
+async function queryDailySeries(workspaceId: string, w: DateWindow): Promise<GrowthHubDaily> {
+  const params = { ws: workspaceId, from: w.from, to: w.to }
+  const adRs = await getClickhouse().query({
+    query: `
+      SELECT toString(date) AS day,
+        toFloat64(sum(spend)) AS spend,
+        toFloat64(sum(conversion_value)) AS convValue,
+        toFloat64(sum(conversions)) AS conversions
+      FROM ad_performance
+      WHERE workspace_id = {ws:String} AND date >= {from:Date} AND date <= {to:Date}
+      GROUP BY day ORDER BY day`,
+    query_params: params,
+    format: 'JSONEachRow',
+  })
+  const adRows = (await adRs.json()) as { spend: number; convValue: number; conversions: number }[]
+
+  const orgRs = await getClickhouse().query({
+    query: `
+      SELECT toString(date) AS day, toFloat64(sum(clicks)) AS clicks
+      FROM organic_traffic
+      WHERE workspace_id = {ws:String} AND date >= {from:Date} AND date <= {to:Date}
+      GROUP BY day ORDER BY day`,
+    query_params: params,
+    format: 'JSONEachRow',
+  })
+  const orgRows = (await orgRs.json()) as { clicks: number }[]
+
+  return {
+    revenue: adRows.map((r) => Math.round(r.convValue * REVENUE_FACTOR)),
+    adSpend: adRows.map((r) => round2(r.spend)),
+    conversions: adRows.map((r) => Math.round(r.conversions)),
+    organicClicks: orgRows.map((r) => Math.round(r.clicks)),
+  }
+}
+
 const round2 = (n: number) => Math.round(n * 100) / 100
 
 export async function getGrowthHub(
   workspaceId: string,
-  windowDays: number = DEFAULT_WINDOW_DAYS,
+  query: DateWindowQuery = {},
 ): Promise<GrowthHubResponse> {
   // Same generate-if-empty contract the MER and SEO surfaces use, so a brand-new workspace lands on
   // a populated dashboard rather than four zeroes.
   await Promise.all([ensureAdPerformanceSeed(workspaceId), ensureOrganicTrafficSeed(workspaceId)])
 
-  const [ads, organic] = await Promise.all([
-    queryAdAggregates(workspaceId, windowDays),
-    queryOrganicAggregates(workspaceId, windowDays),
+  // Bounds first: the default window is anchored to the newest day with data, and the picker needs
+  // them to keep the calendar inside what the workspace can actually answer for.
+  const bounds = await getDataBounds(workspaceId)
+  const window = resolveWindow(bounds, query)
+
+  const [ads, organic, daily] = await Promise.all([
+    queryAdAggregates(workspaceId, window),
+    queryOrganicAggregates(workspaceId, window),
+    queryDailySeries(workspaceId, window),
   ])
 
   // Sessions proxy: paid clicks + organic clicks. GSC exposes no sessions metric (see
@@ -121,7 +172,10 @@ export async function getGrowthHub(
   const sessions = ads.clicksCur + organic.clicksCur
 
   return {
-    windowDays,
+    windowDays: windowLength(window),
+    window,
+    dataFrom: bounds.first,
+    dataThrough: bounds.last,
     metrics: {
       revenue: {
         current: Math.round(ads.convValueCur * REVENUE_FACTOR),
@@ -132,6 +186,7 @@ export async function getGrowthHub(
       organicClicks: { current: Math.round(organic.clicksCur), previous: Math.round(organic.clicksPrev) },
       conversions: { current: Math.round(ads.conversionsCur), previous: Math.round(ads.conversionsPrev) },
     },
+    daily,
     channels: {
       seo: { organicClicks: Math.round(organic.clicksCur) },
       google: { conversions: Math.round(ads.googleConversionsCur) },

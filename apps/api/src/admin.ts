@@ -1,29 +1,91 @@
-import { and, count, desc, eq, ilike, inArray, lte, or } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, lt, lte, max, notInArray, or, sql } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
-import type { Plan } from '@growthos/types'
+import {
+  PLAN_PRICE_USD_CENTS,
+  type AdminActivityItem,
+  type AdminUserFilter,
+  type AdminUserDetail,
+  type AdminUserSort,
+  type AdminUserSpend,
+  type AdminUserSummary,
+  type AdminWorkspaceDetail,
+  type AdminWorkspaceFilter,
+  type AdminWorkspaceSort,
+  type AdminWorkspaceSummary,
+  type Plan,
+  type PlatformOverview,
+  type PlatformRole,
+} from '@growthos/types'
+import { READ_ACTION_NAMES } from './admin-audit.js'
+import { REVENUE_FACTOR, getClickhouse } from './analytics.js'
 import { getCurrentSubscription } from './billing.js'
 import type { Page, Paged } from './pagination.js'
 
 // ── Workspace directory ─────────────────────────────────────────────────────
 
-export interface AdminWorkspaceSummary {
-  id: string
-  name: string
-  slug: string
-  plan: string
-  subscriptionStatus: string
-  memberCount: number
-  connectedPlatformCount: number
-  createdAt: string
+/**
+ * The directory row shapes are re-exported from @growthos/types rather than declared here.
+ * They were declared in both places, which is two copies of one wire contract: adding a column
+ * meant editing the same interface twice, and forgetting the second copy is a type error in a file
+ * nobody was looking at.
+ */
+export type { AdminUserSummary, AdminWorkspaceSummary }
+
+export interface WorkspaceListOptions {
+  filter?: AdminWorkspaceFilter | undefined
+  sort?: AdminWorkspaceSort | undefined
 }
 
-export async function listWorkspaces(search: string | undefined, page: Page): Promise<Paged<AdminWorkspaceSummary>> {
-  const whereClause = search ? ilike(schema.workspaces.name, `%${search}%`) : undefined
+/**
+ * The workspace directory.
+ *
+ * Filtering happens in SQL, not on the page. The list is paginated, so a filter applied client-side
+ * would only narrow the fifty rows that happen to be loaded — an operator looking for every
+ * past-due account would be shown the past-due accounts on page one and told that was all of them.
+ *
+ * `subscriptions` is joined rather than fetched separately when a filter or sort needs it, because
+ * "which workspaces are past due" cannot be answered after the page has already been cut.
+ */
+export async function listWorkspaces(
+  search: string | undefined,
+  page: Page,
+  options: WorkspaceListOptions = {},
+): Promise<Paged<AdminWorkspaceSummary>> {
+  const now = new Date()
+  const in3Days = new Date(now.getTime() + 3 * DAY_MS)
 
-  const [totalRow] = await db.select({ value: count() }).from(schema.workspaces).where(whereClause)
-  const total = totalRow?.value ?? 0
+  const conditions = []
+  if (search) conditions.push(ilike(schema.workspaces.name, `%${search}%`))
 
-  const rows = await db
+  switch (options.filter) {
+    case 'past_due':
+      conditions.push(eq(schema.subscriptions.status, 'past_due'))
+      break
+    case 'trial_ending':
+      conditions.push(
+        and(eq(schema.subscriptions.status, 'trialing'), lte(schema.subscriptions.trialEndsAt, in3Days))!,
+      )
+      break
+    case 'cancelling':
+      conditions.push(and(isNotNull(schema.subscriptions.cancelAt), gte(schema.subscriptions.cancelAt, now))!)
+      break
+    case 'no_connections':
+      // A correlated NOT EXISTS rather than a join: a workspace with two connections would
+      // otherwise appear twice, and one with none would be dropped by an inner join entirely.
+      conditions.push(
+        sql`not exists (select 1 from ${schema.platformConnections} pc where pc.workspace_id = ${schema.workspaces.id} and pc.is_active = true)`,
+      )
+      break
+    default:
+      break
+  }
+
+  const whereClause = conditions.length ? and(...conditions) : undefined
+
+  // Every filter except no_connections reads a subscriptions column, so the join has to be present
+  // for the WHERE to compile. LEFT, so filtering off is not silently also filtering out the
+  // workspaces that have no subscription row.
+  const base = db
     .select({
       id: schema.workspaces.id,
       name: schema.workspaces.name,
@@ -31,14 +93,26 @@ export async function listWorkspaces(search: string | undefined, page: Page): Pr
       createdAt: schema.workspaces.createdAt,
     })
     .from(schema.workspaces)
+    .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
+    .$dynamic()
+
+  const orderBy =
+    options.sort === 'name'
+      ? asc(schema.workspaces.name)
+      : desc(schema.workspaces.createdAt)
+
+  const [totalRow] = await db
+    .select({ value: count() })
+    .from(schema.workspaces)
+    .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
     .where(whereClause)
-    .orderBy(desc(schema.workspaces.createdAt))
-    .limit(page.limit)
-    .offset(page.offset)
+  const total = totalRow?.value ?? 0
+
+  const rows = await base.where(whereClause).orderBy(orderBy).limit(page.limit).offset(page.offset)
 
   const ids = rows.map((r) => r.id)
 
-  const [memberCounts, connCounts, subRows] = await Promise.all([
+  const [memberCounts, connCounts, subRows, activityRows] = await Promise.all([
     ids.length
       ? db
           .select({ workspaceId: schema.workspace_members.organizationId, value: count() })
@@ -54,14 +128,25 @@ export async function listWorkspaces(search: string | undefined, page: Page): Pr
           .groupBy(schema.platformConnections.workspaceId)
       : Promise.resolve([]),
     ids.length ? db.select().from(schema.subscriptions).where(inArray(schema.subscriptions.workspaceId, ids)) : Promise.resolve([]),
+    // Last activity, from the workspace's own audit log. Grouped over the page's ids rather than
+    // joined, for the same reason the counts are: a join would multiply the rows.
+    ids.length
+      ? db
+          .select({ workspaceId: schema.auditLogs.workspaceId, value: max(schema.auditLogs.createdAt) })
+          .from(schema.auditLogs)
+          .where(inArray(schema.auditLogs.workspaceId, ids))
+          .groupBy(schema.auditLogs.workspaceId)
+      : Promise.resolve([]),
   ])
 
   const memberMap = new Map(memberCounts.map((r) => [r.workspaceId, r.value]))
   const connMap = new Map(connCounts.map((r) => [r.workspaceId, r.value]))
   const subMap = new Map(subRows.map((r) => [r.workspaceId, r]))
+  const activityMap = new Map(activityRows.map((r) => [r.workspaceId, r.value]))
 
   const data: AdminWorkspaceSummary[] = rows.map((r) => {
     const sub = subMap.get(r.id)
+    const lastActivity = activityMap.get(r.id)
     return {
       id: r.id,
       name: r.name,
@@ -72,29 +157,39 @@ export async function listWorkspaces(search: string | undefined, page: Page): Pr
       memberCount: memberMap.get(r.id) ?? 0,
       connectedPlatformCount: connMap.get(r.id) ?? 0,
       createdAt: r.createdAt.toISOString(),
+      trialEndsAt: sub?.trialEndsAt?.toISOString() ?? null,
+      lastActivityAt: lastActivity ? new Date(lastActivity).toISOString() : null,
     }
   })
+
+  // Sorts over a value that is assembled per page (members, last activity) are applied here rather
+  // than in SQL. They order the page, not the table — which is the honest behaviour to expose, and
+  // the alternative is a grouped subquery on every column for a directory of this size.
+  if (options.sort === 'members') data.sort((x, y) => y.memberCount - x.memberCount)
+  if (options.sort === 'activity') {
+    data.sort((x, y) => (y.lastActivityAt ?? '').localeCompare(x.lastActivityAt ?? ''))
+  }
 
   return { data, total }
 }
 
-export interface AdminWorkspaceDetail {
-  id: string
-  name: string
-  slug: string
-  websiteUrl: string | null
-  createdAt: string
-  subscription: Awaited<ReturnType<typeof getCurrentSubscription>>
-  members: { userId: string; name: string; email: string; role: string }[]
-  connections: { platform: string; accountName: string | null; isActive: boolean | null; lastSyncedAt: string | null }[]
-}
+export type { AdminWorkspaceDetail }
 
 export async function getWorkspaceDetail(workspaceId: string): Promise<AdminWorkspaceDetail | null> {
   const [ws] = await db.select().from(schema.workspaces).where(eq(schema.workspaces.id, workspaceId)).limit(1)
   if (!ws) return null
 
-  const [subscription, members, connections] = await Promise.all([
+  const [subscription, stripeIds, members, connections] = await Promise.all([
     getCurrentSubscription(workspaceId),
+    // Stripe's own ids, so the console links out to the invoice rather than restating billing.
+    db
+      .select({
+        customerId: schema.subscriptions.stripeCustomerId,
+        subscriptionId: schema.subscriptions.stripeSubscriptionId,
+      })
+      .from(schema.subscriptions)
+      .where(eq(schema.subscriptions.workspaceId, workspaceId))
+      .limit(1),
     db
       .select({
         userId: schema.workspace_members.userId,
@@ -111,6 +206,7 @@ export async function getWorkspaceDetail(workspaceId: string): Promise<AdminWork
         accountName: schema.platformConnections.accountName,
         isActive: schema.platformConnections.isActive,
         lastSyncedAt: schema.platformConnections.lastSyncedAt,
+        syncError: schema.platformConnections.syncError,
       })
       .from(schema.platformConnections)
       .where(eq(schema.platformConnections.workspaceId, workspaceId)),
@@ -123,9 +219,90 @@ export async function getWorkspaceDetail(workspaceId: string): Promise<AdminWork
     websiteUrl: ws.websiteUrl,
     createdAt: ws.createdAt.toISOString(),
     subscription,
+    stripeCustomerId: stripeIds[0]?.customerId ?? null,
+    stripeSubscriptionId: stripeIds[0]?.subscriptionId ?? null,
     members,
     connections: connections.map((c) => ({ ...c, lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null })),
   }
+}
+
+/**
+ * A workspace's own history: what the customer did, and what ran for them, in one timeline.
+ *
+ * Both sources are capped and then merged, so the result is the most recent `limit` entries across
+ * both rather than the most recent of each — an account whose jobs all failed last night should not
+ * push a week of customer activity off the page, and vice versa.
+ */
+export async function getWorkspaceActivity(workspaceId: string, limit = 40): Promise<AdminActivityItem[]> {
+  const [audit, jobs] = await Promise.all([
+    db
+      .select({
+        at: schema.auditLogs.createdAt,
+        action: schema.auditLogs.action,
+        entityType: schema.auditLogs.entityType,
+        actorName: schema.user.name,
+      })
+      .from(schema.auditLogs)
+      .leftJoin(schema.user, eq(schema.user.id, schema.auditLogs.actorId))
+      .where(eq(schema.auditLogs.workspaceId, workspaceId))
+      .orderBy(desc(schema.auditLogs.createdAt))
+      .limit(limit),
+    db
+      .select({
+        at: schema.backgroundJobs.queuedAt,
+        completedAt: schema.backgroundJobs.completedAt,
+        type: schema.backgroundJobs.type,
+        status: schema.backgroundJobs.status,
+        error: schema.backgroundJobs.error,
+      })
+      .from(schema.backgroundJobs)
+      .where(eq(schema.backgroundJobs.workspaceId, workspaceId))
+      .orderBy(desc(schema.backgroundJobs.queuedAt))
+      .limit(limit),
+  ])
+
+  const items: AdminActivityItem[] = [
+    ...audit.map((a) => ({
+      kind: 'audit' as const,
+      at: a.at?.toISOString() ?? new Date(0).toISOString(),
+      action: a.action,
+      entityType: a.entityType,
+      actorName: a.actorName,
+    })),
+    ...jobs.map((j) => ({
+      kind: 'job' as const,
+      at: (j.completedAt ?? j.at)?.toISOString() ?? new Date(0).toISOString(),
+      type: j.type,
+      status: j.status,
+      error: j.error,
+    })),
+  ]
+
+  return items.sort((x, y) => y.at.localeCompare(x.at)).slice(0, limit)
+}
+
+/** Everything platform staff have done to, or looked at on, this one account. */
+export async function getWorkspaceAdminHistory(workspaceId: string, limit = 40) {
+  return db
+    .select({
+      id: schema.adminAuditLog.id,
+      actorUserId: schema.adminAuditLog.actorUserId,
+      actorName: schema.user.name,
+      actorEmail: schema.user.email,
+      action: schema.adminAuditLog.action,
+      targetType: schema.adminAuditLog.targetType,
+      targetId: schema.adminAuditLog.targetId,
+      metadata: schema.adminAuditLog.metadata,
+      createdAt: schema.adminAuditLog.createdAt,
+    })
+    .from(schema.adminAuditLog)
+    .leftJoin(schema.user, eq(schema.user.id, schema.adminAuditLog.actorUserId))
+    .where(
+      and(eq(schema.adminAuditLog.targetType, 'workspace'), eq(schema.adminAuditLog.targetId, workspaceId)),
+    )
+    .orderBy(desc(schema.adminAuditLog.createdAt))
+    .limit(limit)
+    .then((rows) => rows.map((r) => ({ ...r, createdAt: r.createdAt!.toISOString() })))
 }
 
 /**
@@ -153,19 +330,29 @@ export async function overrideWorkspacePlan(workspaceId: string, plan: Plan): Pr
 
 // ── User directory ───────────────────────────────────────────────────────────
 
-export interface AdminUserSummary {
-  id: string
-  name: string
-  email: string
-  platformRole: string | null
-  workspaceCount: number
-  createdAt: string
+export interface UserListOptions {
+  filter?: AdminUserFilter | undefined
+  sort?: AdminUserSort | undefined
 }
 
-export async function listUsers(search: string | undefined, page: Page): Promise<Paged<AdminUserSummary>> {
-  const whereClause = search
-    ? or(ilike(schema.user.name, `%${search}%`), ilike(schema.user.email, `%${search}%`))
-    : undefined
+export async function listUsers(
+  search: string | undefined,
+  page: Page,
+  options: UserListOptions = {},
+): Promise<Paged<AdminUserSummary>> {
+  const conditions = []
+  if (search) {
+    conditions.push(or(ilike(schema.user.name, `%${search}%`), ilike(schema.user.email, `%${search}%`))!)
+  }
+  if (options.filter === 'staff') conditions.push(isNotNull(schema.user.platformRole))
+  if (options.filter === 'no_workspace') {
+    // The people worth finding here are the ones who signed up and stopped: an account with no
+    // membership never finished onboarding, or was invited and never accepted.
+    conditions.push(
+      sql`not exists (select 1 from ${schema.workspace_members} wm where wm.user_id = ${schema.user.id})`,
+    )
+  }
+  const whereClause = conditions.length ? and(...conditions) : undefined
 
   const [totalRow] = await db.select({ value: count() }).from(schema.user).where(whereClause)
   const total = totalRow?.value ?? 0
@@ -180,66 +367,882 @@ export async function listUsers(search: string | undefined, page: Page): Promise
     })
     .from(schema.user)
     .where(whereClause)
-    .orderBy(desc(schema.user.createdAt))
+    .orderBy(options.sort === 'name' ? asc(schema.user.name) : desc(schema.user.createdAt))
     .limit(page.limit)
     .offset(page.offset)
 
   const ids = rows.map((r) => r.id)
-  const wsCounts = ids.length
-    ? await db
-        .select({ userId: schema.workspace_members.userId, value: count() })
-        .from(schema.workspace_members)
-        .where(inArray(schema.workspace_members.userId, ids))
-        .groupBy(schema.workspace_members.userId)
-    : []
+  const [wsCounts, seenRows] = await Promise.all([
+    ids.length
+      ? db
+          .select({ userId: schema.workspace_members.userId, value: count() })
+          .from(schema.workspace_members)
+          .where(inArray(schema.workspace_members.userId, ids))
+          .groupBy(schema.workspace_members.userId)
+      : Promise.resolve([]),
+    // Sessions are deleted when they expire, so this is "recently seen" rather than a full history
+    // — which is the reading an operator wants from a column called Last seen.
+    ids.length
+      ? db
+          .select({ userId: schema.session.userId, value: max(schema.session.updatedAt) })
+          .from(schema.session)
+          .where(inArray(schema.session.userId, ids))
+          .groupBy(schema.session.userId)
+      : Promise.resolve([]),
+  ])
   const wsMap = new Map(wsCounts.map((r) => [r.userId, r.value]))
+  const seenMap = new Map(seenRows.map((r) => [r.userId, r.value]))
 
-  return {
-    data: rows.map((r) => ({
+  const data: AdminUserSummary[] = rows.map((r) => {
+    const seen = seenMap.get(r.id)
+    return {
       ...r,
       createdAt: r.createdAt.toISOString(),
       workspaceCount: wsMap.get(r.id) ?? 0,
+      lastSeenAt: seen ? new Date(seen).toISOString() : null,
+    }
+  })
+
+  // Assembled per page, so it orders the page rather than the table — see listWorkspaces.
+  if (options.sort === 'last_seen') {
+    data.sort((x, y) => (y.lastSeenAt ?? '').localeCompare(x.lastSeenAt ?? ''))
+  }
+
+  return { data, total }
+}
+
+/** One person's file: who they are, where they belong, and where they are signed in. */
+export async function getUserDetail(userId: string): Promise<AdminUserDetail | null> {
+  const [row] = await db.select().from(schema.user).where(eq(schema.user.id, userId)).limit(1)
+  if (!row) return null
+
+  const [memberships, sessions] = await Promise.all([
+    db
+      .select({
+        workspaceId: schema.workspace_members.organizationId,
+        role: schema.workspace_members.role,
+        joinedAt: schema.workspace_members.createdAt,
+        workspaceName: schema.workspaces.name,
+        workspaceSlug: schema.workspaces.slug,
+        plan: schema.subscriptions.plan,
+        subscriptionStatus: schema.subscriptions.status,
+      })
+      .from(schema.workspace_members)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.workspace_members.organizationId))
+      // LEFT: a workspace that has never checked out has no subscriptions row, and dropping it from
+      // this list would make a person look like they belong to fewer accounts than they do.
+      .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
+      .where(eq(schema.workspace_members.userId, userId)),
+    // Live sessions only. An expired row is deleted by Better Auth rather than kept, so filtering
+    // on expiry here is belt and braces against one that has not been swept yet.
+    db
+      .select({
+        id: schema.session.id,
+        createdAt: schema.session.createdAt,
+        lastUsedAt: schema.session.updatedAt,
+        expiresAt: schema.session.expiresAt,
+        ipAddress: schema.session.ipAddress,
+        userAgent: schema.session.userAgent,
+      })
+      .from(schema.session)
+      .where(and(eq(schema.session.userId, userId), gte(schema.session.expiresAt, new Date())))
+      .orderBy(desc(schema.session.updatedAt)),
+  ])
+
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    image: row.image ?? null,
+    platformRole: (row.platformRole as AdminUserDetail['platformRole']) ?? null,
+    phone: row.phone ?? null,
+    createdAt: row.createdAt.toISOString(),
+    lastSeenAt: sessions[0]?.lastUsedAt?.toISOString() ?? null,
+    memberships: memberships.map((m) => ({
+      workspaceId: m.workspaceId,
+      workspaceName: m.workspaceName,
+      workspaceSlug: m.workspaceSlug,
+      role: m.role as AdminUserDetail['memberships'][number]['role'],
+      // Same fallback as getCurrentSubscription: no subscriptions row = starter/trialing.
+      plan: m.plan ?? 'starter',
+      subscriptionStatus: m.subscriptionStatus ?? 'trialing',
+      isOwner: m.role === 'owner',
+      joinedAt: m.joinedAt?.toISOString() ?? null,
     })),
-    total,
+    sessions: sessions.map((s) => ({
+      id: s.id,
+      createdAt: s.createdAt.toISOString(),
+      lastUsedAt: s.lastUsedAt.toISOString(),
+      expiresAt: s.expiresAt.toISOString(),
+      ipAddress: s.ipAddress,
+      userAgent: s.userAgent,
+    })),
   }
 }
 
-// ── Platform health ──────────────────────────────────────────────────────────
+/** How many days of daily spend the person's file charts. */
+const SPEND_WINDOW_DAYS = 30
 
-export interface PlatformHealth {
-  totalWorkspaces: number
-  totalUsers: number
-  workspacesByPlan: { plan: string; count: number }[]
-  trialsEndingSoonCount: number
+/**
+ * What one person is worth, and what they move through the product.
+ *
+ * Two different questions, deliberately answered together. `billingMonthlyCents` sums the list
+ * price of the workspaces they **own** — being a member of someone else's account costs them
+ * nothing, so membership alone contributes zero and an operator is never shown a support seat as
+ * though it were revenue.
+ *
+ * The ad figures come from ClickHouse `ad_performance` across every workspace they can reach, which
+ * is what says whether the account is actually running on this product. Revenue is derived with
+ * the shared `REVENUE_FACTOR` rather than a local constant — CLAUDE.md's rule about the seeded
+ * figures is that they are imported, never re-derived, because every past copy drifted.
+ *
+ * The window is the last 30 days *of available data*, not of wall-clock time. Seeded demo data ends
+ * on a fixed day, so anchoring to `now` would render an empty chart on a workspace that has plenty
+ * to show.
+ */
+export async function getUserSpend(userId: string): Promise<AdminUserSpend> {
+  const memberships = await db
+    .select({
+      workspaceId: schema.workspace_members.organizationId,
+      role: schema.workspace_members.role,
+      name: schema.workspaces.name,
+      plan: schema.subscriptions.plan,
+    })
+    .from(schema.workspace_members)
+    .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.workspace_members.organizationId))
+    .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
+    .where(eq(schema.workspace_members.userId, userId))
+
+  const owned = memberships.filter((m) => m.role === 'owner')
+  const billingMonthlyCents = owned.reduce((sum, m) => {
+    const price = PLAN_PRICE_USD_CENTS[(m.plan ?? 'starter') as Plan]
+    return sum + (typeof price === 'number' ? price : 0)
+  }, 0)
+
+  const empty: AdminUserSpend = {
+    windowFrom: null,
+    windowTo: null,
+    billingMonthlyCents,
+    ownedWorkspaceCount: owned.length,
+    totalSpend: 0,
+    totalRevenue: 0,
+    byPlatform: [],
+    byWorkspace: [],
+    daily: [],
+  }
+
+  const ids = memberships.map((m) => m.workspaceId)
+  if (ids.length === 0) return empty
+
+  const ch = getClickhouse()
+  const boundsRs = await ch.query({
+    query: `SELECT toString(max(date)) AS last FROM ad_performance WHERE workspace_id IN {ws:Array(String)}`,
+    query_params: { ws: ids },
+    format: 'JSONEachRow',
+  })
+  const bounds = (await boundsRs.json()) as { last: string | null }[]
+  const last = bounds[0]?.last
+  // ClickHouse returns the zero date for an empty set rather than null.
+  if (!last || last.startsWith('1970')) return empty
+
+  const to = new Date(`${last}T00:00:00Z`)
+  const from = new Date(to.getTime() - (SPEND_WINDOW_DAYS - 1) * DAY_MS)
+  const fromDay = from.toISOString().slice(0, 10)
+
+  const rs = await ch.query({
+    query: `
+      SELECT toString(date) AS day, platform, workspace_id AS workspaceId,
+        toFloat64(sum(spend)) AS spend,
+        toFloat64(sum(conversion_value)) AS convValue
+      FROM ad_performance
+      WHERE workspace_id IN {ws:Array(String)} AND date >= {from:Date} AND date <= {to:Date}
+      GROUP BY day, platform, workspaceId
+      ORDER BY day`,
+    query_params: { ws: ids, from: fromDay, to: last },
+    format: 'JSONEachRow',
+  })
+  const rows = (await rs.json()) as {
+    day: string
+    platform: string
+    workspaceId: string
+    spend: number
+    convValue: number
+  }[]
+
+  const round = (n: number) => Math.round(n * 100) / 100
+  const byDay = new Map<string, { spend: number; revenue: number }>()
+  const byPlatform = new Map<string, { spend: number; revenue: number }>()
+  const byWorkspace = new Map<string, { spend: number; revenue: number }>()
+  let totalSpend = 0
+  let totalRevenue = 0
+
+  for (const r of rows) {
+    const revenue = r.convValue * REVENUE_FACTOR
+    totalSpend += r.spend
+    totalRevenue += revenue
+
+    const day = byDay.get(r.day) ?? { spend: 0, revenue: 0 }
+    byDay.set(r.day, { spend: day.spend + r.spend, revenue: day.revenue + revenue })
+
+    const plat = byPlatform.get(r.platform) ?? { spend: 0, revenue: 0 }
+    byPlatform.set(r.platform, { spend: plat.spend + r.spend, revenue: plat.revenue + revenue })
+
+    const ws = byWorkspace.get(r.workspaceId) ?? { spend: 0, revenue: 0 }
+    byWorkspace.set(r.workspaceId, { spend: ws.spend + r.spend, revenue: ws.revenue + revenue })
+  }
+
+  const nameOf = new Map(memberships.map((m) => [m.workspaceId, m.name]))
+
+  return {
+    windowFrom: fromDay,
+    windowTo: last,
+    billingMonthlyCents,
+    ownedWorkspaceCount: owned.length,
+    totalSpend: round(totalSpend),
+    totalRevenue: Math.round(totalRevenue),
+    byPlatform: [...byPlatform]
+      .map(([platform, v]) => ({ platform, spend: round(v.spend), revenue: Math.round(v.revenue) }))
+      .sort((x, y) => y.spend - x.spend),
+    byWorkspace: [...byWorkspace]
+      .map(([workspaceId, v]) => ({
+        workspaceId,
+        name: nameOf.get(workspaceId) ?? workspaceId,
+        spend: round(v.spend),
+        revenue: Math.round(v.revenue),
+      }))
+      .sort((x, y) => y.spend - x.spend),
+    // Days with no rows are absent rather than zero-filled: a gap in the seed is a gap in the data,
+    // and drawing it as a zero would assert the customer spent nothing that day.
+    daily: [...byDay]
+      .map(([date, v]) => ({ date, spend: round(v.spend), revenue: Math.round(v.revenue) }))
+      .sort((x, y) => x.date.localeCompare(y.date)),
+  }
 }
 
-export async function getPlatformHealth(): Promise<PlatformHealth> {
-  const [workspaceRows, userRows, byPlan, subRows] = await Promise.all([
+/**
+ * Grant or remove a platform role. `null` removes it.
+ *
+ * The route is responsible for requiring super_admin, for refusing to change the caller's own row,
+ * and for the audit entry — this only performs the write. It does not weaken `input: false` on the
+ * Better Auth field: the role is still unsettable through any customer-facing form, and is now
+ * settable by an audited super-admin route as well as by packages/db/scripts/grant-admin.ts.
+ */
+export async function setPlatformRole(userId: string, role: PlatformRole | null): Promise<void> {
+  await db.update(schema.user).set({ platformRole: role }).where(eq(schema.user.id, userId))
+}
+
+/** Signs a person out of every device. Returns how many sessions were ended. */
+export async function revokeUserSessions(userId: string): Promise<number> {
+  const deleted = await db
+    .delete(schema.session)
+    .where(eq(schema.session.userId, userId))
+    .returning({ id: schema.session.id })
+  return deleted.length
+}
+
+/**
+ * Push a trial out by `days` from wherever it currently ends — or from now, if it has already
+ * lapsed. Extending from `now` in both cases would silently shorten a trial that still had a week
+ * left, which is the opposite of what "extend" means.
+ */
+export async function extendTrial(workspaceId: string, days: number): Promise<Date | null> {
+  const [existing] = await db
+    .select({ id: schema.subscriptions.id, trialEndsAt: schema.subscriptions.trialEndsAt })
+    .from(schema.subscriptions)
+    .where(eq(schema.subscriptions.workspaceId, workspaceId))
+    .limit(1)
+
+  const now = new Date()
+  const from = existing?.trialEndsAt && existing.trialEndsAt > now ? existing.trialEndsAt : now
+  const trialEndsAt = new Date(from.getTime() + days * DAY_MS)
+
+  if (existing) {
+    await db
+      .update(schema.subscriptions)
+      .set({ trialEndsAt, status: 'trialing', updatedAt: now })
+      .where(eq(schema.subscriptions.workspaceId, workspaceId))
+  } else {
+    // No row yet means the workspace is on the implicit starter trial (see getCurrentSubscription).
+    // Extending it has to write the row that was never created.
+    await db
+      .insert(schema.subscriptions)
+      .values({ workspaceId, plan: 'starter', status: 'trialing', trialEndsAt })
+  }
+  return trialEndsAt
+}
+
+// ── Platform overview ────────────────────────────────────────────────────────
+
+/**
+ * How many rows each attention queue returns. An operator works a queue; a queue of two hundred is
+ * a report. The accompanying `*Total` says how many there really are, so the page can say "and 40
+ * more" without pretending the list is the whole truth.
+ */
+const ATTENTION_LIMIT = 6
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Platform-wide counts for the admin overview.
+ *
+ * **Every figure here counts from `workspaces`, never from `subscriptions` alone.** `workspaceId`
+ * carries no foreign key — tenancy is enforced at the application layer (see tenancy.ts) — so
+ * deleting a workspace leaves its subscription row behind. Scanning `subscriptions` therefore
+ * counts customers who no longer exist: on the dev database that was 71 orphaned rows against 15
+ * live workspaces, which the panel reported as 68 on growth, 4 on scale, and 27 trials about to
+ * end. The true answer was 14 workspaces with no subscription row, 1 on growth, and 1 trial.
+ *
+ * The old `totalWorkspaces - subscribedCount` fallback was where this stayed invisible: with more
+ * subscription rows than workspaces it goes negative, and a `> 0` guard then dropped it silently
+ * instead of surfacing the contradiction.
+ */
+/** How many days of daily history the overview charts. */
+const OVERVIEW_WINDOW_DAYS = 30
+
+/**
+ * Platform-wide advertising spend, day by day and by channel, plus the accounts moving the most.
+ *
+ * This is the scale metric — what customers actually run through GrowthOS — and it was the largest
+ * dataset in the system with nothing on the console reading it. Anchored to the last day of
+ * *available* data rather than to now, so a seeded database still draws a chart instead of an empty
+ * frame.
+ *
+ * Every figure is scoped to live workspaces by an id list from Postgres. ClickHouse holds rows for
+ * workspaces that have since been deleted — 21 workspace ids against 15 live ones on the dev
+ * database — and summing without that filter would report spend for customers who no longer exist,
+ * the same class of error that made the old plan mix count 71 orphaned subscriptions.
+ */
+/**
+ * A picked end date means "including that whole day".
+ *
+ * Postgres timestamps carry a time and a date picker hands back midnight, so comparing directly
+ * would drop everything that happened after 00:00 on the final day — the most recent day of any
+ * chosen range would always read as empty, which looks like missing data rather than an off-by-one.
+ */
+function endOfDay(d: Date): Date {
+  const end = new Date(d)
+  end.setUTCHours(23, 59, 59, 999)
+  return end
+}
+
+export interface OverviewRange {
+  from?: Date | undefined
+  to?: Date | undefined
+}
+
+async function getPlatformSpend(
+  liveWorkspaceIds: string[],
+  range: OverviewRange,
+): Promise<{
+  spendDaily: PlatformOverview['spendDaily']
+  spendWindow: PlatformOverview['spendWindow']
+  totalSpend: number
+  spendByPlatform: PlatformOverview['spendByPlatform']
+  spendByChannelDaily: PlatformOverview['spendByChannelDaily']
+  funnel: PlatformOverview['funnel']
+  topCampaigns: PlatformOverview['topCampaigns']
+  topSpenders: { workspaceId: string; spend: number }[]
+}> {
+  const empty = {
+    spendDaily: [],
+    spendWindow: { from: null, to: null },
+    totalSpend: 0,
+    spendByPlatform: [],
+    spendByChannelDaily: [],
+    funnel: { impressions: 0, clicks: 0, conversions: 0, revenue: 0 },
+    topCampaigns: [],
+    topSpenders: [],
+  }
+  if (liveWorkspaceIds.length === 0) return empty
+
+  const ch = getClickhouse()
+
+  let fromDay: string
+  let last: string
+  if (range.from && range.to) {
+    // An explicit range is taken literally, including when it contains nothing. A picker that
+    // silently slid to the nearest data would make an empty period indistinguishable from a full
+    // one, which is the question someone picking dates is usually asking.
+    fromDay = range.from.toISOString().slice(0, 10)
+    last = range.to.toISOString().slice(0, 10)
+  } else {
+    const boundsRs = await ch.query({
+      query: `SELECT toString(max(date)) AS last FROM ad_performance WHERE workspace_id IN {ws:Array(String)}`,
+      query_params: { ws: liveWorkspaceIds },
+      format: 'JSONEachRow',
+    })
+    const bound = ((await boundsRs.json()) as { last: string | null }[])[0]?.last
+    // ClickHouse returns the zero date for an empty set rather than null.
+    if (!bound || bound.startsWith('1970')) return empty
+    last = bound
+    const to = new Date(`${bound}T00:00:00Z`)
+    fromDay = new Date(to.getTime() - (OVERVIEW_WINDOW_DAYS - 1) * DAY_MS).toISOString().slice(0, 10)
+  }
+
+  const [rs, campaignRs] = await Promise.all([
+    ch.query({
+      query: `
+        SELECT toString(date) AS day, platform, workspace_id AS workspaceId,
+          toFloat64(sum(spend)) AS spend,
+          toFloat64(sum(conversion_value)) AS convValue,
+          toUInt64(sum(impressions)) AS impressions,
+          toUInt64(sum(clicks)) AS clicks,
+          toFloat64(sum(conversions)) AS conversions
+        FROM ad_performance
+        WHERE workspace_id IN {ws:Array(String)} AND date >= {from:Date} AND date <= {to:Date}
+        GROUP BY day, platform, workspaceId
+        ORDER BY day`,
+      query_params: { ws: liveWorkspaceIds, from: fromDay, to: last },
+      format: 'JSONEachRow',
+    }),
+    // Campaign names are the language a customer uses about their own account, so an operator
+    // reading a support thread can match what they are told to what the platform sees.
+    ch.query({
+      query: `
+        SELECT campaign_name AS campaign, platform, toFloat64(sum(spend)) AS spend
+        FROM ad_performance
+        WHERE workspace_id IN {ws:Array(String)} AND date >= {from:Date} AND date <= {to:Date}
+        GROUP BY campaign, platform
+        ORDER BY spend DESC
+        LIMIT 6`,
+      query_params: { ws: liveWorkspaceIds, from: fromDay, to: last },
+      format: 'JSONEachRow',
+    }),
+  ])
+
+  const rows = (await rs.json()) as {
+    day: string
+    platform: string
+    workspaceId: string
+    spend: number
+    convValue: number
+    impressions: number
+    clicks: number
+    conversions: number
+  }[]
+  const campaigns = (await campaignRs.json()) as {
+    campaign: string
+    platform: string
+    spend: number
+  }[]
+
+  const round = (n: number) => Math.round(n * 100) / 100
+  const byDay = new Map<string, { spend: number; revenue: number }>()
+  const byChannelDay = new Map<string, { google: number; meta: number }>()
+  const byPlatform = new Map<string, number>()
+  const byWorkspace = new Map<string, number>()
+  let totalSpend = 0
+  const funnel = { impressions: 0, clicks: 0, conversions: 0, revenue: 0 }
+
+  for (const r of rows) {
+    // Revenue is derived with the shared REVENUE_FACTOR rather than a local constant — CLAUDE.md's
+    // rule about the seeded figures is that they are imported, never re-derived.
+    const revenue = r.convValue * REVENUE_FACTOR
+    totalSpend += r.spend
+    funnel.impressions += Number(r.impressions)
+    funnel.clicks += Number(r.clicks)
+    funnel.conversions += r.conversions
+    funnel.revenue += revenue
+
+    const day = byDay.get(r.day) ?? { spend: 0, revenue: 0 }
+    byDay.set(r.day, { spend: day.spend + r.spend, revenue: day.revenue + revenue })
+
+    const chan = byChannelDay.get(r.day) ?? { google: 0, meta: 0 }
+    if (r.platform === 'google_ads') chan.google += r.spend
+    else if (r.platform === 'meta_ads') chan.meta += r.spend
+    byChannelDay.set(r.day, chan)
+
+    byPlatform.set(r.platform, (byPlatform.get(r.platform) ?? 0) + r.spend)
+    byWorkspace.set(r.workspaceId, (byWorkspace.get(r.workspaceId) ?? 0) + r.spend)
+  }
+
+  return {
+    spendByChannelDaily: [...byChannelDay]
+      .map(([date, v]) => ({ date, google: round(v.google), meta: round(v.meta) }))
+      .sort((x, y) => x.date.localeCompare(y.date)),
+    funnel: {
+      impressions: funnel.impressions,
+      clicks: funnel.clicks,
+      conversions: Math.round(funnel.conversions),
+      revenue: Math.round(funnel.revenue),
+    },
+    topCampaigns: campaigns.map((c) => ({
+      campaign: c.campaign,
+      platform: c.platform,
+      spend: round(c.spend),
+    })),
+    // Absent days stay absent rather than being zero-filled: a gap in the data is not a day on
+    // which every customer spent nothing, and drawing it as zero would assert that it was.
+    spendDaily: [...byDay]
+      .map(([date, v]) => ({ date, spend: round(v.spend), revenue: Math.round(v.revenue) }))
+      .sort((x, y) => x.date.localeCompare(y.date)),
+    spendWindow: { from: fromDay, to: last },
+    totalSpend: round(totalSpend),
+    spendByPlatform: [...byPlatform]
+      .map(([platform, spend]) => ({ platform, spend: round(spend) }))
+      .sort((x, y) => y.spend - x.spend),
+    topSpenders: [...byWorkspace]
+      .map(([workspaceId, spend]) => ({ workspaceId, spend: round(spend) }))
+      .sort((x, y) => y.spend - x.spend)
+      .slice(0, 5),
+  }
+}
+
+/**
+ * New accounts per day, zero-filled across the window.
+ *
+ * Zero-filled on purpose, and the opposite choice to the spend series above: a day with no signups
+ * really did have none, so a gap in the bars would misread as missing data rather than a quiet
+ * Sunday.
+ */
+function fillDailyCounts(
+  rows: { day: string; n: number }[],
+  from: Date,
+  to: Date,
+): Map<string, number> {
+  const counts = new Map(rows.map((r) => [r.day, r.n]))
+  const out = new Map<string, number>()
+  // Capped so a hand-edited URL asking for ten years cannot ask the browser to draw 3,650 bars.
+  const days = Math.min(
+    370,
+    Math.max(1, Math.round((to.getTime() - from.getTime()) / DAY_MS) + 1),
+  )
+  for (let i = 0; i < days; i++) {
+    const d = new Date(from.getTime() + i * DAY_MS).toISOString().slice(0, 10)
+    out.set(d, counts.get(d) ?? 0)
+  }
+  return out
+}
+
+export async function getPlatformOverview(range: OverviewRange = {}): Promise<PlatformOverview> {
+  const now = Date.now()
+  const in3Days = new Date(now + 3 * DAY_MS)
+  const sevenDaysAgo = new Date(now - 7 * DAY_MS)
+  // The growth series follows the picker; every 'right now' figure below deliberately does not.
+  const windowEnd = range.to ?? new Date(now)
+  const windowStart = range.from ?? new Date(windowEnd.getTime() - (OVERVIEW_WINDOW_DAYS - 1) * DAY_MS)
+
+  const pastDueWhere = eq(schema.subscriptions.status, 'past_due')
+  const trialWhere = and(
+    eq(schema.subscriptions.status, 'trialing'),
+    lte(schema.subscriptions.trialEndsAt, in3Days),
+  )
+  // A connection that has never synced (`lastSyncedAt IS NULL`) is deliberately not stale: it is
+  // usually one that was connected minutes ago, and flagging those would fill the queue with
+  // healthy new accounts. Inactive is always worth surfacing.
+  const staleWhere = or(
+    eq(schema.platformConnections.isActive, false),
+    lt(schema.platformConnections.lastSyncedAt, sevenDaysAgo),
+  )
+  const failedWhere = and(
+    eq(schema.backgroundJobs.status, 'failed'),
+    gte(schema.backgroundJobs.queuedAt, sevenDaysAgo),
+  )
+
+  const [
+    workspaceRows,
+    userRows,
+    signupRows,
+    byPlan,
+    activeByPlan,
+    pastDue,
+    pastDueCount,
+    trials,
+    trialCount,
+    stale,
+    staleCount,
+    jobs,
+    jobCount,
+    sessionRows,
+    connectionRows,
+    recRows,
+    briefRows,
+    workspacesPerDay,
+    usersPerDay,
+    statusMix,
+    newestRows,
+    recStatusRows,
+    liveIdRows,
+  ] = await Promise.all([
     db.select({ value: count() }).from(schema.workspaces),
     db.select({ value: count() }).from(schema.user),
-    db.select({ plan: schema.subscriptions.plan, value: count() }).from(schema.subscriptions).groupBy(schema.subscriptions.plan),
-    db.select({ value: count() }).from(schema.subscriptions),
+    db.select({ value: count() }).from(schema.user).where(gte(schema.user.createdAt, sevenDaysAgo)),
+    // LEFT JOIN out of workspaces: one row per live workspace, and a workspace with no
+    // subscription row surfaces as `plan: null` rather than being missing from the breakdown.
+    db
+      .select({ plan: schema.subscriptions.plan, value: count() })
+      .from(schema.workspaces)
+      .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
+      .groupBy(schema.subscriptions.plan),
+    // Revenue counts `active` only — see PlatformOverview.mrrCents for why trials and past_due are
+    // excluded.
+    db
+      .select({ plan: schema.subscriptions.plan, value: count() })
+      .from(schema.subscriptions)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.subscriptions.workspaceId))
+      .where(eq(schema.subscriptions.status, 'active'))
+      .groupBy(schema.subscriptions.plan),
+    db
+      .select({
+        workspaceId: schema.workspaces.id,
+        workspaceName: schema.workspaces.name,
+        plan: schema.subscriptions.plan,
+        since: schema.subscriptions.updatedAt,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.subscriptions.workspaceId))
+      .where(pastDueWhere)
+      .orderBy(asc(schema.subscriptions.updatedAt))
+      .limit(ATTENTION_LIMIT),
+    db
+      .select({ value: count() })
+      .from(schema.subscriptions)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.subscriptions.workspaceId))
+      .where(pastDueWhere),
+    db
+      .select({
+        workspaceId: schema.workspaces.id,
+        workspaceName: schema.workspaces.name,
+        plan: schema.subscriptions.plan,
+        trialEndsAt: schema.subscriptions.trialEndsAt,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.subscriptions.workspaceId))
+      .where(trialWhere)
+      .orderBy(asc(schema.subscriptions.trialEndsAt))
+      .limit(ATTENTION_LIMIT),
+    db
+      .select({ value: count() })
+      .from(schema.subscriptions)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.subscriptions.workspaceId))
+      .where(trialWhere),
+    db
+      .select({
+        workspaceId: schema.workspaces.id,
+        workspaceName: schema.workspaces.name,
+        platform: schema.platformConnections.platform,
+        accountName: schema.platformConnections.accountName,
+        lastSyncedAt: schema.platformConnections.lastSyncedAt,
+        isActive: schema.platformConnections.isActive,
+      })
+      .from(schema.platformConnections)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.platformConnections.workspaceId))
+      .where(staleWhere)
+      .orderBy(asc(schema.platformConnections.lastSyncedAt))
+      .limit(ATTENTION_LIMIT),
+    db
+      .select({ value: count() })
+      .from(schema.platformConnections)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.platformConnections.workspaceId))
+      .where(staleWhere),
+    db
+      .select({
+        workspaceId: schema.workspaces.id,
+        workspaceName: schema.workspaces.name,
+        jobId: schema.backgroundJobs.id,
+        type: schema.backgroundJobs.type,
+        error: schema.backgroundJobs.error,
+        completedAt: schema.backgroundJobs.completedAt,
+        queuedAt: schema.backgroundJobs.queuedAt,
+      })
+      .from(schema.backgroundJobs)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.backgroundJobs.workspaceId))
+      .where(failedWhere)
+      .orderBy(desc(schema.backgroundJobs.queuedAt))
+      .limit(ATTENTION_LIMIT),
+    db
+      .select({ value: count() })
+      .from(schema.backgroundJobs)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.backgroundJobs.workspaceId))
+      .where(failedWhere),
+    // People with a session that has not expired. Distinct, because one person on a laptop and a
+    // phone is one person using the product, not two.
+    db
+      .select({ value: sql<number>`count(distinct ${schema.session.userId})::int` })
+      .from(schema.session)
+      .where(gte(schema.session.expiresAt, new Date())),
+    db
+      .select({ value: count() })
+      .from(schema.platformConnections)
+      .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.platformConnections.workspaceId))
+      .where(eq(schema.platformConnections.isActive, true)),
+    db.select({ value: count() }).from(schema.recommendations),
+    db.select({ value: count() }).from(schema.contentBriefs),
+    // Signups per day, both kinds, over the window.
+    db
+      .select({
+        day: sql<string>`to_char(${schema.workspaces.createdAt}, 'YYYY-MM-DD')`,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(schema.workspaces)
+      .where(and(gte(schema.workspaces.createdAt, windowStart), lte(schema.workspaces.createdAt, endOfDay(windowEnd))))
+      .groupBy(sql`1`),
+    db
+      .select({
+        day: sql<string>`to_char(${schema.user.createdAt}, 'YYYY-MM-DD')`,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(schema.user)
+      .where(and(gte(schema.user.createdAt, windowStart), lte(schema.user.createdAt, endOfDay(windowEnd))))
+      .groupBy(sql`1`),
+    // Every live workspace with its status, so the mix counts customers rather than rows.
+    db
+      .select({ status: schema.subscriptions.status, value: count() })
+      .from(schema.workspaces)
+      .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
+      .groupBy(schema.subscriptions.status),
+    db
+      .select({
+        id: schema.workspaces.id,
+        name: schema.workspaces.name,
+        plan: schema.subscriptions.plan,
+        createdAt: schema.workspaces.createdAt,
+      })
+      .from(schema.workspaces)
+      .leftJoin(schema.subscriptions, eq(schema.subscriptions.workspaceId, schema.workspaces.id))
+      .orderBy(desc(schema.workspaces.createdAt))
+      .limit(5),
+    // What became of everything the engine produced. 265 rows of real outcome data on the dev
+    // database, and the clearest available answer to "is anyone acting on what we generate".
+    db
+      .select({ status: schema.recommendations.status, value: count() })
+      .from(schema.recommendations)
+      .groupBy(schema.recommendations.status),
+    // The id list that scopes every ClickHouse figure to workspaces that still exist.
+    db.select({ id: schema.workspaces.id }).from(schema.workspaces),
   ])
-  const totalWorkspaces = workspaceRows[0]?.value ?? 0
-  const totalUsers = userRows[0]?.value ?? 0
-  const subscribedCount = subRows[0]?.value ?? 0
 
-  // Workspaces with no subscriptions row default to starter/trialing (see getCurrentSubscription)
-  // and wouldn't otherwise show up in the by-plan breakdown at all.
-  const noSubscriptionCount = totalWorkspaces - subscribedCount
-  const workspacesByPlan = [
-    ...byPlan.map((r) => ({ plan: r.plan, count: r.value })),
-    ...(noSubscriptionCount > 0 ? [{ plan: 'starter (no subscription row)', count: noSubscriptionCount }] : []),
-  ]
+  // No subscription row means starter/trialing (getCurrentSubscription's default), so it is
+  // reported as 'starter' — the plan the workspace actually has, not a separate bucket. The
+  // breakdown therefore sums to totalWorkspaces by construction.
+  const merged = new Map<string, number>()
+  for (const row of byPlan) {
+    const plan = row.plan ?? 'starter'
+    merged.set(plan, (merged.get(plan) ?? 0) + row.value)
+  }
 
-  const in3Days = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-  const [trialsRow] = await db
-    .select({ value: count() })
-    .from(schema.subscriptions)
-    .where(and(eq(schema.subscriptions.status, 'trialing'), lte(schema.subscriptions.trialEndsAt, in3Days)))
-  const trialsEndingSoonCount = trialsRow?.value ?? 0
+  let mrrCents = 0
+  let payingCustomers = 0
+  const revenueByPlan: PlatformOverview['revenueByPlan'] = []
+  for (const row of activeByPlan) {
+    payingCustomers += row.value
+    const price = PLAN_PRICE_USD_CENTS[row.plan as Plan]
+    // A plan name we do not price (a renamed tier, a bad row) contributes nothing rather than NaN,
+    // which would render the whole figure as "$NaN" and take every other plan's revenue with it.
+    if (typeof price !== 'number') continue
+    mrrCents += price * row.value
+    revenueByPlan.push({ plan: row.plan, customers: row.value, mrrCents: price * row.value })
+  }
+  revenueByPlan.sort((x, y) => y.mrrCents - x.mrrCents)
 
-  return { totalWorkspaces, totalUsers, workspacesByPlan, trialsEndingSoonCount }
+  const liveIds = liveIdRows.map((r) => r.id)
+  const spend = await getPlatformSpend(liveIds, range)
+  const nameOf = new Map(newestRows.map((r) => [r.id, r.name]))
+  // Top spenders come back as ids; the names they need live in Postgres. Anything already fetched
+  // is reused, and only the remainder is asked for.
+  const missingNames = spend.topSpenders.map((s) => s.workspaceId).filter((id) => !nameOf.has(id))
+  if (missingNames.length > 0) {
+    const rows = await db
+      .select({ id: schema.workspaces.id, name: schema.workspaces.name })
+      .from(schema.workspaces)
+      .where(inArray(schema.workspaces.id, missingNames))
+    for (const r of rows) nameOf.set(r.id, r.name)
+  }
+
+  const wsPerDay = fillDailyCounts(workspacesPerDay, windowStart, windowEnd)
+  const usrPerDay = fillDailyCounts(usersPerDay, windowStart, windowEnd)
+
+  return {
+    totalWorkspaces: workspaceRows[0]?.value ?? 0,
+    totalUsers: userRows[0]?.value ?? 0,
+    signupsLast7d: signupRows[0]?.value ?? 0,
+    mrrCents,
+    workspacesByPlan: [...merged].map(([plan, count]) => ({ plan, count })),
+    liveSessions: sessionRows[0]?.value ?? 0,
+    connectedPlatforms: connectionRows[0]?.value ?? 0,
+    recommendationsGenerated: recRows[0]?.value ?? 0,
+    briefsCreated: briefRows[0]?.value ?? 0,
+    // A workspace with no subscription row is on the implicit starter trial, the same fallback
+    // getCurrentSubscription applies — so a null status is reported as 'trialing' rather than as a
+    // fourth, meaningless bucket.
+    payingCustomers,
+    revenueByPlan,
+    subscriptionMix: (() => {
+      // Seeded with every status so the zeros survive. A status that disappears when it is zero is
+      // indistinguishable from one that is not measured, and "nobody is paying" is exactly the
+      // reading this page has to be able to give.
+      const mix = new Map<string, number>([
+        ['active', 0],
+        ['trialing', 0],
+        ['past_due', 0],
+        ['canceled', 0],
+      ])
+      for (const row of statusMix) {
+        const status = row.status ?? 'trialing'
+        mix.set(status, (mix.get(status) ?? 0) + row.value)
+      }
+      return [...mix].map(([status, count]) => ({ status, count }))
+    })(),
+    growthDaily: [...wsPerDay].map(([date, workspaces]) => ({
+      date,
+      workspaces,
+      users: usrPerDay.get(date) ?? 0,
+    })),
+    spendDaily: spend.spendDaily,
+    spendWindow: spend.spendWindow,
+    totalSpend: spend.totalSpend,
+    spendByPlatform: spend.spendByPlatform,
+    spendByChannelDaily: spend.spendByChannelDaily,
+    funnel: spend.funnel,
+    topCampaigns: spend.topCampaigns,
+    recommendationsByStatus: recStatusRows.map((r) => ({ status: r.status, count: r.value })),
+    newestWorkspaces: newestRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      plan: r.plan ?? 'starter',
+      createdAt: r.createdAt.toISOString(),
+    })),
+    topSpenders: spend.topSpenders.map((s) => ({
+      id: s.workspaceId,
+      name: nameOf.get(s.workspaceId) ?? s.workspaceId,
+      spend: s.spend,
+    })),
+    attention: {
+      pastDue: pastDue.map((r) => ({
+        workspaceId: r.workspaceId,
+        workspaceName: r.workspaceName,
+        plan: r.plan,
+        since: r.since?.toISOString() ?? null,
+      })),
+      pastDueTotal: pastDueCount[0]?.value ?? 0,
+      trialsEnding: trials.map((r) => ({
+        workspaceId: r.workspaceId,
+        workspaceName: r.workspaceName,
+        plan: r.plan,
+        // The WHERE clause cannot match a null trialEndsAt, so the fallback is unreachable.
+        trialEndsAt: r.trialEndsAt?.toISOString() ?? new Date(0).toISOString(),
+      })),
+      trialsEndingTotal: trialCount[0]?.value ?? 0,
+      staleConnections: stale.map((r) => ({
+        workspaceId: r.workspaceId,
+        workspaceName: r.workspaceName,
+        platform: r.platform,
+        accountName: r.accountName,
+        lastSyncedAt: r.lastSyncedAt?.toISOString() ?? null,
+        isActive: r.isActive ?? true,
+      })),
+      staleConnectionsTotal: staleCount[0]?.value ?? 0,
+      failedJobs: jobs.map((r) => ({
+        workspaceId: r.workspaceId,
+        workspaceName: r.workspaceName,
+        jobId: r.jobId,
+        type: r.type,
+        error: r.error,
+        failedAt: (r.completedAt ?? r.queuedAt)?.toISOString() ?? null,
+      })),
+      failedJobsTotal: jobCount[0]?.value ?? 0,
+    },
+  }
 }
 
 // ── Audit log ─────────────────────────────────────────────────────────────────
@@ -256,8 +1259,48 @@ export interface AdminAuditLogEntry {
   createdAt: string
 }
 
-export async function listAuditLog(page: Page): Promise<Paged<AdminAuditLogEntry>> {
-  const [totalRow] = await db.select({ value: count() }).from(schema.adminAuditLog)
+export interface AuditLogFilters {
+  /** Only entries that changed something. The log's default view — see the comment below. */
+  mutatingOnly?: boolean | undefined
+  actorUserId?: string | undefined
+  action?: string | undefined
+  targetType?: string | undefined
+  from?: Date | undefined
+  to?: Date | undefined
+}
+
+/**
+ * The platform audit log.
+ *
+ * **Reads are excluded by default.** Every admin route records a row, including the list and
+ * overview pages, so views outnumber changes by a wide margin and an undifferentiated log buries
+ * the handful of rows anyone is ever looking for. The reads are still there, one query parameter
+ * away — the record is complete, the default view is useful, and those are not the same
+ * requirement.
+ *
+ * "Mutating" is derived from `READ_ACTION_NAMES` in admin-audit.ts rather than from a second list
+ * kept here: one definition of what counts as a read, used both to collapse repeats and to filter
+ * this view.
+ */
+export async function listAuditLog(
+  page: Page,
+  filters: AuditLogFilters = {},
+): Promise<Paged<AdminAuditLogEntry>> {
+  const conditions = []
+  if (filters.mutatingOnly) {
+    conditions.push(notInArray(schema.adminAuditLog.action, [...READ_ACTION_NAMES]))
+  }
+  if (filters.actorUserId) conditions.push(eq(schema.adminAuditLog.actorUserId, filters.actorUserId))
+  if (filters.action) conditions.push(eq(schema.adminAuditLog.action, filters.action))
+  if (filters.targetType) conditions.push(eq(schema.adminAuditLog.targetType, filters.targetType))
+  if (filters.from) conditions.push(gte(schema.adminAuditLog.createdAt, filters.from))
+  if (filters.to) conditions.push(lte(schema.adminAuditLog.createdAt, filters.to))
+  const whereClause = conditions.length ? and(...conditions) : undefined
+
+  const [totalRow] = await db
+    .select({ value: count() })
+    .from(schema.adminAuditLog)
+    .where(whereClause)
   const total = totalRow?.value ?? 0
 
   const rows = await db
@@ -274,6 +1317,7 @@ export async function listAuditLog(page: Page): Promise<Paged<AdminAuditLogEntry
     })
     .from(schema.adminAuditLog)
     .leftJoin(schema.user, eq(schema.user.id, schema.adminAuditLog.actorUserId))
+    .where(whereClause)
     .orderBy(desc(schema.adminAuditLog.createdAt))
     .limit(page.limit)
     .offset(page.offset)

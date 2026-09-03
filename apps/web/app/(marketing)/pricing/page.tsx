@@ -1,14 +1,15 @@
+import { pageMeta } from "@/lib/seo";
 import Link from "next/link";
-import type { Metadata } from "next";
 import { Check, Minus } from "lucide-react";
 import { Button } from "@growthos/ui/components/button";
+import { PLAN_LIMITS, planPriceLabel, type Plan } from "@growthos/types";
 
-export const metadata: Metadata = {
+export const metadata = pageMeta({
   title: "Pricing",
   description:
     "Starter, Growth, and Scale plans for GrowthOS — one loop across SEO, Google Ads, and Meta Ads. 14-day free trial on Growth, no credit card required.",
-};
-import { PLAN_LIMITS, type Plan } from "@growthos/types";
+  path: "/pricing",
+});
 
 // Every number on this page reads from @growthos/types PLAN_LIMITS — the same source
 // apps/api/src/plan-limits.ts enforces server-side. Nothing here is independently maintained,
@@ -17,11 +18,11 @@ import { PLAN_LIMITS, type Plan } from "@growthos/types";
 
 const PLANS: Plan[] = ["starter", "growth", "scale"];
 
-const PLAN_PRICE: Record<Plan, string> = { starter: "$79", growth: "$199", scale: "$399" };
+const PLAN_NAME: Record<Plan, string> = { starter: "Starter", growth: "Growth", scale: "Scale" };
 const PLAN_TAGLINE: Record<Plan, string> = {
-  starter: "Get the loop running on one brand.",
-  growth: "For teams scaling paid and organic together.",
-  scale: "For agencies and multi-brand operators.",
+  starter: "One brand, one operator.",
+  growth: "Paid and organic, scaling together.",
+  scale: "Agencies and multi-brand operators.",
 };
 const PLAN_SUPPORT: Record<Plan, string> = {
   starter: "Email",
@@ -52,8 +53,11 @@ const ROWS: Row[] = [
           : "Unlimited"
         : `${fmt(PLAN_LIMITS[p].recommendationsPerWeek)}/week`,
   },
-  { label: "AI creative generation", values: (p) => `${fmt(PLAN_LIMITS[p].aiCreativesPerMonth)}/month` },
-  { label: "GEO / AI-citation tracking", values: (p) => PLAN_LIMITS[p].geoTracking },
+  { label: "Generated creatives", values: (p) => `${fmt(PLAN_LIMITS[p].aiCreativesPerMonth)}/month` },
+  // NOTE: PLAN_LIMITS[p].geoTracking is deliberately not shown. The entitlement is real and
+  // billing enforces it, but AI-citation tracking itself is deferred (M4 P4.4b, pending paid
+  // API access) — listing it here would advertise a feature that does not exist yet. Restore
+  // this row when P4.4b ships. Do not "fix" it by editing PLAN_LIMITS: that is the contract.
   { label: "White-label reports", values: (p) => PLAN_LIMITS[p].whiteLabel },
   {
     label: "Cross-channel attribution",
@@ -82,9 +86,9 @@ export default function PricingPage() {
   return (
     <div className="mx-auto max-w-6xl px-6 py-20">
       <div className="mx-auto max-w-2xl text-center">
-        <p className="text-sm font-semibold uppercase tracking-wider text-primary">Pricing</p>
+        <p className="font-mono text-[11px] tracking-[0.18em] text-primary">PRICING</p>
         <h1 className="mt-3 font-display text-4xl font-bold tracking-tight sm:text-5xl">
-          One insight loop, three ways to run it.
+          Three channels, three ways to run them.
         </h1>
         <p className="mt-4 text-muted-foreground">
           14-day free trial on the Growth tier, no credit card required. Annual billing gets a 20% discount.
@@ -108,10 +112,10 @@ export default function PricingPage() {
                   Most popular
                 </span>
               )}
-              <h2 className="font-display text-lg font-semibold capitalize">{plan}</h2>
+              <h2 className="font-display text-lg font-semibold tracking-tight">{PLAN_NAME[plan]}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{PLAN_TAGLINE[plan]}</p>
               <p className="mt-5 flex items-baseline gap-1">
-                <span className="font-display text-4xl font-bold tracking-tight">{PLAN_PRICE[plan]}</span>
+                <span className="font-display text-4xl font-bold tracking-tight">{planPriceLabel(plan)}</span>
                 <span className="text-sm text-muted-foreground">/ month</span>
               </p>
               <Button asChild className="mt-6 w-full" variant={featured ? "default" : "outline"}>
@@ -128,8 +132,8 @@ export default function PricingPage() {
             <tr className="border-b">
               <th className="py-4 text-left font-medium text-muted-foreground">Feature</th>
               {PLANS.map((plan) => (
-                <th key={plan} className="py-4 text-center font-display font-semibold capitalize">
-                  {plan}
+                <th key={plan} className="py-4 text-center font-display font-semibold tracking-tight">
+                  {PLAN_NAME[plan]}
                 </th>
               ))}
             </tr>
@@ -150,9 +154,9 @@ export default function PricingPage() {
       </div>
 
       <p className="mt-10 text-center text-sm text-muted-foreground">
-        Need something custom, or running an agency with many clients?{" "}
-        <Link href="/sign-up" className="underline underline-offset-4 hover:text-foreground">
-          Talk to us
+        Running an agency with many brands, or not sure which tier fits?{" "}
+        <Link href="/faq" className="text-primary underline underline-offset-4">
+          Read the FAQ
         </Link>
         .
       </p>

@@ -1,4 +1,5 @@
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { workspaces } from './auth.js';
 
 /**
  * Autonomous automation loop schema (scheduled intelligence & alerting).
@@ -13,7 +14,7 @@ export const automationAlerts = pgTable(
   'automation_alerts',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull(),
     alertType: text('alert_type').notNull(), // 'mer_anomaly' | 'fatigue'
     signature: text('signature').notNull(), // opaque fingerprint of the current alertable state
     emittedAt: timestamp('emitted_at', { withTimezone: true }).defaultNow(),
@@ -43,7 +44,7 @@ export const automationRules = pgTable(
   'automation_rules',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull(),
     // 'pause_ad_set' | 'adjust_budget' | 'refresh_creative' | 'queue_content'
     actionType: text('action_type').notNull(),
     enabled: boolean('enabled').notNull().default(true),
@@ -70,7 +71,7 @@ export const automationActions = pgTable(
   'automation_actions',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull(),
     ruleId: uuid('rule_id'),
     actionType: text('action_type').notNull(),
     // 'proposed' | 'approved' | 'executed' | 'failed' | 'rejected' | 'expired'

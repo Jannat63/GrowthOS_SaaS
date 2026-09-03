@@ -23,6 +23,14 @@ describe("meta ads advisor", () => {
     expect(plan[0]!.audience).toContain("Ergonomic Chair");
   });
 
+  it("names the audience temperature separately from the targeting", () => {
+    const plan = buildFullFunnelPlan(2000, "Ergonomic Chair");
+    expect(plan.map((s) => s.temperature)).toEqual(["Cold", "Warm", "Hot"]);
+    // The temperature used to be a prefix on `audience` ("Cold — Interest-based targeting for X"),
+    // so a view could not show one without the other.
+    for (const s of plan) expect(s.audience).not.toMatch(/^(Cold|Warm|Hot) —/);
+  });
+
   it("fills ad-copy templates and respects the requested count", () => {
     const variants = generateAdCopyVariants("Standing Desk", "better posture", "back pain", 3);
     expect(variants).toHaveLength(3);
@@ -33,6 +41,19 @@ describe("meta ads advisor", () => {
     }
     // The pain-point hook is realized.
     expect(variants[0]!.hook).toBe("Tired of back pain?");
+  });
+
+  it("picks the article by sound, not by spelling", () => {
+    // "Finally, a Ergonomic Office Chair that actually works." shipped to screen.
+    const vowel = generateAdCopyVariants("Ergonomic Office Chair", "comfort", "back pain");
+    expect(vowel[1]!.hook).toBe("Finally, an Ergonomic Office Chair that actually works.");
+
+    // A leading "u" pronounced "yu" takes "a" — the reason a bare vowel test is not enough.
+    const yu = generateAdCopyVariants("Universal Stand", "one mount", "clutter");
+    expect(yu[1]!.hook).toBe("Finally, a Universal Stand that actually works.");
+
+    const consonant = generateAdCopyVariants("Standing Desk", "better posture", "back pain");
+    expect(consonant[1]!.hook).toBe("Finally, a Standing Desk that actually works.");
   });
 
   it("produces a UGC script for each supported duration", () => {

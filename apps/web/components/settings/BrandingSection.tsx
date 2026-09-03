@@ -8,7 +8,7 @@ import { Label } from "@growthos/ui/components/label";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import { useBranding, useBrandingActions } from "@/lib/hooks/useBranding";
 
-const DEFAULT_PRIMARY = "#4f46e5";
+const DEFAULT_PRIMARY = "#ce4218";
 const isHex = (v: string) => /^#[0-9a-fA-F]{6}$/.test(v);
 
 export function BrandingSection({ workspaceId }: { workspaceId: string | null }) {
@@ -91,7 +91,7 @@ export function BrandingSection({ workspaceId }: { workspaceId: string | null })
                 className="max-w-[160px] font-mono"
               />
               {!colorValid && (
-                <span className="text-xs text-destructive">Use a 6-digit hex, e.g. #4f46e5.</span>
+                <span className="text-xs text-destructive">Use a 6-digit hex, e.g. #ce4218.</span>
               )}
             </div>
           </div>

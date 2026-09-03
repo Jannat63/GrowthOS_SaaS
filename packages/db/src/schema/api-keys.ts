@@ -1,4 +1,5 @@
 import { index, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
+import { workspaces } from './auth.js';
 
 /**
  * Public API keys (M4 P4.4 — the buildable half; see docs/plan/M4-v2-automation/progress.md).
@@ -10,13 +11,14 @@ import { index, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-co
  * characters of the plaintext (e.g. `gos_live_ab3f`), stored separately so the UI can show
  * "which key is this" without ever re-displaying the full secret.
  *
- * workspaceId is app-layer enforced (no FK — see tenancy.ts).
+ * workspaceId carries an ON DELETE CASCADE FK to workspaces; workspace *access* is still
+ * app-layer enforced (no RLS — see tenancy.ts).
  */
 export const apiKeys = pgTable(
   'api_keys',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull(),
     name: text('name').notNull(), // user-supplied label, e.g. "Zapier integration"
     keyHash: text('key_hash').notNull(),
     keyPrefix: text('key_prefix').notNull(),

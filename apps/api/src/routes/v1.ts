@@ -29,6 +29,16 @@ import {
   listInvitations,
   revokeInvitation,
 } from '../invitations.js'
+import { getBrandGuidelinesForDisplay, upsertBrandGuidelines } from '../brand.js'
+import { generateCreatives } from '../creatives.js'
+import {
+  concludeExperiment,
+  createExperiment,
+  deleteExperiment,
+  listExperiments,
+  setExperimentStatus,
+} from '../experiments.js'
+import { BRAND_TONES } from '@growthos/logic'
 import { enqueue } from '../jobs/enqueue.js'
 import { listRecommendations } from '../recommendations.js'
 import { parsePage } from '../pagination.js'
@@ -37,29 +47,34 @@ import {
   getScoredSearchTerms,
   getContentBriefs,
   updateRecommendationStatus,
+  updateContentBriefStatus,
 } from '../search-terms.js'
 import { ensureOrganicToPaid, getTopOrganicPages } from '../organic-to-paid.js'
-import { ensureFatigueAlerts, getFatigueResults } from '../fatigue.js'
+import { ensureFatigueAlerts, getCreativeScorecard, getFatigueResults } from '../fatigue.js'
 import { ensureAdPerformanceSeed, getMerTrend } from '../analytics.js'
-import { getKeywordRankings, getOrganicTraffic } from '../seo.js'
+import { getKeywordClusters, getKeywordRankings, getOrganicTraffic } from '../seo.js'
 import { getCoreWebVitals } from '../core-web-vitals.js'
-import { clusterKeywords } from '@growthos/logic'
 import { generateSchemaMarkup } from '../schema-markup-lookup.js'
 import { getInternalLinkRecommendations } from '../internal-links.js'
-import { getCampaignInsights } from '../google-ads.js'
-import { getMetaCampaignInsights } from '../meta-ads.js'
+import { getCampaignInsights } from '../campaign-insights.js'
 import { getAttribution } from '../attribution.js'
 import { getGrowthHub } from '../growth-hub.js'
-import { getWeeklyReport } from '../intelligence.js'
+import { getArchivedReport, getWeeklyReport, listReportPeriods } from '../intelligence.js'
 import { generateReportPdf } from '../pdf-report-generate.js'
 import { listComments, addComment, assignRecommendation } from '../collaboration.js'
 import { recordAudit, getAuditLogs } from '../audit.js'
 import { startTrial } from '../billing.js'
 import { assertFeatureEnabled, assertCanCreateWorkspace } from '../plan-limits.js'
 import { createApiKey, listApiKeys, revokeApiKey } from '../api-keys.js'
+import {
+  createWebhookEndpoint,
+  deleteWebhookEndpoint,
+  enableWebhookEndpoint,
+  listWebhookEndpoints,
+} from '../webhooks/endpoints.js'
 import { listSchedulerRuns } from '../scheduler/queries.js'
 import { listRules, upsertRule, deleteRule } from '../automation/rules.js'
-import { listActions, approveAction, rejectAction } from '../automation/actions.js'
+import { listActions, approveAction, rejectAction, runAutomationForWorkspace } from '../automation/actions.js'
 
 // Default autonomous-loop config when a workspace has never customized it.
 const DEFAULT_AUTOMATION: AutomationConfig = { enabled: true, cadenceMs: 7 * 24 * 60 * 60 * 1000 }
@@ -101,6 +116,21 @@ async function listMemberships(userId: string): Promise<Membership[]> {
       onboardingComplete: r.onboardingComplete ?? false,
     },
   }))
+}
+
+/**
+ * The reporting window every analytics route accepts.
+ *
+ * `from`/`to` are what the dashboard's date picker sends; `days` is the older shorthand, kept so
+ * existing callers and the public API keep working. When both are present the explicit range wins
+ * (see `resolveWindow`). The `days` ceiling is generous rather than 90 because the window is really
+ * bounded by the data a workspace has, which `getDataBounds` reports back to the client.
+ */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+const DATE_WINDOW_QUERY = {
+  from: z.string().regex(ISO_DATE).optional(),
+  to: z.string().regex(ISO_DATE).optional(),
+  days: z.coerce.number().int().positive().max(400).optional(),
 }
 
 export async function registerV1Routes(app: FastifyInstance) {
@@ -444,11 +474,16 @@ export async function registerV1Routes(app: FastifyInstance) {
 
   // Google Ads campaign insights (M3 P3.2 slice) — advisor over ClickHouse ad_performance
   // (seeded until a real Google Ads connection syncs; live API push is gated on the dev token).
+  //
+  // Both campaign endpoints take the same date window as every other data route. They used to take
+  // none at all and sum the whole table, so their totals were all-time figures rendered next to
+  // windowed ones with nothing on screen to tell them apart.
   app.get('/api/v1/workspaces/:id/google-ads/campaigns', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    return getCampaignInsights(id)
+    const q = z.object(DATE_WINDOW_QUERY).safeParse(request.query)
+    return getCampaignInsights(id, 'google_ads', q.success ? q.data : {})
   })
 
   // Meta Ads campaign insights (M3 P3.3 slice) — advisor over ClickHouse ad_performance (meta_ads;
@@ -457,7 +492,8 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    return getMetaCampaignInsights(id)
+    const q = z.object(DATE_WINDOW_QUERY).safeParse(request.query)
+    return getCampaignInsights(id, 'meta_ads', q.success ? q.data : {})
   })
 
   // Paid-to-organic search-terms surface — scores workspace-varied fixture terms + ensures recs/briefs exist.
@@ -477,6 +513,16 @@ export async function registerV1Routes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     return getKeywordRankings(id)
+  })
+
+  // SEO keyword clusters (M3 P3.1 slice) — topical groups over the same tracked keyword set, via
+  // the pure `clusterKeywords` engine. Lexical only: no SERP data, so no intent verification. The
+  // response carries `intentVerified: false` on every cluster and the UI is expected to surface it.
+  app.get('/api/v1/workspaces/:id/seo/clusters', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    return getKeywordClusters(id)
   })
 
   // SEO organic traffic (M3 P3.1) — per-page clicks/impressions/CTR/position from ClickHouse
@@ -616,20 +662,6 @@ export async function registerV1Routes(app: FastifyInstance) {
     return getCoreWebVitals(query.data.url, query.data.strategy)
   })
 
-  // Keyword clustering (SEO extras, real feature) — pure algorithm over this workspace's already-
-  // tracked keywords (real once Search Console is connected; same-shaped sample data otherwise,
-  // exactly like the rank tracker itself already reports). No worker job needed — synchronous.
-  app.get('/api/v1/workspaces/:id/seo/keyword-clusters', async (request) => {
-    const user = await requireUser(request)
-    const { id } = request.params as { id: string }
-    await requireWorkspaceMember(user.id, id)
-
-    const rankings = await getKeywordRankings(id)
-    const keywords = rankings.keywords.map((k) => k.keyword)
-    const clusters = clusterKeywords(keywords)
-    return { clusters, totalKeywords: keywords.length }
-  })
-
   // Organic-to-paid — top organic pages worth amplifying with Meta (+ generate recs/creative briefs).
   app.get('/api/v1/workspaces/:id/seo/top-pages', async (request) => {
     const user = await requireUser(request)
@@ -641,11 +673,36 @@ export async function registerV1Routes(app: FastifyInstance) {
   })
 
   // Weekly Growth Intelligence Report (M3 P3.4) — generate + persist, return latest.
+  //
+  // With `?week=` it serves that week straight out of the archive instead, unchanged from when it
+  // was generated. That distinction matters: a past week must not be recomputed against today's
+  // data, or the "report" for a week gone by would silently rewrite itself on every read.
   app.get('/api/v1/workspaces/:id/intelligence/report', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    return getWeeklyReport(id)
+
+    const query = z.object({ week: z.string().date().optional() }).safeParse(request.query)
+    if (!query.success) {
+      throw new AppError('VALIDATION_ERROR', 'week must be a YYYY-MM-DD date.')
+    }
+    const week = query.data.week
+    if (!week) return getWeeklyReport(id)
+
+    const archived = await getArchivedReport(id, week)
+    if (!archived) {
+      throw new AppError('NOT_FOUND', `No report is stored for the week of ${week}.`)
+    }
+    return archived
+  })
+
+  // Which weeks this workspace has a stored report for — the report archive's index.
+  app.get('/api/v1/workspaces/:id/intelligence/reports', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    const data = await listReportPeriods(id)
+    return { data, total: data.length }
   })
 
   // Cross-channel attribution (M4 P4.1) — every model's per-channel credit over conversion paths.
@@ -656,17 +713,16 @@ export async function registerV1Routes(app: FastifyInstance) {
     return getAttribution(id)
   })
 
-  // Growth Hub headline metrics — revenue/spend/organic/conversions for the current window vs the
-  // preceding one, plus the Goal Simulator's baseline. Windows are measured from the latest date in
-  // the data, not today (see growth-hub.ts).
+  // Growth Hub headline metrics — revenue/spend/organic/conversions for the selected window vs the
+  // equal-length window before it, plus the Goal Simulator's baseline and the workspace's data
+  // bounds. With no range given the window is anchored to the latest date in the data, not today
+  // (see growth-hub.ts and date-window.ts).
   app.get('/api/v1/workspaces/:id/analytics/growth-hub', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    const q = z
-      .object({ days: z.coerce.number().int().positive().max(90).optional() })
-      .safeParse(request.query)
-    return getGrowthHub(id, q.success ? (q.data.days ?? 30) : 30)
+    const q = z.object(DATE_WINDOW_QUERY).safeParse(request.query)
+    return getGrowthHub(id, q.success ? q.data : {})
   })
 
   // Blended MER — trend + channel breakdown from ClickHouse ad_performance (seeded per workspace).
@@ -674,10 +730,9 @@ export async function registerV1Routes(app: FastifyInstance) {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
-    const q = z.object({ days: z.coerce.number().int().positive().max(90).optional() }).safeParse(request.query)
-    const days = q.success ? (q.data.days ?? 30) : 30
+    const q = z.object(DATE_WINDOW_QUERY).safeParse(request.query)
     await ensureAdPerformanceSeed(id)
-    return getMerTrend(id, days)
+    return getMerTrend(id, q.success ? q.data : {})
   })
 
   // Creative fatigue — scored Meta creatives (+ generate fatigue_alert recs).
@@ -690,12 +745,58 @@ export async function registerV1Routes(app: FastifyInstance) {
     return { data, total: data.length }
   })
 
+  // Creative scorecard (M4 P4.2a-2) — grades creatives that have RUN against this account's own
+  // trailing CTR median. Not a prediction: see creative-scorecard.ts for why prediction is not
+  // built. Read-level guard, like fatigue — this is analysis of existing data, not an action.
+  app.get('/api/v1/workspaces/:id/meta-ads/scorecard', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id)
+    return getCreativeScorecard(id)
+  })
+
   // Content briefs for a workspace (linked to paid_to_organic + organic_to_paid recommendations).
   app.get('/api/v1/workspaces/:id/content-briefs', async (request) => {
     const user = await requireUser(request)
     const { id } = request.params as { id: string }
     await requireWorkspaceMember(user.id, id)
     return getContentBriefs(id, parsePage(request.query))
+  })
+
+  // Advance a brief through the editorial pipeline. Manager+, matching the recommendation status
+  // route — moving something to "published" is a claim about work that shipped, not a read.
+  app.patch('/api/v1/workspaces/:id/content-briefs/:briefId', async (request) => {
+    const user = await requireUser(request)
+    const { id, briefId } = request.params as { id: string; briefId: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+    const body = z
+      .object({
+        status: z.enum(['draft', 'approved', 'in_progress', 'published']),
+        publishedUrl: z.string().url('Enter a valid URL.').nullable().optional(),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    const updated = await updateContentBriefStatus(
+      id,
+      briefId,
+      body.data.status,
+      body.data.publishedUrl,
+    )
+    if (!updated) throw new AppError('WORKSPACE_NOT_FOUND', 'Content brief not found in this workspace.')
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'content_brief.status_changed',
+        entityType: 'content_brief',
+        entityId: briefId,
+        metadata: { status: body.data.status },
+      },
+      request,
+    )
+    return updated
   })
 
   // Workspace members + roles (P2.8 settings) — guarded by membership.
@@ -848,7 +949,7 @@ export async function registerV1Routes(app: FastifyInstance) {
         logoUrl: z.string().url().max(2000).nullable().optional().or(z.literal('')),
         primaryColor: z
           .string()
-          .regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex color, e.g. #4f46e5.')
+          .regex(/^#[0-9a-fA-F]{6}$/, 'Use a 6-digit hex color, e.g. #ce4218.')
           .nullable()
           .optional(),
       })
@@ -868,6 +969,198 @@ export async function registerV1Routes(app: FastifyInstance) {
       request,
     )
     return { config }
+  })
+
+  // Creative generation (M4 P4.2a-4). `manager`+, matching recommendation act/assign — the other
+  // day-to-day working actions. viewer/client must not consume a workspace's paid quota.
+  //
+  // This route existing at all IS the slice: generation used to run only in the browser, which made
+  // `aiCreativesPerMonth` a limit that could not bind. See creatives.ts.
+  app.post('/api/v1/workspaces/:id/creatives/generate', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+
+    const body = z
+      .discriminatedUnion('kind', [
+        z.object({
+          kind: z.literal('ad-copy'),
+          product: z.string().min(1).max(120),
+          benefit: z.string().min(1).max(200),
+          painPoint: z.string().min(1).max(200),
+          count: z.number().int().min(1).max(25).optional(),
+        }),
+        z.object({
+          kind: z.literal('ugc-script'),
+          product: z.string().min(1).max(120),
+          // 15 | 30 | 60 — the only durations generateUGCScript has scripts for. Anything else
+          // would fall through its lookup and return undefined.
+          duration: z.union([z.literal(15), z.literal(30), z.literal(60)]).optional(),
+        }),
+        z.object({
+          kind: z.literal('rsa'),
+          keyword: z.string().min(1).max(120),
+          audience: z.string().max(120).optional(),
+        }),
+      ])
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    return generateCreatives(id, body.data)
+  })
+
+  // Creative variant experiments (M4 P4.2a-3) — an experiment LOG. Nothing here publishes an ad or
+  // computes a winner; the test runs in the customer's own ad manager and the conclusion is an
+  // explicitly human act, stored `selfReported`. See experiments.ts.
+  //
+  // Read is viewer+; every write is manager+, matching recommendation act/assign.
+  app.get('/api/v1/workspaces/:id/creative-experiments', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'viewer')
+    const data = await listExperiments(id)
+    return { data, total: data.length }
+  })
+
+  app.post('/api/v1/workspaces/:id/creative-experiments', async (request, reply) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+
+    const body = z
+      .object({
+        hypothesis: z.string().min(1, 'A hypothesis is required.').max(2000),
+        // `unknown` on purpose: a variant is a snapshot of whatever the generator produced —
+        // AdCopyVariant, UGCScript, or a plain RSA string. Constraining the shape here would mean
+        // updating this schema every time a generator is added.
+        variantA: z.unknown().refine((v) => v != null, 'Variant A is required.'),
+        variantB: z.unknown().refine((v) => v != null, 'Variant B is required.'),
+        variantALabel: z.string().max(80).optional(),
+        variantBLabel: z.string().max(80).optional(),
+        successMetric: z.string().min(1, 'Say how this will be judged.').max(200),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    const experiment = await createExperiment(id, body.data, user.id)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'creative_experiment.created',
+        entityType: 'creative_experiment',
+        entityId: experiment.id,
+      },
+      request,
+    )
+    reply.status(201)
+    return { experiment }
+  })
+
+  // Launch / un-launch. `concluded` is deliberately unreachable here — see the conclude route.
+  app.patch('/api/v1/workspaces/:id/creative-experiments/:expId/status', async (request) => {
+    const user = await requireUser(request)
+    const { id, expId } = request.params as { id: string; expId: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+
+    const body = z
+      .object({ status: z.enum(['draft', 'running', 'concluded']) })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    return { experiment: await setExperimentStatus(id, expId, body.data.status) }
+  })
+
+  app.post('/api/v1/workspaces/:id/creative-experiments/:expId/conclude', async (request) => {
+    const user = await requireUser(request)
+    const { id, expId } = request.params as { id: string; expId: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+
+    const body = z
+      .object({
+        winner: z.enum(['a', 'b', 'inconclusive']),
+        notes: z.string().max(4000).optional(),
+        // Whatever the user read in their own ad manager. Stored flagged `selfReported` and never
+        // used to pick or second-guess the winner.
+        metricA: z.number().nonnegative().optional(),
+        metricB: z.number().nonnegative().optional(),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    const experiment = await concludeExperiment(id, expId, body.data, user.id)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'creative_experiment.concluded',
+        entityType: 'creative_experiment',
+        entityId: expId,
+      },
+      request,
+    )
+    return { experiment }
+  })
+
+  app.delete('/api/v1/workspaces/:id/creative-experiments/:expId', async (request) => {
+    const user = await requireUser(request)
+    const { id, expId } = request.params as { id: string; expId: string }
+    await requireWorkspaceMember(user.id, id, 'manager')
+    await deleteExperiment(id, expId)
+    return { ok: true }
+  })
+
+  // Brand guidelines (M4 P4.2a-1). Read is viewer+ (anyone who can see generated copy benefits from
+  // knowing the constraints it was produced under); write is admin+, like branding. Not plan-gated —
+  // see brand.ts for why the gate belongs at generation instead.
+  app.get('/api/v1/workspaces/:id/brand-guidelines', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'viewer')
+    return { guidelines: await getBrandGuidelinesForDisplay(id) }
+  })
+
+  app.put('/api/v1/workspaces/:id/brand-guidelines', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+
+    const body = z
+      .object({
+        tone: z.enum(BRAND_TONES as unknown as [string, ...string[]]).optional(),
+        bannedTerms: z.array(z.string()).max(100).optional(),
+        requiredDisclaimers: z.array(z.string()).max(100).optional(),
+        valueProps: z.array(z.string()).max(100).optional(),
+        targetPersona: z.string().max(280).nullable().optional(),
+        // Grade level. Bounded because the filter compares against it: an unbounded value makes the
+        // reading-level rule either inert (huge) or a total block (negative).
+        readingLevel: z.number().int().min(1).max(20).nullable().optional(),
+      })
+      .safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    const guidelines = await upsertBrandGuidelines(id, body.data)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'brand_guidelines.updated',
+        entityType: 'workspace',
+        entityId: id,
+      },
+      request,
+    )
+    return { guidelines }
   })
 
   // White-labeled PDF report (M3 P3.5 Slice C2). Generated on demand and streamed straight back —
@@ -917,6 +1210,60 @@ export async function registerV1Routes(app: FastifyInstance) {
     await revokeApiKey(id, keyId)
     void recordAudit({ workspaceId: id, actorId: user.id, action: 'api_key.revoked', entityType: 'api_key', entityId: keyId }, request)
     return { revoked: true }
+  })
+
+  // Outbound webhooks (M4 P4.4a-2) — the push half of the public API. Same `apiAccess` gate and the
+  // same admin+ sensitivity as API keys: an endpoint URL is where a workspace's data gets sent, and
+  // the create response is the only time its signing secret is ever visible.
+  const createWebhookSchema = z.object({
+    url: z.string().min(1),
+    eventTypes: z.array(z.string().min(1)).min(1),
+  })
+  app.post('/api/v1/workspaces/:id/webhooks', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const body = createWebhookSchema.safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+    const endpoint = await createWebhookEndpoint(id, body.data.url, body.data.eventTypes, user.id)
+    // The URL is audited; the secret deliberately is not. An audit log is a read surface, and
+    // writing a live signing credential into one hands it to anyone who can read the log.
+    void recordAudit(
+      { workspaceId: id, actorId: user.id, action: 'webhook.created', entityType: 'webhook', entityId: endpoint.id, metadata: { url: endpoint.url, eventTypes: endpoint.eventTypes } },
+      request,
+    )
+    return endpoint
+  })
+
+  app.get('/api/v1/workspaces/:id/webhooks', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const data = await listWebhookEndpoints(id)
+    return { data, total: data.length }
+  })
+
+  app.delete('/api/v1/workspaces/:id/webhooks/:webhookId', async (request) => {
+    const user = await requireUser(request)
+    const { id, webhookId } = request.params as { id: string; webhookId: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    await deleteWebhookEndpoint(id, webhookId)
+    void recordAudit({ workspaceId: id, actorId: user.id, action: 'webhook.deleted', entityType: 'webhook', entityId: webhookId }, request)
+    return { deleted: true }
+  })
+
+  // Re-enable an endpoint auto-disabled after repeated failures. Without this, a customer who fixes
+  // their listener would have to recreate the endpoint — rotating the secret and forcing them to
+  // redeploy their verifier for what is really just "it's working again".
+  app.post('/api/v1/workspaces/:id/webhooks/:webhookId/enable', async (request) => {
+    const user = await requireUser(request)
+    const { id, webhookId } = request.params as { id: string; webhookId: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const endpoint = await enableWebhookEndpoint(id, webhookId)
+    void recordAudit({ workspaceId: id, actorId: user.id, action: 'webhook.enabled', entityType: 'webhook', entityId: webhookId }, request)
+    return endpoint
   })
 
   // Autonomous automation loop config (scheduled intelligence). GET is any member; PATCH is admin+.
@@ -1038,6 +1385,38 @@ export async function registerV1Routes(app: FastifyInstance) {
       request,
     )
     return { deleted: true }
+  })
+
+  /**
+   * Run the planner now, instead of waiting for this workspace's next scheduled tick.
+   *
+   * Added because the queue had no other way to fill. The scheduler's cron fires hourly but only
+   * plans a workspace whose report is older than its own `automation_config.cadenceMs`, which
+   * defaults to a *week* — so switching a rule on and watching an empty queue was the expected
+   * experience, with nothing on screen to say how long the wait would be. A subsystem you cannot
+   * exercise is one nobody can tell is working.
+   *
+   * Safe to press twice: `planForWorkspace` excludes targets that already have an open action and
+   * respects `maxActionsPerDay`, so a second run within the same window proposes nothing new rather
+   * than duplicating the first. Admin+, and audited, because in `auto` mode this executes.
+   */
+  app.post('/api/v1/workspaces/:id/automation/plan', async (request) => {
+    const user = await requireUser(request)
+    const { id } = request.params as { id: string }
+    await requireWorkspaceMember(user.id, id, 'admin')
+    const outcome = await runAutomationForWorkspace(id)
+    void recordAudit(
+      {
+        workspaceId: id,
+        actorId: user.id,
+        action: 'automation.plan_run',
+        entityType: 'workspace',
+        entityId: id,
+        metadata: { ...outcome },
+      },
+      request,
+    )
+    return outcome
   })
 
   // The approval queue. Readable by any member — an automated change to someone's campaigns should

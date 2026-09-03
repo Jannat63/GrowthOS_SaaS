@@ -1,4 +1,5 @@
-import { and, count, desc, eq } from 'drizzle-orm'
+import { and, asc, count, desc, eq, exists, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { db, schema } from '@growthos/db'
 import type { Recommendation } from '@growthos/types'
 import {
@@ -19,7 +20,31 @@ import type { Page, Paged } from './pagination.js'
 
 type Row = typeof schema.recommendations.$inferSelect
 
-function rowsToApi(rows: Row[]): Recommendation[] {
+const iso = (d: Date | null) => (d ? d.toISOString() : null)
+
+/**
+ * Comment counts for a page of recommendations, in one grouped query.
+ *
+ * The count has to travel with the list. Fetched per card it is invisible until the card is
+ * opened, which is the state the queue was in: you could not tell which of thirty rows had a
+ * discussion on it without clicking all thirty. Scoped to the ids actually being returned so this
+ * stays one small query rather than a scan of the workspace's whole comment history.
+ */
+async function commentCounts(recIds: string[]): Promise<Map<string, number>> {
+  if (recIds.length === 0) return new Map()
+  const rows = await db
+    .select({
+      recommendationId: schema.recommendationComments.recommendationId,
+      n: count(),
+    })
+    .from(schema.recommendationComments)
+    .where(inArray(schema.recommendationComments.recommendationId, recIds))
+    .groupBy(schema.recommendationComments.recommendationId)
+  return new Map(rows.map((r) => [r.recommendationId, r.n]))
+}
+
+async function rowsToApi(rows: Row[]): Promise<Recommendation[]> {
+  const counts = await commentCounts(rows.map((r) => r.id))
   return rows.map((r) => ({
     id: r.id,
     workspaceId: r.workspaceId,
@@ -35,16 +60,38 @@ function rowsToApi(rows: Row[]): Recommendation[] {
     compositeScore: r.compositeScore,
     status: r.status as Recommendation['status'],
     assignedTo: r.assignedTo,
-    dueDate: r.dueDate ? r.dueDate.toISOString() : null,
+    dueDate: iso(r.dueDate),
+    snoozedUntil: iso(r.snoozedUntil),
+    actedAt: iso(r.actedAt),
+    createdAt: iso(r.createdAt),
+    commentCount: counts.get(r.id) ?? 0,
   }))
 }
 
+/**
+ * The queue's order.
+ *
+ * `compositeScore` alone is not a total order over this data — it is a near-tie. Every
+ * `cross_channel` recommendation is scored with a constant effort (40) and an urgency derived
+ * solely from impact, so its composite collapses to one of three values; on the seeded fixtures 22
+ * of 28 rows share a score with at least one other row, 13 of them on the same value. Ordering by
+ * that column alone therefore left the bulk of the queue to be arranged by whatever order Postgres
+ * happened to return, which could differ between two loads of the same page.
+ *
+ * Effort ascending is the tiebreaker because it is the one that answers the question an operator
+ * actually has at equal priority — what can I clear now — and `id` last makes the result stable
+ * rather than merely usually-stable.
+ */
 async function readOrdered(workspaceId: string, page?: Page): Promise<Row[]> {
   const q = db
     .select()
     .from(schema.recommendations)
     .where(eq(schema.recommendations.workspaceId, workspaceId))
-    .orderBy(desc(schema.recommendations.compositeScore))
+    .orderBy(
+      desc(schema.recommendations.compositeScore),
+      asc(schema.recommendations.effortScore),
+      asc(schema.recommendations.id),
+    )
   return page ? q.limit(page.limit).offset(page.offset) : q
 }
 
@@ -142,6 +189,75 @@ async function runGenerators(workspaceId: string): Promise<void> {
  * partial state that reads as broken. Deliberate: the limit governs how often generation runs, not
  * the exact row count of a single batch.
  */
+/**
+ * Drop `cross_channel` rows that duplicate a specialised generator's recommendation.
+ *
+ * The four generators compose by type, which is what let this through: the cross-channel engine's
+ * GoogleAds->SEO rule and `ensurePaidToOrganic` both read `analyzeSearchTerms()` over the same
+ * source and both emit the identical sentence, `Create SEO content for "<term>"`. The queue then
+ * listed the same job twice at two different priorities — on the seeded fixtures, three duplicate
+ * pairs scored 90/100, 90/78 and 90/48. For a screen whose entire purpose is "what should I do
+ * next", listing one job twice at two answers is the worst thing it can do.
+ *
+ * The specialised row wins, on two counts: it scores impact from real data (conversion volume)
+ * where the cross-channel engine assigns a flat High/Medium/Low bucket, and it carries a linked
+ * content brief that the cross-channel row has no equivalent of. Deleting the richer row and
+ * keeping the coarser one would lose the brief.
+ *
+ * Only `pending`, unassigned rows are removed — once someone has acted on, snoozed, or been
+ * assigned a row, it is their work item and deleting it out from under them would be a worse bug
+ * than the duplicate. Those survivors are rare (a duplicate has to be touched before its first
+ * dedupe pass) and are visibly resolved by acting on either copy.
+ *
+ * This runs on read rather than only at generation because the duplicates are already persisted in
+ * every workspace created before this fix — a generation-time-only guard would leave them there
+ * forever. It is a single DELETE against an indexed workspace column and is a no-op once clean.
+ */
+async function dedupeAgainstSpecialisedRows(workspaceId: string): Promise<void> {
+  const other = alias(schema.recommendations, 'other')
+  await db.delete(schema.recommendations).where(
+    and(
+      eq(schema.recommendations.workspaceId, workspaceId),
+      eq(schema.recommendations.type, 'cross_channel'),
+      eq(schema.recommendations.status, 'pending'),
+      isNull(schema.recommendations.assignedTo),
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(other)
+          .where(
+            and(
+              eq(other.workspaceId, workspaceId),
+              eq(other.title, schema.recommendations.title),
+              ne(other.type, 'cross_channel'),
+            ),
+          ),
+      ),
+    ),
+  )
+}
+
+/**
+ * Return snoozed recommendations to the queue once their date has passed.
+ *
+ * Snooze wrote `snoozed_until` and nothing ever read it, so a deferred item stayed deferred
+ * permanently — the half of "remind me later" that makes it different from dismissing.
+ * Rows snoozed with no end date are left alone: that is an explicit "not now, no deadline".
+ */
+async function wakeExpiredSnoozes(workspaceId: string): Promise<void> {
+  await db
+    .update(schema.recommendations)
+    .set({ status: 'pending', snoozedUntil: null })
+    .where(
+      and(
+        eq(schema.recommendations.workspaceId, workspaceId),
+        eq(schema.recommendations.status, 'snoozed'),
+        isNotNull(schema.recommendations.snoozedUntil),
+        lte(schema.recommendations.snoozedUntil, new Date()),
+      ),
+    )
+}
+
 async function ensureGenerated(workspaceId: string): Promise<void> {
   const before = await countRecommendations(workspaceId)
 
@@ -161,13 +277,20 @@ async function ensureGenerated(workspaceId: string): Promise<void> {
   // cadence, and it is the branch the limit was written for.
   if (before === 0) {
     await runGenerators(workspaceId)
+    await dedupeAgainstSpecialisedRows(workspaceId)
     return
   }
+
+  // Maintenance runs whether or not generation is allowed this window: a capped workspace still
+  // needs its expired snoozes woken and its pre-existing duplicates cleared. Returning early here
+  // is what would leave a Starter plan permanently looking at a duplicated queue.
+  await Promise.all([wakeExpiredSnoozes(workspaceId), dedupeAgainstSpecialisedRows(workspaceId)])
 
   const allowance = await getRemainingAllowance(workspaceId, 'recommendations_generated')
   if (allowance <= 0) return // capped this window; existing rows are still returned to callers
 
   await runGenerators(workspaceId)
+  await dedupeAgainstSpecialisedRows(workspaceId)
   const created = (await countRecommendations(workspaceId)) - before
   if (created > 0) await recordUsage(workspaceId, 'recommendations_generated', created)
 }
@@ -191,5 +314,5 @@ export async function listRecommendations(
     readOrdered(workspaceId, page),
     countRecommendations(workspaceId),
   ])
-  return { data: rowsToApi(rows), total }
+  return { data: await rowsToApi(rows), total }
 }

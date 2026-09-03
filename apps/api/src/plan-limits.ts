@@ -180,6 +180,26 @@ export async function assertFeatureEnabled(workspaceId: string, feature: Boolean
   }
 }
 
+/**
+ * The public API's per-minute ceiling for a workspace's plan (M4 P4.4a-1).
+ *
+ * Read by the per-route `rateLimit.max` in routes/public-api.ts. It never throws: a rate limiter is
+ * the wrong place to discover a billing problem, and `resolveApiKey` has already run
+ * `assertFeatureEnabled(..., 'apiAccess')` by the time this is called, so a workspace without API
+ * access cannot reach it. If the subscription lookup fails transiently, fall back to the Starter
+ * figure rather than letting the request 500 — the same degrade-don't-fail posture as
+ * `ensureAllRecommendations`. Starter's figure is 0, which the limiter treats as "block", so the
+ * failure mode is a 429 the client can retry, not a 500 it cannot interpret.
+ */
+export async function getApiRateLimit(workspaceId: string): Promise<number> {
+  try {
+    const { plan } = await getCurrentSubscription(workspaceId)
+    return PLAN_LIMITS[plan].apiRequestsPerMinute
+  } catch {
+    return PLAN_LIMITS.starter.apiRequestsPerMinute
+  }
+}
+
 /** Full usage-vs-limit breakdown for the Billing settings page. `limit: null` means unlimited (Infinity isn't valid JSON). */
 export async function getUsageSummary(workspaceId: string): Promise<UsageSummary> {
   const { plan } = await getCurrentSubscription(workspaceId)

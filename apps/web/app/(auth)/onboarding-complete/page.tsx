@@ -10,10 +10,11 @@ import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
 import { Button } from "@growthos/ui/components/button";
 import { api } from "@/lib/api/client";
 import { useJob } from "@/lib/hooks/useJob";
+import { OnboardingSkeleton } from "@/components/auth/AuthFormSkeleton";
 
 export default function OnboardingCompletePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<OnboardingSkeleton step={4} />}>
       <OnboardingCompleteContent />
     </Suspense>
   );
@@ -129,7 +130,7 @@ function OnboardingCompleteContent() {
   const strategy = analysis.data?.analysis?.strategy;
   return (
     <OnboardingShell step={4}>
-      <div className="rounded-2xl border bg-card p-8 shadow-lg shadow-black/[0.03] dark:shadow-black/20">
+      <div className="rounded-2xl border bg-card p-8 shadow-lg">
         <h1 className="font-display text-2xl font-semibold tracking-tight">Your growth plan</h1>
         {strategy ? (
           <>
@@ -191,7 +192,7 @@ function OnboardingCompleteContent() {
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border bg-card p-10 text-center shadow-lg shadow-black/[0.03] dark:shadow-black/20">
+    <div className="rounded-2xl border bg-card p-10 text-center shadow-lg">
       {children}
     </div>
   );

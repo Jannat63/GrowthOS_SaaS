@@ -25,7 +25,11 @@ export default defineConfig({
     './src/schema/billing.ts',
     './src/schema/api-keys.ts',
     './src/schema/automation.ts',
+    './src/schema/webhooks.ts',
+    './src/schema/brand.ts',
+    './src/schema/experiments.ts',
     './src/schema/admin.ts',
+    './src/schema/blog.ts',
   ],
   out: './drizzle',
   dbCredentials: {

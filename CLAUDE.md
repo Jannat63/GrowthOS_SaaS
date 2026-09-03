@@ -54,7 +54,7 @@ root (live). Reusing legacy logic means porting/copying it into the new structur
   skeleton shipped (P1.3)** in `src/routes/v1.ts`: `GET /api/v1/auth/me`, `POST/GET /workspaces`,
   `GET /workspaces/:id/connections`, behind the `requireWorkspaceMember(role)` guard (`src/guards.ts`) + typed
   error envelope (`src/errors.ts`). `app.ts` = routes/plugins (inject-able); `index.ts` = the `listen`
-  entrypoint. Dev runs via `tsx watch --env-file=.env`. The `/api/v1` surface has since grown well past the
+  entrypoint. Dev runs via `node --watch-path=./src --env-file=.env --import tsx` (see the dev-server gotchas below). The `/api/v1` surface has since grown well past the
   skeleton (SEO, Google/Meta Ads, intelligence, attribution, recommendations, audit, collaboration, branding
   — see `src/routes/v1.ts`).
 - `apps/web` — **rebuilt fresh** on Next 15 / React 19 / **Tailwind v4** / shadcn (the old carried-forward
@@ -72,14 +72,26 @@ root (live). Reusing legacy logic means porting/copying it into the new structur
 - `packages/config` — shared TypeScript base config only.
 - `apps/worker` — **exists (M2 P2.1 done).** Plain **Python** worker (not Celery) driven by a Redis job-bridge
   (JSON envelope): `app/consumer.py`, `app/dispatch.py`, `app/envelope.py`, handlers in `app/handlers/`,
-  `app/strategy.py`, and `seeds/clickhouse_seed.py`. Pytest suite in `tests/`. Local Redis + ClickHouse via
-  `docker-compose.yml`. Check `docs/plan/` for current phase status before assuming anything else.
+  and `app/strategy.py`. Pytest suite in `tests/`. Local Redis + ClickHouse via `docker-compose.yml`.
+  `seeds/clickhouse_seed.py` is **retired and must not be run** — the API seeds `ad_performance`
+  itself, over a different window, and the two overlap into silently doubled rows. Check
+  `docs/plan/` for current phase status before assuming anything else.
 
 The canonical business logic lives in **`packages/logic/src/*`** (the `@growthos/logic` package — pure, tested
 TS engines in `engines/`: `seo-scoring`, `search-terms-bridge`, `creative-fatigue`, `cross-channel-engine`,
 `blended-mer`, `goal-simulator`, `google-ads-advisor`, `meta-ads-advisor`, `attribution`; plus top-level
 brief/recommendation/intelligence helpers). Consumed by both `apps/api` and `apps/web` via `workspace:*`. The
 same logic is duplicated as ports inside `/legacy` services — treat the `@growthos/logic` copies as canonical.
+
+**The seeded demo account is defined once, in `packages/logic/src/fixtures/seed.ts`.** The window
+(`SEED_DAYS`, `SEED_LAST_DAY`), `REVENUE_FACTOR`, the per-day variance and the campaign roster all
+live there, because `apps/api` inserts from it into ClickHouse and `apps/web` reads it for the
+offline `liveOrMock` fallback — and `apps/web` cannot import from `apps/api`. Every past copy of that
+arithmetic drifted and produced a visibly different product offline (a flat MER line at 8.59x
+against a live 27.43x; a one-row campaign table against a four-row one). **Do not re-derive seeded
+figures anywhere else** — import them. Its own suite pins the invariant that a change to the campaign
+split cannot move a platform's daily totals, since MER, the Growth Hub, the weekly report and the
+intelligence report all read those totals.
 
 ## Commands
 
@@ -98,6 +110,59 @@ pnpm --filter @growthos/api build  # tsc build; output in dist/
 pnpm --filter @growthos/web dev    # Next.js only       (port 3000)
 pnpm --filter @growthos/web build  # next build (verifies all pages compile)
 ```
+
+### Dev-server gotchas (each cost hours before it was pinned down)
+
+- **The API dev script is `node --watch-path=./src …` — not `tsx watch`, and not bare `node --watch`.**
+  Both alternatives fail, differently, and both look like the API "just hanging":
+  - `tsx watch` spawns a grandchild to manage reloads, and that spawn never survives turbo's stdio
+    setup: the task prints its command line and then hangs forever. Don't "restore" it. Anything
+    else that wraps the API in an extra process will hit the same wall — keep the process tree flat.
+  - Bare `node --watch` restart-loops and never binds. Measured standalone, with no turbo involved:
+    6 restarts in 45s and 0 successful binds, the restarts landing *during* module loading — a probe
+    that only imports `app.js` never reached its first `console.log`. A trivial one-line TS file
+    under the same flags is perfectly stable, so it is the size of the graph, not tsx or watch mode
+    as such. `--watch` registers every file it loads, tsx writes transpile cache into `%TEMP%`
+    while loading, and the writes restart the process before it finishes booting.
+    (`TSX_DISABLE_CACHE=1` cuts it from 6 restarts to 2 — so the cache is most of it, not all.)
+
+  `--watch-path=./src` fixes it by watching only source: 0 restarts, binds first time, and editing a
+  file under `src/` still reloads. **Caveat: `--watch-path` is macOS/Windows only** — on Linux it
+  throws `ERR_FEATURE_UNAVAILABLE_ON_PLATFORM`, so use plain `--watch` there (the loop above has not
+  been reproduced on Linux).
+- **The API logs `Server listening at http://127.0.0.1:3001` on success.** If `pnpm dev` shows the
+  `@growthos/api:dev: $ …` line and nothing after it, the API is *not* up — that silence is the symptom,
+  not normal behaviour. Confirm with `curl localhost:3001/health`: JSON means the API owns the port,
+  HTML means something else grabbed it (Next.js auto-increments to 3001 when 3000 is busy, and on Windows
+  the second bind succeeds silently, so two processes can listen at once —
+  `netstat -ano | grep ":3001"` showing two PIDs is the tell). Kill stale dev servers before restarting;
+  overlapping `pnpm dev` runs are what turn this into a recurring mystery.
+- **`pnpm dev` preflights the ports and refuses to start if either is taken**
+  (`scripts/dev-preflight.mjs`), which is what stops the mystery above from recurring. It names the
+  port, the PID and the process holding it. If you bypass it, note that turbo drops the API's
+  `EADDRINUSE` line before the process dies — `index.ts` therefore also writes that error
+  synchronously to fd 2, because pino's async write is truncated by `process.exit()`.
+- **`pnpm build` and `pnpm dev` no longer share an output directory — keep it that way.**
+  `apps/web/next.config.mjs` sets `distDir` to `.next-dev` in development and `.next` in production.
+  They used to both write `.next`, so running a production build while the dev server was up corrupted
+  the running server in ways that look like application bugs and are not: once the build overwrote the
+  dev CSS (every page rendered with zero styles), and once the dev server recompiled onto production
+  chunks and every request died with `__webpack_modules__[moduleId] is not a function`. If either
+  symptom appears, stop the dev server, delete both output dirs, and restart — don't debug the app.
+- **`@better-fetch/fetch` must resolve to exactly one version, and it must be the one `better-auth`
+  pins.** This has broken three times and never looks like what it is. The symptom is a wall of
+  Better Auth *client* type errors — `organizationClient()` / `twoFactorClient()` "not assignable to
+  `BetterAuthClientPlugin`" — and, following from that, the `additionalFields` disappearing:
+  `phone` and `platformRole` stop existing on `session.user`, breaking admin pages that never
+  touched auth. The cause is that `better-call` asks for `^1.1.21` while `better-auth` pins `1.3.1`
+  exactly, so two copies exist, `@better-auth/core` gets resolved against both, and a plugin built
+  by one copy is a structurally different type from the one the other expects.
+  **The fix is to keep `apps/web`'s direct dependency on the version `better-auth` uses (1.3.1) —
+  `apps/web/middleware.ts` imports `betterFetch` directly, so the dependency is real and must not be
+  removed.** `pnpm dedupe` does NOT fix it: the lockfile already satisfies `^1.1.21` at 1.1.21, so
+  there is nothing to dedupe. A `pnpm.overrides` entry in the root `package.json` guards fresh
+  installs; note it has no effect on an already-resolved lockfile, and that pnpm 11.0.9 does not read
+  an `overrides:` key from `pnpm-workspace.yaml` at all.
 
 Tests use **vitest**. The engine unit suite lives in `@growthos/logic`; `apps/api` has route/integration
 tests (they need local Redis + ClickHouse via Docker, and Neon via `apps/api/.env`); `apps/web` keeps a small
@@ -122,11 +187,30 @@ To exercise an `apps/api` route without opening a port, build then use Fastify's
   (e.g. `import { buildApp } from './app.js'`) even though the source is `.ts` — required by NodeNext/ESM and
   it will fail to build otherwise. Keep `app.ts` (routes/plugins, exercisable via `inject()`) separate from
   `index.ts` (the `listen` entrypoint).
-- **`apps/web` is Tailwind v4 + shadcn** (rebuilt fresh — D5/D6). Theme tokens (color/radius/shadow/font,
-  incl. the indigo `--primary` / green `--success` / deep-indigo `--ink` brand set) live in
-  `apps/web/styles/globals.css` and are consumed as utilities — **never hardcode hex in components**.
-  Fonts: Space Grotesk (display, `font-display`) + Inter (body), via `next/font`. Shared primitives come
-  from `@growthos/ui`; app-specific compositions stay in `apps/web`.
+- **`apps/web` is Tailwind v4 + shadcn** (rebuilt fresh — D5/D6). Theme tokens (color/radius/shadow/font)
+  live in `apps/web/styles/globals.css` and are consumed as utilities — **never hardcode hex in
+  components**. Fonts: Archivo (display, `font-display`) + Inter (body) + JetBrains Mono (data,
+  `font-mono`), via `next/font`. Shared primitives come from `@growthos/ui`; app-specific compositions
+  stay in `apps/web`.
+- **The brand is "Signal"** — ember `--primary` (`#ce4218` light / `#ff6b41` dark) on cold graphite
+  `--ink`, plus `--channel-seo` / `--channel-google` / `--channel-meta` for channel identity and
+  `--elev-1..5` behind `--shadow-*`. Spec: `docs/superpowers/specs/2026-08-27-rebrand-landing-design.md`.
+  Two things to know before touching colour:
+  - **The identity is not `--primary`.** `BrandingProvider.tsx` overrides it (and `--ring`) per workspace
+    for white-labelling, with an inline style that beats `:root` and `.dark`. Identity lives in the ink
+    surfaces, the type, and the Exchange signature. Never rely on primary's hue for legibility, and add
+    any token that must move *with* the brand colour to that `useEffect` or it will silently desync.
+  - **`--warning` is gold and `--destructive` is rose on purpose.** Both were shifted off orange-red so
+    they stay unmistakable next to an ember primary. Don't quietly revert them.
+- **Marketing copy is held to what shipped.** No GEO / AI-citation tracking (P4.4b deferred), no AI
+  image/video (P4.2b), no "prediction" (it's a retrospective *scorecard*), no live ad-platform writes
+  (P4.3b), and no claim an LLM writes the copy (D4 — generation is deterministic). `PLAN_LIMITS` in
+  `@growthos/types` is the billing contract: filter features out of the *marketing* view rather than
+  editing it.
+- **Channel slugs never reach the screen.** `google_ads` / `meta_ads` / `organic` are the storage and
+  API form; anything a person reads renders through `channelLabel()` from `@growthos/logic`
+  (`packages/logic/src/channels.ts`) — including generated prose, since the weekly report is also
+  rendered into the customer PDF. Add new channels to `CHANNEL_LABELS` there, not to a local map in a page.
 - **Workspace isolation** is by `workspace_id` at the application layer (Fastify), not Postgres RLS (see D1).
   Every data endpoint is nested under `/workspaces/:id/...` and guarded by workspace membership + role.
 
@@ -183,6 +267,3 @@ frontend and legacy services already assume:
 Restructure work is on the **`shihab-restructure`** branch; `main` holds the pre-restructure state. Commits in
 this project end with:
 
-```
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
-```

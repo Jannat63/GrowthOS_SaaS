@@ -1,6 +1,9 @@
 import { createClient, type ClickHouseClient } from '@clickhouse/client'
 import { calculateBlendedMER } from '@growthos/logic'
+import { REVENUE_FACTOR as SEED_REVENUE_FACTOR, seedAdRows } from '@growthos/logic/fixtures'
 import type { MerDashboard, MerTrendPoint } from '@growthos/types'
+import { missingSeedDates } from './seed-window.js'
+import { getDataBounds, resolveWindow, type DateWindowQuery } from './date-window.js'
 
 let client: ClickHouseClient | null = null
 
@@ -11,77 +14,121 @@ export function getClickhouse(): ClickHouseClient {
   return client
 }
 
-// Blended-revenue stand-in until real Shopify data (M3): ad-attributed value scaled up for organic.
-// Exported so every surface that reports "revenue" (MER dashboard, Growth Hub) derives it the same
-// way — two copies of this constant would let /analytics and the hub quietly disagree.
-export const REVENUE_FACTOR = 2.2
+/**
+ * Blended-revenue stand-in until real Shopify data (M3): ad-attributed value scaled up for organic.
+ *
+ * Re-exported from the shared seed module rather than declared here, so /analytics, the Growth Hub
+ * and the browser's offline fallback cannot drift apart on it.
+ */
+export const REVENUE_FACTOR = SEED_REVENUE_FACTOR
 
-function seedRows(workspaceId: string) {
-  const base = new Date('2026-06-18T00:00:00Z')
-  const round2 = (n: number) => Math.round(n * 100) / 100
-  const rows: Record<string, unknown>[] = []
-  for (let day = 0; day < 30; day++) {
-    const d = new Date(base)
-    d.setUTCDate(base.getUTCDate() + day)
-    const date = d.toISOString().slice(0, 10)
-    // Deterministic day-to-day variance so the MER trend reads as alive (weekend dip in
-    // spend, sinusoidal swing in revenue, mild upward drift). Seeded stand-in until M3.
-    const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6
-    const spendFactor = (weekend ? 0.7 : 1) * (1 + Math.sin(day / 3) * 0.12)
-    const revFactor = 1 + Math.sin(day / 2.5 + 1) * 0.28 + day * 0.012 + (weekend ? 0.08 : 0)
-    rows.push({
-      workspace_id: workspaceId, platform: 'google_ads', campaign_id: 'g-1',
-      campaign_name: 'Search - Brand', date, impressions: 1000 + day * 10,
-      clicks: 80 + day, spend: round2(45.5 * spendFactor), conversions: 6,
-      conversion_value: round2(320 * revFactor),
-    })
-    rows.push({
-      workspace_id: workspaceId, platform: 'meta_ads', campaign_id: 'm-1',
-      campaign_name: 'Prospecting - Lookalike', date, impressions: 5000 + day * 20,
-      clicks: 120 + day, spend: round2(90.25 * spendFactor), conversions: 4,
-      conversion_value: round2(210 * revFactor),
-    })
-  }
-  return rows
+/**
+ * The seeded rows, in ClickHouse's column names.
+ *
+ * The generator itself moved to `@growthos/logic/fixtures/seed` — see that module for why, and for
+ * the campaign roster it now writes. This is only the adapter from its camelCase shape to the
+ * table's snake_case columns.
+ *
+ * `only` limits which dates are inserted so a workspace missing part of the window backfills just
+ * the gap; the generator still computes the whole window and filters, so a row's figures never
+ * depend on which subset happened to be asked for.
+ */
+function seedRows(workspaceId: string, only?: Set<string>) {
+  return seedAdRows(only).map((r) => ({
+    workspace_id: workspaceId,
+    platform: r.platform,
+    campaign_id: r.campaignId,
+    campaign_name: r.campaignName,
+    date: r.date,
+    impressions: r.impressions,
+    clicks: r.clicks,
+    spend: r.spend,
+    conversions: r.conversions,
+    conversion_value: r.conversionValue,
+  }))
 }
 
-// Seed the workspace's ad_performance rows if it has none (generate-if-empty, like ensureRecommendations).
-export async function ensureAdPerformanceSeed(workspaceId: string): Promise<void> {
-  const rs = await getClickhouse().query({
-    query: 'SELECT count() AS c FROM ad_performance WHERE workspace_id = {ws:String}',
-    query_params: { ws: workspaceId },
-    format: 'JSONEachRow',
-  })
-  const [row] = (await rs.json()) as { c: string }[]
-  if (row && Number(row.c) > 0) return
-  await getClickhouse().insert({
-    table: 'ad_performance',
-    values: seedRows(workspaceId),
-    format: 'JSONEachRow',
-  })
-}
+/**
+ * The one-campaign-per-platform shape this seed used to write.
+ *
+ * `missingSeedDates` heals a widened WINDOW but not a changed SHAPE: a workspace seeded before the
+ * roster split has a row for every date, so nothing reads as missing and it would keep its single
+ * `g-1` / `m-1` campaign forever — the campaign pages would still show a one-row table while every
+ * newly created workspace showed five. Prune by id and re-seed.
+ *
+ * By id, and only these two ids, on purpose. A general "delete campaigns the roster doesn't know"
+ * sweep would delete a customer's real campaigns the moment a live Google/Meta sync lands. These
+ * two were only ever produced by this seeder.
+ */
+const LEGACY_SEED_CAMPAIGN_IDS = ['g-1', 'm-1']
 
-export async function getMerTrend(workspaceId: string, days: number): Promise<MerDashboard> {
+async function pruneLegacySeedShape(workspaceId: string): Promise<void> {
   const rs = await getClickhouse().query({
     query: `
-      SELECT toString(date) AS date,
+      SELECT count() AS n FROM ad_performance
+      WHERE workspace_id = {ws:String} AND campaign_id IN {ids:Array(String)}`,
+    query_params: { ws: workspaceId, ids: LEGACY_SEED_CAMPAIGN_IDS },
+    format: 'JSONEachRow',
+  })
+  const [row] = (await rs.json()) as { n: string | number }[]
+  if (Number(row?.n ?? 0) === 0) return
+
+  await getClickhouse().command({
+    query: `
+      ALTER TABLE ad_performance DELETE
+      WHERE workspace_id = {ws:String} AND campaign_id IN {ids:Array(String)}`,
+    query_params: { ws: workspaceId, ids: LEGACY_SEED_CAMPAIGN_IDS },
+    // Wait for the mutation to actually apply. Without this the DELETE is queued and the
+    // `missingSeedDates` call below still sees the old rows, reports nothing missing, and leaves
+    // the workspace with no ad data at all — strictly worse than the stale shape it replaced.
+    clickhouse_settings: { mutations_sync: '2' },
+  })
+}
+
+/** Seed the workspace's ad_performance rows if it has none (generate-if-empty, like ensureRecommendations). */
+export async function ensureAdPerformanceSeed(workspaceId: string): Promise<void> {
+  await pruneLegacySeedShape(workspaceId)
+  const missing = await missingSeedDates(getClickhouse(), 'ad_performance', workspaceId)
+  if (missing.length === 0) return
+  await getClickhouse().insert({
+    table: 'ad_performance',
+    values: seedRows(workspaceId, new Set(missing)),
+    format: 'JSONEachRow',
+  })
+}
+
+/**
+ * Blended MER over an explicit date window.
+ *
+ * Was `ORDER BY date DESC LIMIT days` — "the most recent N rows", which cannot express a range that
+ * ends anywhere but the newest data. The dashboard's date picker can, so the window is now a real
+ * `[from, to]` filter; with no range given, `resolveWindow` still defaults to the last N days of
+ * available data, which is the behaviour the LIMIT form approximated.
+ */
+export async function getMerTrend(
+  workspaceId: string,
+  query: DateWindowQuery = {},
+): Promise<MerDashboard> {
+  const w = resolveWindow(await getDataBounds(workspaceId), query)
+  const rs = await getClickhouse().query({
+    query: `
+      SELECT toString(date) AS day,
         toFloat64(sumIf(spend, platform = 'google_ads')) AS googleSpend,
         toFloat64(sumIf(spend, platform = 'meta_ads')) AS metaSpend,
         toFloat64(sum(conversion_value)) AS convValue
       FROM ad_performance
-      WHERE workspace_id = {ws:String}
-      GROUP BY date ORDER BY date DESC LIMIT {days:UInt32}`,
-    query_params: { ws: workspaceId, days },
+      WHERE workspace_id = {ws:String} AND date >= {from:Date} AND date <= {to:Date}
+      GROUP BY day ORDER BY day`,
+    query_params: { ws: workspaceId, from: w.from, to: w.to },
     format: 'JSONEachRow',
   })
-  const raw = (await rs.json()) as { date: string; googleSpend: number; metaSpend: number; convValue: number }[]
-  const rows = raw.slice().reverse() // ascending by date
+  const rows = (await rs.json()) as { day: string; googleSpend: number; metaSpend: number; convValue: number }[]
 
   const trend: MerTrendPoint[] = rows.map((r) => {
     const revenue = Math.round(r.convValue * REVENUE_FACTOR)
     const spend = r.googleSpend + r.metaSpend
     const mer = calculateBlendedMER({ totalRevenue: revenue, googleAdsSpend: r.googleSpend, metaAdsSpend: r.metaSpend }).blendedMER
-    return { date: r.date, mer, spend: Math.round(spend * 100) / 100, revenue }
+    return { date: r.day, mer, spend: Math.round(spend * 100) / 100, revenue }
   })
 
   const googleAdsSpend = rows.reduce((s, r) => s + r.googleSpend, 0)

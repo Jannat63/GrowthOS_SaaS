@@ -2,15 +2,65 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type {
+  AdminActivityItem,
   AdminAuditLogEntry,
+  AdminUserDetail,
+  AdminUserFilter,
+  AdminUserSort,
+  AdminUserSpend,
   AdminUserSummary,
   AdminWorkspaceDetail,
+  AdminWorkspaceFilter,
+  AdminWorkspaceSort,
   AdminWorkspaceSummary,
   Plan,
-  PlatformHealth,
+  PlatformOverview,
+  UsageSummary,
   PlatformRole,
+  MeResponse,
 } from "@growthos/types";
 import { api, ApiError } from "@/lib/api/client";
+
+/**
+ * Every admin read writes a row to the platform audit log (apps/api/src/routes/admin.ts), so an
+ * unthrottled refetch is not just wasted bandwidth — it is a line in a permanent record of who
+ * looked at what. With no staleTime, TanStack Query refetched on every window focus, and idly
+ * alt-tabbing back to the console produced a screen of identical "Browsed people" entries.
+ *
+ * A minute is long enough that returning to a tab is free and short enough that a plan override
+ * applied in another tab shows up when you look. The server-side repeat collapsing in
+ * `logAdminAction` covers the rest.
+ */
+const ADMIN_STALE_MS = 60_000;
+
+/**
+ * How many rows a directory page holds.
+ *
+ * Twenty, not fifty: a page you can take in without scrolling is easier to work than one you have
+ * to hunt through, and paging is now a single click rather than the dead end it used to be.
+ */
+export const DIRECTORY_PAGE_SIZE = 20;
+
+/**
+ * Filtering, sorting and paging all happen server-side, so they all belong in the query string —
+ * and in the query key, or two different filters would share one cache entry and show each other's
+ * rows. Absent values are omitted rather than sent empty, which keeps the URL (and the audit-log
+ * metadata that records the search) readable.
+ */
+function directoryQuery(params: Record<string, string | number | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") search.set(key, String(value));
+  }
+  const qs = search.toString();
+  return qs ? `?${qs}` : "";
+}
+
+export interface DirectoryPage {
+  offset?: number;
+  limit?: number;
+  enabled?: boolean;
+}
 
 /**
  * Whether the signed-in user has ANY platform admin role, and which. Used by the (admin) route
@@ -21,6 +71,7 @@ import { api, ApiError } from "@/lib/api/client";
 export function useAdminAccess() {
   return useQuery<{ platformRole: PlatformRole } | null>({
     queryKey: ["admin", "me"],
+    staleTime: ADMIN_STALE_MS,
     retry: false,
     queryFn: async () => {
       try {
@@ -33,28 +84,85 @@ export function useAdminAccess() {
   });
 }
 
-export function useAdminWorkspaces(search: string) {
+/**
+ * The signed-in operator's own account, read straight from `/auth/me`.
+ *
+ * Deliberately not `useWorkspace`: that hook runs through `liveOrMock`, which invents a "Demo
+ * Workspace" whenever the API is unreachable. Harmless in the customer app, actively misleading
+ * here — the one question this answers is whether the operator has a real workspace to return to,
+ * and platform staff normally have none. A fabricated one would put a door in the wall that leads
+ * nowhere, which is the bug this replaces.
+ */
+export function useOperatorIdentity() {
+  return useQuery<MeResponse>({
+    queryKey: ["admin", "operator"],
+    staleTime: ADMIN_STALE_MS,
+    queryFn: () => api.get<MeResponse>("/auth/me"),
+  });
+}
+
+export interface WorkspaceQuery extends DirectoryPage {
+  search?: string;
+  filter?: AdminWorkspaceFilter | undefined;
+  sort?: AdminWorkspaceSort | undefined;
+}
+
+export function useAdminWorkspaces(params: WorkspaceQuery = {}) {
+  const { search, filter, sort, offset = 0, limit = DIRECTORY_PAGE_SIZE, enabled = true } = params;
+  const qs = directoryQuery({ search, filter, sort, limit, offset });
   return useQuery<{ data: AdminWorkspaceSummary[]; total: number }>({
-    queryKey: ["admin", "workspaces", search],
-    queryFn: () =>
-      api.get<{ data: AdminWorkspaceSummary[]; total: number }>(
-        `/admin/workspaces${search ? `?search=${encodeURIComponent(search)}` : ""}`
-      ),
+    queryKey: ["admin", "workspaces", qs],
+    staleTime: ADMIN_STALE_MS,
+    enabled,
+    queryFn: () => api.get<{ data: AdminWorkspaceSummary[]; total: number }>(`/admin/workspaces${qs}`),
   });
 }
 
 export function useAdminWorkspaceDetail(workspaceId: string | null) {
   return useQuery<AdminWorkspaceDetail>({
     queryKey: ["admin", "workspace", workspaceId],
+    staleTime: ADMIN_STALE_MS,
     enabled: Boolean(workspaceId),
     queryFn: () => api.get<AdminWorkspaceDetail>(`/admin/workspaces/${workspaceId}`),
+  });
+}
+
+/**
+ * The account file's secondary tabs. Each is its own query, enabled only while its tab is open —
+ * opening a workspace should cost one request, not five, and each of these writes its own
+ * audit-log row.
+ */
+export function useAdminWorkspaceUsage(workspaceId: string, enabled: boolean) {
+  return useQuery<UsageSummary>({
+    queryKey: ["admin", "workspace", workspaceId, "usage"],
+    staleTime: ADMIN_STALE_MS,
+    enabled,
+    queryFn: () => api.get<UsageSummary>(`/admin/workspaces/${workspaceId}/usage`),
+  });
+}
+
+export function useAdminWorkspaceActivity(workspaceId: string, enabled: boolean) {
+  return useQuery<AdminActivityItem[]>({
+    queryKey: ["admin", "workspace", workspaceId, "activity"],
+    staleTime: ADMIN_STALE_MS,
+    enabled,
+    queryFn: () => api.get<AdminActivityItem[]>(`/admin/workspaces/${workspaceId}/activity`),
+  });
+}
+
+export function useAdminWorkspaceHistory(workspaceId: string, enabled: boolean) {
+  return useQuery<AdminAuditLogEntry[]>({
+    queryKey: ["admin", "workspace", workspaceId, "admin-history"],
+    staleTime: ADMIN_STALE_MS,
+    enabled,
+    queryFn: () => api.get<AdminAuditLogEntry[]>(`/admin/workspaces/${workspaceId}/admin-history`),
   });
 }
 
 export function usePlanOverride(workspaceId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { plan: Plan; reason: string }) =>
+    mutationFn: (input: { plan: Plan; reason: string; password: string }) =>
       api.post<{ success: boolean }>(`/admin/workspaces/${workspaceId}/plan-override`, input),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "workspace", workspaceId] });
@@ -67,26 +175,169 @@ export function usePlanOverride(workspaceId: string | null) {
   });
 }
 
-export function useAdminUsers(search: string) {
+export interface UserQuery extends DirectoryPage {
+  search?: string;
+  filter?: AdminUserFilter | undefined;
+  sort?: AdminUserSort | undefined;
+}
+
+export function useAdminUsers(params: UserQuery = {}) {
+  const { search, filter, sort, offset = 0, limit = DIRECTORY_PAGE_SIZE, enabled = true } = params;
+  const qs = directoryQuery({ search, filter, sort, limit, offset });
   return useQuery<{ data: AdminUserSummary[]; total: number }>({
-    queryKey: ["admin", "users", search],
-    queryFn: () =>
-      api.get<{ data: AdminUserSummary[]; total: number }>(
-        `/admin/users${search ? `?search=${encodeURIComponent(search)}` : ""}`
+    queryKey: ["admin", "users", qs],
+    staleTime: ADMIN_STALE_MS,
+    enabled,
+    queryFn: () => api.get<{ data: AdminUserSummary[]; total: number }>(`/admin/users${qs}`),
+  });
+}
+
+export function useAdminUserDetail(userId: string | null) {
+  return useQuery<AdminUserDetail>({
+    queryKey: ["admin", "user", userId],
+    staleTime: ADMIN_STALE_MS,
+    enabled: Boolean(userId),
+    queryFn: () => api.get<AdminUserDetail>(`/admin/users/${userId}`),
+  });
+}
+
+/**
+ * What the person pays us and what they move through the product. Its own request rather than part
+ * of the detail: it reaches ClickHouse as well as Postgres, and the profile above it should render
+ * immediately rather than waiting on an analytics scan.
+ */
+export function useAdminUserSpend(userId: string | null) {
+  return useQuery<AdminUserSpend>({
+    queryKey: ["admin", "user", userId, "spend"],
+    staleTime: ADMIN_STALE_MS,
+    enabled: Boolean(userId),
+    queryFn: () => api.get<AdminUserSpend>(`/admin/users/${userId}/spend`),
+  });
+}
+
+/**
+ * Grant or remove a platform role. `null` removes it.
+ *
+ * The server refuses to let anyone change their own row, so the only failure worth handling here
+ * is the message coming back — which says why, and is worth showing verbatim rather than replacing
+ * with a generic apology.
+ */
+export function useSetPlatformRole(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { role: PlatformRole | null; reason: string; password: string }) =>
+      api.post<{ success: boolean }>(`/admin/users/${userId}/platform-role`, input),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "user", userId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      toast.success(
+        variables.role ? "Platform access granted." : "Platform access removed."
+      );
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't change platform access.");
+    },
+  });
+}
+
+export function useRevokeSessions(userId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { reason: string; password: string }) =>
+      api.post<{ success: boolean; revoked: number }>(
+        `/admin/users/${userId}/revoke-sessions`,
+        input
       ),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "user", userId] });
+      toast.success(
+        data.revoked === 1 ? "Signed out of 1 session." : `Signed out of ${data.revoked} sessions.`
+      );
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't sign this person out.");
+    },
   });
 }
 
-export function useAdminHealth() {
-  return useQuery<PlatformHealth>({
-    queryKey: ["admin", "health"],
-    queryFn: () => api.get<PlatformHealth>("/admin/health"),
+export function useExtendTrial(workspaceId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { days: number; reason: string; password: string }) =>
+      api.post<{ success: boolean; trialEndsAt: string | null }>(
+        `/admin/workspaces/${workspaceId}/extend-trial`,
+        input
+      ),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "workspace", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "workspaces"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "overview"] });
+      toast.success(
+        variables.days === 1 ? "Trial extended by a day." : `Trial extended by ${variables.days} days.`
+      );
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't extend the trial.");
+    },
   });
 }
 
-export function useAdminAuditLog() {
+/**
+ * The overview, optionally scoped to a date range.
+ *
+ * The range is part of the query key: without it two different windows would share one cache entry
+ * and quietly show each other's numbers. Dates travel as plain `YYYY-MM-DD` so the URL stays
+ * readable and no timezone is implied by an ISO timestamp.
+ */
+export function useAdminOverview(range?: { from?: Date | undefined; to?: Date | undefined }) {
+  const qs = directoryQuery({
+    from: range?.from ? isoDay(range.from) : undefined,
+    to: range?.to ? isoDay(range.to) : undefined,
+  });
+  return useQuery<PlatformOverview>({
+    queryKey: ["admin", "overview", qs],
+    staleTime: ADMIN_STALE_MS,
+    queryFn: () => api.get<PlatformOverview>(`/admin/overview${qs}`),
+  });
+}
+
+/**
+ * The local calendar date, not the UTC one.
+ *
+ * `toISOString()` converts to UTC first, so a date picked in any timezone behind Greenwich comes
+ * back as the previous day — an operator west of London would select "3 September" and be shown
+ * the 2nd.
+ */
+function isoDay(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export interface AuditQuery extends DirectoryPage {
+  /** Defaults to true on the server as well — the log opens on changes, not on views. */
+  mutatingOnly?: boolean;
+  actorUserId?: string | undefined;
+  targetType?: string | undefined;
+}
+
+export function useAdminAuditLog(params: AuditQuery = {}) {
+  const {
+    mutatingOnly = true,
+    actorUserId,
+    targetType,
+    offset = 0,
+    limit = DIRECTORY_PAGE_SIZE,
+  } = params;
+  const qs = directoryQuery({
+    mutatingOnly: String(mutatingOnly),
+    actorUserId,
+    targetType,
+    limit,
+    offset,
+  });
   return useQuery<{ data: AdminAuditLogEntry[]; total: number }>({
-    queryKey: ["admin", "audit-log"],
-    queryFn: () => api.get<{ data: AdminAuditLogEntry[]; total: number }>("/admin/audit-log"),
+    queryKey: ["admin", "audit-log", qs],
+    staleTime: ADMIN_STALE_MS,
+    queryFn: () => api.get<{ data: AdminAuditLogEntry[]; total: number }>(`/admin/audit-log${qs}`),
   });
 }

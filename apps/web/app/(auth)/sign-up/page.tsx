@@ -10,7 +10,10 @@ import { trackEvent } from "@/lib/analytics";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@growthos/ui/components/button";
 import { Input } from "@growthos/ui/components/input";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 import { Label } from "@growthos/ui/components/label";
+import { FormError } from "@/components/FormError";
+import { AuthFormSkeleton } from "@/components/auth/AuthFormSkeleton";
 
 function SignUpForm() {
   const router = useRouter();
@@ -23,14 +26,27 @@ function SignUpForm() {
   const [email, setEmail] = useState(searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { error } = await signUp.email({ name, email, password });
+    setFormError(null);
+
+    // See the matching note in sign-in: Better Auth throws rather than returning `{ error }` when
+    // the request never reaches the API, which would strand the button on its spinner.
+    let error: { message?: string } | null = null;
+    try {
+      ({ error } = await signUp.email({ name, email, password }));
+    } catch {
+      setLoading(false);
+      setFormError("Can't reach GrowthOS. Check your connection and try again.");
+      return;
+    }
+
     setLoading(false);
     if (error) {
-      toast.error(error.message ?? "Could not create your account.");
+      setFormError(error.message ?? "Could not create your account.");
       return;
     }
     trackEvent("account_created");
@@ -71,9 +87,8 @@ function SignUpForm() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -82,6 +97,8 @@ function SignUpForm() {
           />
           <p className="text-xs text-muted-foreground">At least 8 characters.</p>
         </div>
+
+        <FormError>{formError}</FormError>
 
         <Button type="submit" className="w-full" disabled={loading}>
           {loading && <Loader2 className="animate-spin" />}
@@ -104,7 +121,7 @@ function SignUpForm() {
 
 export default function SignUpPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<AuthFormSkeleton fields={3} />}>
       <SignUpForm />
     </Suspense>
   );

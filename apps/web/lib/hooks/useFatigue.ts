@@ -13,6 +13,7 @@ function mockFatigue(): ScoredCreative[] {
     ctrThisWeek: f.ctrThisWeek,
     ctrLastWeek: f.ctrLastWeek,
     ctrDeclinePercent: f.ctrDeclinePercent,
+    hoursSinceLaunch: f.hoursSinceLaunch,
     status: f.status,
     message: f.message,
   }));

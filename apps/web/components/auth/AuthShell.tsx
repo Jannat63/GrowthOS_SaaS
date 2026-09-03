@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { Repeat, Check } from "lucide-react";
+import { ArrowLeftRight, Check } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LogoMark } from "@/components/brand/LogoMark";
 
+// Kept in step with the landing page's language — six bridges, one queue, one number.
 const POINTS = [
-  "Connect SEO, Google Ads & Meta in minutes",
-  "Cross-channel plays ranked by impact",
-  "One blended efficiency number, not five dashboards",
+  "Connect SEO, Google Ads & Meta — read-only, minutes each",
+  "Six bridges turn one channel's signal into another's next move",
+  "One blended efficiency number, not three that disagree",
 ];
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
@@ -15,21 +17,19 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       <aside className="relative hidden overflow-hidden bg-ink p-12 text-ink-foreground lg:flex lg:flex-col lg:justify-between">
         <span aria-hidden="true" className="ambient-glow -right-24 -top-24 h-80 w-80 bg-primary/30" />
         <Link href="/" className="relative flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <span className="h-3 w-3 rounded-sm bg-primary-foreground" />
-          </span>
+          <LogoMark className="h-8 w-8" />
           <span className="font-display text-lg font-semibold tracking-tight">
             GrowthOS
           </span>
         </Link>
 
         <div className="relative">
-          <span className="glass-ink inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium text-ink-muted">
-            <Repeat className="h-3.5 w-3.5" />
-            The insight loop
+          <span className="inline-flex items-center gap-2 rounded-full border border-ink-border bg-ink-2 px-3 py-1 text-xs font-medium text-ink-muted">
+            <ArrowLeftRight className="h-3.5 w-3.5" />
+            The exchange
           </span>
           <h2 className="mt-6 font-display text-3xl font-semibold leading-tight tracking-tight">
-            Your channels, finally talking to each other.
+            A win in one channel becomes the next move in another.
           </h2>
           <ul className="mt-8 space-y-3">
             {POINTS.map((p) => (
@@ -50,9 +50,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       <main className="flex flex-col">
         <div className="flex items-center justify-between p-6">
           <Link href="/" className="flex items-center gap-2.5 lg:invisible">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <span className="h-3 w-3 rounded-sm bg-primary-foreground" />
-            </span>
+            <LogoMark className="h-8 w-8" />
             <span className="font-display text-lg font-semibold tracking-tight">
               GrowthOS
             </span>
@@ -60,7 +58,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           <ThemeToggle />
         </div>
         <div className="flex flex-1 items-center justify-center px-6 pb-12">
-          <div className="w-full max-w-sm animate-rise">{children}</div>
+          <div className="w-full max-w-sm">{children}</div>
         </div>
       </main>
     </div>

@@ -1,26 +1,36 @@
 "use client";
 import { useState } from "react";
 import { Sparkles, Copy, Check } from "lucide-react";
-import { generateRsaHeadlines, generateRsaDescriptions } from "@growthos/logic";
 import { Card } from "@growthos/ui/components/card";
 import { Button } from "@growthos/ui/components/button";
 import { Input } from "@growthos/ui/components/input";
 import { Label } from "@growthos/ui/components/label";
+import { useCreativeGeneration } from "@/lib/hooks/useCreativeGeneration";
 
-// Fully client-side: runs the @growthos/logic RSA generator (deterministic templating, no LLM/API).
-export function RsaGenerator() {
+// Generation runs on the SERVER (M4 P4.2a-4), not here — see AdCopyStudio.tsx for the full why.
+// Server-side is also where required disclaimers get appended within Google's 30/90 character
+// caps, which a browser-side generator could not do without the workspace's guidelines record.
+export function RsaGenerator({ workspaceId }: { workspaceId: string | null }) {
   const [keyword, setKeyword] = useState("ergonomic office chair");
   const [audience, setAudience] = useState("Professionals");
   const [result, setResult] = useState<{ headlines: string[]; descriptions: string[] } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  const generation = useCreativeGeneration(workspaceId);
 
   function generate() {
     const kw = keyword.trim();
-    if (!kw) return;
-    setResult({
-      headlines: generateRsaHeadlines(kw, audience.trim() || "Professionals"),
-      descriptions: generateRsaDescriptions(kw),
-    });
+    if (!kw || !workspaceId) return;
+    generation.mutate(
+      { kind: "rsa", keyword: kw, audience: audience.trim() || "Professionals" },
+      {
+        onSuccess: (res) => {
+          setResult({ headlines: res.headlines ?? [], descriptions: res.descriptions ?? [] });
+          setRemaining(res.remaining);
+        },
+      }
+    );
   }
 
   function copy(text: string) {
@@ -36,8 +46,7 @@ export function RsaGenerator() {
         <h2 className="font-display text-lg font-semibold tracking-tight">RSA copy generator</h2>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Responsive Search Ad headlines &amp; descriptions from templates — within Google&apos;s
-        character limits, no AI required.
+        Responsive Search Ad headlines and descriptions, built to Google&apos;s character limits.
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
@@ -59,10 +68,20 @@ export function RsaGenerator() {
             onKeyDown={(e) => e.key === "Enter" && generate()}
           />
         </div>
-        <Button onClick={generate} disabled={!keyword.trim()}>
-          Generate
+        <Button onClick={generate} disabled={!keyword.trim() || !workspaceId || generation.isPending}>
+          {generation.isPending ? "Generating…" : "Generate"}
         </Button>
       </div>
+
+      {/* A 402 from the plan limit surfaces as the API's own message rather than being swallowed. */}
+      {generation.error && (
+        <p className="mt-3 text-sm text-destructive">
+          {generation.error instanceof Error ? generation.error.message : "Could not generate copy."}
+        </p>
+      )}
+      {remaining !== null && !generation.error && (
+        <p className="mt-3 text-xs text-muted-foreground">{remaining} creatives left this month.</p>
+      )}
 
       {result && (
         <div className="mt-6 grid gap-6 lg:grid-cols-2">

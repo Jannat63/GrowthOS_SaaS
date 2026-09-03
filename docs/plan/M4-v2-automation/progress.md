@@ -1,11 +1,13 @@
 # M4 — Progress
 
-Status: [~]  ·  Updated: 2026-08-13  ·  **Started early** — P4.1 attribution slice, the Intelligence
+Status: [~]  ·  Updated: 2026-08-20  ·  **Started early** — P4.1 attribution slice, the Intelligence
 Engine rule-set expansion, P4.4's buildable half (public API), and **P4.3a (the automation control
-plane)** are done; the rest of M4 remains gated on external providers/write-access or is a larger
-standalone effort (mobile app).
+plane)** are done. **P4.2 and P4.4 now have folders and written plans (2026-08-20)**, both split at
+the credential line the way P4.3 was — each has a buildable half that needs nothing external. What
+remains beyond those is genuinely gated on external providers/write-access, or is a larger standalone
+effort (mobile app).
 
-Rolling-wave — phases expand to folders as reached.
+Rolling-wave — phases expand to folders as reached. Folders now exist for P4.2, P4.3, P4.4.
 
 | Item | Status | Notes |
 |------|--------|-------|
@@ -103,3 +105,12 @@ FastifyRequest { workspaceId?: string } }`.
   in every prior test run of this project, zero regressions). Real Next.js production build succeeded
   after each change (27, then 24 routes — route count differs run to run based on which marketing
   pages are present in the working tree at build time, not a regression).
+- 2026-08-20 — **P4.2 and P4.4 expanded into folders with written plans.** Both had shipped or been
+  discussed without a folder to record them: P4.4's public-API half was built 2026-07-26 with nothing
+  but a `PROGRESS.md` row, and P4.2 had one README line. Auditing what each actually specified turned
+  up more un-gated work than the tracker implied — per-key rate limits and outbound webhooks (P4.4a),
+  and brand guidelines, a creative scorecard and `ai_creatives_generated` metering (P4.2a). Two
+  scoping decisions are recorded rather than assumed: P4.2's "performance prediction" is rescoped to
+  grading creatives that have actually run, because honest pre-flight prediction needs a trained
+  model this project has neither data nor credentials for; and webhooks adopt the Standard Webhooks
+  spec verbatim instead of a bespoke signature scheme, so consumers verify with an existing library.

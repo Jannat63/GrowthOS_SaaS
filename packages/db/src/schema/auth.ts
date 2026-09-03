@@ -21,6 +21,13 @@ export const user = pgTable("user", {
   // per-workspace `role` on workspace_members below; a platform admin isn't a member of every
   // workspace, they bypass workspace membership checks entirely.
   platformRole: text("platform_role"),
+  // Optional contact number for platform staff, collected on the admin profile step
+  // (app/(admin)/admin/welcome). Nullable and never required of customers.
+  phone: text("phone"),
+  // Better Auth's twoFactor plugin owns this. False for everyone by default; the admin console
+  // requires it of anyone holding a platformRole before it will open (see apps/web/app/(admin)).
+  // Customers may turn it on but are never forced to.
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
@@ -46,6 +53,37 @@ export const session = pgTable(
     activeOrganizationId: text("active_organization_id"),
   },
   (table) => [index("session_userId_idx").on(table.userId)],
+);
+
+/**
+ * Better Auth's twoFactor plugin table — one row per user with 2FA enabled.
+ *
+ * Shape dictated by the plugin (packages/better-auth two-factor/schema.ts), not by us: `secret` is
+ * the TOTP seed and `backupCodes` the recovery set, both encrypted by the plugin and never returned
+ * to a client. Disabling 2FA deletes the whole row rather than flipping a flag, which is why there
+ * is no `enabled` column here — that lives on `user.twoFactorEnabled`.
+ *
+ * Cascades from `user`: a deleted account must not leave its TOTP seed behind.
+ */
+export const twoFactor = pgTable(
+  "twoFactor",
+  {
+    id: text("id").primaryKey(),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // The plugin's own lockout bookkeeping. All three were missing on the first pass, and the
+    // adapter checks the schema field-by-field: enabling 2FA failed with `The field "verified"
+    // does not exist in the "twoFactor" Drizzle schema` only at the moment of the insert, after the
+    // password had already been verified. Match the plugin's schema exactly — every field it
+    // declares, or none of it works.
+    verified: boolean("verified").default(true),
+    failedVerificationCount: integer("failed_verification_count").default(0),
+    lockedUntil: timestamp("locked_until"),
+  },
+  (table) => [index("twoFactor_userId_idx").on(table.userId)],
 );
 
 export const account = pgTable(

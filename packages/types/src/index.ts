@@ -39,6 +39,15 @@ export interface AuthUser {
   email: string;
   name: string;
   image?: string | null;
+  /**
+   * Platform-wide staff access, null for every customer. Exposed here because sign-in has to route
+   * platform staff to the admin console rather than through workspace onboarding, and it had no
+   * way to know: the role was set on the row and read by the API guards, but never surfaced to the
+   * client. Set only by packages/db/scripts/grant-admin.ts — never through a form.
+   */
+  platformRole?: PlatformRole | null;
+  /** Optional contact number, collected on the admin profile step. */
+  phone?: string | null;
 }
 
 // Agency white-label branding for a workspace (M3 P3.5 Slice C). All fields optional —
@@ -167,6 +176,26 @@ export interface Recommendation {
   status: RecommendationStatus;
   assignedTo: string | null; // → user.id; null = unassigned (M3 P3.5)
   dueDate: string | null; // ISO date; null = no due date (M3 P3.5)
+  /**
+   * When a snoozed recommendation returns to the queue. Null on a snooze with no end date.
+   *
+   * The column has existed since P2.3b and was never surfaced, which made Snooze inert: the row
+   * kept its place in the open queue and only its badge changed. The queue reads this to hide a
+   * snoozed row until its date passes, so the button now does what it says.
+   */
+  snoozedUntil: string | null; // ISO
+  /** When someone marked this acted. Null until then. */
+  actedAt: string | null; // ISO
+  /** When the recommendation was generated — how long it has been waiting. */
+  createdAt: string | null; // ISO
+  /**
+   * Comments on this recommendation, counted server-side.
+   *
+   * Carried on the row rather than fetched per card: the thread itself is still lazy, but the
+   * count has to arrive with the list or the queue cannot show which items have a discussion
+   * without opening all of them one at a time.
+   */
+  commentCount: number;
 }
 
 // SEO rank tracking (M3 P3.1, GSC-fed). Per-keyword position over time.
@@ -187,6 +216,51 @@ export interface SeoRankingsResponse {
   summary: { tracked: number; avgPosition: number; topThree: number; improved: number };
 }
 
+// Outbound webhooks (M4 P4.4a-2) — the push half of the public API, Scale tier.
+//
+// `secret` appears ONLY in the creation response. It is encrypted at rest and never returned by any
+// read route, so a UI that loses it cannot recover it — the user must copy it at creation or rotate
+// the endpoint. Same handling as an API key's plaintext.
+export interface WebhookEndpoint {
+  id: string;
+  url: string;
+  eventTypes: string[];
+  enabled: boolean;
+  consecutiveFailures: number;
+  disabledAt: string | null; // ISO
+  createdAt: string; // ISO
+}
+
+export interface CreatedWebhookEndpointResponse extends WebhookEndpoint {
+  secret: string; // shown once, at creation, and never again
+}
+
+// Keyword clustering (M3 P3.1 slice). Topical groups over the tracked keyword set, produced by the
+// `clusterKeywords` engine in @growthos/logic.
+//
+// `intentVerified` is false for every cluster today, and the UI must say so. These are LEXICAL
+// clusters — grouped by shared words — and text similarity cannot see intent that only shows up in
+// the search results ("how to clean running shoes" and "best running shoes" look alike and are not
+// alike). Confirming intent needs SERP-overlap data, i.e. a paid DataForSEO key. The flag exists so
+// that when that pass lands, verified and unverified clusters stay distinguishable rather than the
+// UI quietly starting to overclaim.
+export interface SeoClusterKeyword {
+  keyword: string;
+  position: number;
+}
+export interface SeoKeywordCluster {
+  clusterName: string;
+  intentVerified: boolean;
+  keywords: SeoClusterKeyword[];
+  avgPosition: number;
+}
+export interface SeoClustersResponse {
+  clusters: SeoKeywordCluster[];
+  // `singletons` counts clusters of exactly one keyword — the honest read on how much grouping
+  // actually happened, which a bare cluster count hides.
+  summary: { clusters: number; keywords: number; largestCluster: number; singletons: number };
+}
+
 // Organic traffic (GSC page dimension). CTR is a percentage (e.g. 4.2 = 4.2%).
 export interface OrganicPage {
   pageUrl: string;
@@ -203,6 +277,15 @@ export interface OrganicTrafficPoint {
 export interface OrganicTrafficResponse {
   pages: OrganicPage[];
   trend: OrganicTrafficPoint[];
+  /**
+   * The window these figures were actually measured over.
+   *
+   * Both queries behind this response ran with no date filter at all, summing every seeded day —
+   * 180 of them — while the UI labelled the totals "Clicks (30d)". The live figures were six times
+   * the window they claimed, and six times what the offline fallback produced for the same tiles.
+   * The window now travels with the numbers so a label can never drift from them again.
+   */
+  period: { from: string; to: string } | null;
   summary: {
     pages: number;
     totalClicks: number;
@@ -417,16 +500,51 @@ export interface ScoredSearchTerm {
   message: string;
 }
 
+/**
+ * The editorial stages a brief moves through. The column and its default have existed since the
+ * table was created; nothing ever wrote it after the insert and no screen ever showed it, so a
+ * page called "Content Pipeline" had no pipeline in it.
+ */
+export type ContentBriefStatus = "draft" | "approved" | "in_progress" | "published";
+
+export const CONTENT_BRIEF_STAGES: readonly ContentBriefStatus[] = [
+  "draft",
+  "approved",
+  "in_progress",
+  "published",
+];
+
 export interface ContentBriefRecord {
   id: string;
   workspaceId: string;
   recommendationId: string | null;
   keyword: string;
-  status: string;
-  brief: ContentBrief;
+  status: ContentBriefStatus;
+  /**
+   * One jsonb column, two shapes: a ContentBrief for a paid->organic brief, a CreativeBrief for an
+   * organic->paid one. Modelled as the union it actually is — the Creative Queue used to reach the
+   * second through `as unknown as CreativeBrief`, which silenced the ambiguity instead of
+   * resolving it. Narrow with isContentBrief / isCreativeBrief from @growthos/logic.
+   */
+  brief: ContentBrief | CreativeBrief;
+  /** Which bridge produced it — google_ads_search_term | organic_top_page | meta_hook | manual. */
+  source: string;
+  /** Set when the article ships. This is what closes the loop back to the SEO module. */
+  publishedUrl: string | null;
+  createdAt: string | null; // ISO
 }
 
 // Organic-to-Paid (M2 P2.4) — Meta creative briefs from top organic pages.
+/**
+ * How the ad should open, decided by the organic position the keyword holds.
+ *
+ * `own` is top of page one (1-3), a position the site demonstrably holds, so the ad extends reach.
+ * `claim` is page one below the fold (4-10), where the ad has to earn a click the ranking is not
+ * winning on its own. Derived by `creativePlay()` in `@growthos/logic`, which is the only place
+ * the thresholds are defined.
+ */
+export type CreativePlay = "own" | "claim";
+
 export interface CreativeBrief {
   hook: string;
   primaryText: string;
@@ -434,6 +552,15 @@ export interface CreativeBrief {
   format: string;
   audience: string;
   callToAction: string;
+  /**
+   * Which play this brief runs, and the evidence for it.
+   *
+   * Optional because `content_briefs.brief` is jsonb and holds rows written before plays existed.
+   * Those rows still satisfy `isCreativeBrief` and must still render, so consumers treat these as
+   * absent-able rather than assuming a backfill that has not run.
+   */
+  play?: CreativePlay;
+  rationale?: string;
 }
 
 export interface TopOrganicPage {
@@ -468,9 +595,29 @@ export interface GrowthHubMetric {
   previous: number;
 }
 
+/**
+ * Daily values across the current window, oldest first — one array per headline metric, for the
+ * tile sparklines. Returned alongside the aggregates rather than as a second endpoint because the
+ * page needs both together and they come from the same two tables.
+ *
+ * Paid and organic series can differ in length: they are windowed against their own `max(date)`
+ * (see growth-hub.ts), so a workspace whose GSC sync is a day behind its ad sync gets arrays of
+ * different sizes. Sparklines don't care, and forcing them into step would mean inventing a day.
+ */
+export interface GrowthHubDaily {
+  revenue: number[];
+  adSpend: number[];
+  conversions: number[];
+  organicClicks: number[];
+}
+
 export interface GrowthHubResponse {
   /** Length of each comparison window, in days. Both windows are this long. */
   windowDays: number;
+  /** The exact inclusive date range these figures cover — what the date picker displays. */
+  window: { from: string; to: string };
+  /** Earliest date this workspace has data for, or null when it has none. Bounds the picker. */
+  dataFrom: string | null;
   metrics: {
     revenue: GrowthHubMetric;
     googleSpend: GrowthHubMetric;
@@ -479,6 +626,17 @@ export interface GrowthHubResponse {
     conversions: GrowthHubMetric;
   };
   /** Per-channel headline for the loop masthead. */
+  daily: GrowthHubDaily;
+  /**
+   * The last date every surface on this dashboard has data for, `YYYY-MM-DD`, or null on a
+   * workspace with no data at all.
+   *
+   * Deliberately the EARLIER of the paid and organic maxima, not the later. Past that point one
+   * of the two pipelines has nothing, so a blended figure covering it would be understated
+   * without saying so. Reporting the later date would make the dashboard claim freshness it
+   * only has on one channel.
+   */
+  dataThrough: string | null;
   channels: {
     seo: { organicClicks: number };
     google: { conversions: number };
@@ -505,7 +663,20 @@ export interface ScoredCreative {
   frequency: number;
   ctrThisWeek: number;
   ctrLastWeek: number;
+  /**
+   * Week-over-week CTR change as a DECLINE: positive means CTR fell, negative means it rose.
+   *
+   * The sign is the opposite of what a reader expects from a delta, which is why the monitor
+   * rendered a recovering creative as "Δ -3%" — a number most people read as bad. Anything
+   * rendering this must state the direction in words rather than printing it as a signed delta.
+   */
   ctrDeclinePercent: number;
+  /**
+   * Hours the creative has been running. Gates the `at-risk` rule entirely (see
+   * FATIGUE_THRESHOLDS.alertWindowHours) and was missing from this type, so the UI could not
+   * explain why a creative over the frequency line was still unflagged.
+   */
+  hoursSinceLaunch: number;
   status: "fatigued" | "at-risk" | "healthy";
   message: string;
 }
@@ -527,6 +698,72 @@ export interface AdminWorkspaceSummary {
   memberCount: number;
   connectedPlatformCount: number;
   createdAt: string;
+  /** Null unless the workspace is on a trial. Drives the "ends in 2 days" warning in the list. */
+  trialEndsAt: string | null;
+  /**
+   * The most recent entry in the workspace's own audit log — the closest thing to "is anyone
+   * actually using this". Null for a workspace that has never done anything, which is itself the
+   * answer to a question an operator asks.
+   */
+  lastActivityAt: string | null;
+}
+
+/** Directory filters. Each one is a question an operator has, not a column to sort by. */
+export type AdminWorkspaceFilter =
+  | "past_due"
+  | "trial_ending"
+  | "no_connections"
+  | "cancelling";
+
+export type AdminWorkspaceSort = "created" | "name" | "members" | "activity";
+
+export type AdminUserFilter = "staff" | "no_workspace";
+
+export type AdminUserSort = "created" | "name" | "last_seen";
+
+/**
+ * One person's file.
+ *
+ * `emailVerified` is deliberately absent. `apps/api/src/auth.ts` does not enable email
+ * verification, so the column is false for every account on the platform and showing it would
+ * read as a platform-wide fault rather than a fact about this person.
+ */
+export interface AdminUserDetail {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+  platformRole: PlatformRole | null;
+  phone: string | null;
+  createdAt: string;
+  lastSeenAt: string | null;
+  memberships: {
+    workspaceId: string;
+    workspaceName: string;
+    workspaceSlug: string;
+    role: Role;
+    /** The workspace's plan, so "what are they on" is answerable without opening each one. */
+    plan: string;
+    subscriptionStatus: string;
+    /**
+     * `role === "owner"`. Broken out because owning an account and being a member of it are
+     * different facts about a person — the owner is who pays and who to talk to.
+     */
+    isOwner: boolean;
+    joinedAt: string | null;
+  }[];
+  /**
+   * Live sessions only — expired ones are deleted, so this is "where they are signed in now", the
+   * thing you want before deciding whether to sign someone out everywhere.
+   */
+  sessions: {
+    id: string;
+    createdAt: string;
+    lastUsedAt: string;
+    expiresAt: string;
+    ipAddress: string | null;
+    userAgent: string | null;
+  }[];
 }
 export interface AdminWorkspaceDetail {
   id: string;
@@ -542,9 +779,71 @@ export interface AdminWorkspaceDetail {
     currentPeriodEnd: string | null;
     cancelAt: string | null;
   };
+  /**
+   * Stripe's own identifiers, so the console can link out rather than reimplement billing. Null
+   * before checkout has ever completed, which is the normal state of a trialing workspace.
+   */
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
   members: { userId: string; name: string; email: string; role: string }[];
-  connections: { platform: string; accountName: string | null; isActive: boolean | null; lastSyncedAt: string | null }[];
+  connections: {
+    platform: string;
+    accountName: string | null;
+    isActive: boolean | null;
+    lastSyncedAt: string | null;
+    /** Why the last sync failed, when it did. The first thing to read on a support ticket. */
+    syncError: string | null;
+  }[];
 }
+
+/**
+ * What one person is worth and what they are doing with the product — the two senses of "spend"
+ * that matter about a customer, kept apart because they answer different questions.
+ *
+ * `billingMonthlyCents` is what they pay **us**: the list price of the workspaces they own. Being a
+ * member of someone else's workspace costs nothing, so membership alone contributes zero.
+ *
+ * The rest is what they spend on **ads**, through every workspace they can reach, which is the
+ * measure of how much of their operation actually runs on this product. A person paying us $79 and
+ * moving $40,000 a month through the platform is a different conversation from one paying the same
+ * and moving nothing.
+ */
+export interface AdminUserSpend {
+  /** The window these figures cover — the last 30 days for which any of their workspaces has data. */
+  windowFrom: string | null;
+  windowTo: string | null;
+  billingMonthlyCents: number;
+  ownedWorkspaceCount: number;
+  totalSpend: number;
+  totalRevenue: number;
+  /** Storage slugs — render through `channelLabel`. */
+  byPlatform: { platform: string; spend: number; revenue: number }[];
+  byWorkspace: { workspaceId: string; name: string; spend: number; revenue: number }[];
+  daily: { date: string; spend: number; revenue: number }[];
+}
+
+/**
+ * One entry in a workspace's own history — what the customer did, and what ran for them.
+ *
+ * Two sources merged into one timeline because an operator reading it is asking "what happened
+ * here", and the answer often alternates between the two: a connection was added, then a sync job
+ * failed, then someone dismissed a recommendation.
+ */
+export type AdminActivityItem =
+  | {
+      kind: "audit";
+      at: string;
+      action: string;
+      actorName: string | null;
+      entityType: string;
+    }
+  | {
+      kind: "job";
+      at: string;
+      type: string;
+      status: string;
+      error: string | null;
+    };
 export interface AdminUserSummary {
   id: string;
   name: string;
@@ -552,12 +851,131 @@ export interface AdminUserSummary {
   platformRole: string | null;
   workspaceCount: number;
   createdAt: string;
+  /**
+   * Most recent activity on any live session. Sessions are deleted when they expire, so this goes
+   * null for anyone who has not signed in lately — which is the useful reading, not a gap.
+   */
+  lastSeenAt: string | null;
 }
-export interface PlatformHealth {
+/**
+ * The admin overview.
+ *
+ * `attention` is the point of the page: the four things that need a person, each item carrying
+ * enough to render one row and link straight to the account. Every list is capped server-side —
+ * an operator works a queue, and a queue of two hundred is a report, not a queue. `*Total` says
+ * how many there really are so the UI can say "and 40 more" honestly.
+ *
+ * Structured, not prose: the wording belongs to the interface (and channel slugs must render
+ * through `channelLabel`, per CLAUDE.md), so the API sends facts and the client writes sentences.
+ */
+export interface PlatformOverview {
   totalWorkspaces: number;
   totalUsers: number;
+  /**
+   * Summed list price of subscriptions in `active`, in US cents. Trials are not revenue yet and
+   * `past_due` is revenue that did not arrive, so neither counts — they appear in `attention`
+   * instead, which is where they can actually be acted on.
+   */
+  mrrCents: number;
+  signupsLast7d: number;
   workspacesByPlan: { plan: string; count: number }[];
-  trialsEndingSoonCount: number;
+  /** People with a session that has not expired — who is actually using the product right now. */
+  liveSessions: number;
+  /** Active integrations across every workspace. Zero platform-wide is an activation problem. */
+  connectedPlatforms: number;
+  /** What the product has produced, ever. The clearest proof it is doing its job. */
+  recommendationsGenerated: number;
+  briefsCreated: number;
+  /**
+   * Counted from `workspaces`, so a workspace with no subscription row lands in `trialing`.
+   *
+   * Every status is always present, including the zeros. A status that vanishes when it is zero
+   * cannot be told apart from one nobody measures — "Active 0" and no Active row at all read
+   * identically, and only one of them is true.
+   */
+  subscriptionMix: { status: string; count: number }[];
+  /** Subscriptions in `active`. The count behind `mrrCents`, stated rather than inferred. */
+  payingCustomers: number;
+  /**
+   * Where the revenue comes from. Only plans with a paying customer appear — a tier nobody is on
+   * contributes a zero to a bar chart and nothing to the reader.
+   */
+  revenueByPlan: { plan: string; customers: number; mrrCents: number }[];
+  /**
+   * New accounts per day over the last 30 days, zero-filled. A day with no signups is a real zero
+   * — unlike the spend series below, where an absent day means no data rather than no spend.
+   */
+  growthDaily: { date: string; workspaces: number; users: number }[];
+  /**
+   * Platform-wide advertising spend, the scale metric: what customers move through GrowthOS. The
+   * window is the last 30 days *of available data*, not of wall-clock time, so seeded data still
+   * draws a chart.
+   */
+  spendDaily: { date: string; spend: number; revenue: number }[];
+  spendWindow: { from: string | null; to: string | null };
+  totalSpend: number;
+  /** Storage slugs — render through `channelLabel`. */
+  spendByPlatform: { platform: string; spend: number }[];
+  /**
+   * Spend per channel per day, as two named series rather than one keyed by slug — the console
+   * draws them as separate small multiples, never as one stack, because `--channel-google` and
+   * `--channel-meta` are indistinguishable under deuteranopia on the dark surface.
+   */
+  spendByChannelDaily: { date: string; google: number; meta: number }[];
+  /** The advertising funnel across the whole platform, over the spend window. */
+  funnel: {
+    impressions: number;
+    clicks: number;
+    conversions: number;
+    revenue: number;
+  };
+  topCampaigns: { campaign: string; platform: string; spend: number }[];
+  /** What became of every recommendation the product has generated. */
+  recommendationsByStatus: { status: string; count: number }[];
+  newestWorkspaces: { id: string; name: string; plan: string; createdAt: string }[];
+  topSpenders: { id: string; name: string; spend: number }[];
+  attention: {
+    pastDue: PastDueItem[];
+    pastDueTotal: number;
+    trialsEnding: TrialEndingItem[];
+    trialsEndingTotal: number;
+    staleConnections: StaleConnectionItem[];
+    staleConnectionsTotal: number;
+    failedJobs: FailedJobItem[];
+    failedJobsTotal: number;
+  };
+}
+
+interface AttentionTarget {
+  workspaceId: string;
+  workspaceName: string;
+}
+
+export interface PastDueItem extends AttentionTarget {
+  plan: string;
+  /** When the subscription was last updated, which is when it went past due. */
+  since: string | null;
+}
+
+export interface TrialEndingItem extends AttentionTarget {
+  plan: string;
+  /** May be in the past — a trial that has already lapsed is more urgent, not less. */
+  trialEndsAt: string;
+}
+
+export interface StaleConnectionItem extends AttentionTarget {
+  /** Storage slug (`google_ads` etc.) — render it through `channelLabel`, never raw. */
+  platform: string;
+  accountName: string | null;
+  lastSyncedAt: string | null;
+  isActive: boolean;
+}
+
+export interface FailedJobItem extends AttentionTarget {
+  jobId: string;
+  type: string;
+  error: string | null;
+  failedAt: string | null;
 }
 export interface AdminAuditLogEntry {
   id: string;
@@ -584,6 +1002,11 @@ export interface Subscription {
 
 // Plan limits reference (blueprint DATA_MODELS.md). Enforcement (PLAN_LIMIT_REACHED, 402) lands
 // in M5 P5.2 — this table is the shared source of truth both apps/api and apps/web read from.
+//
+// `apiRequestsPerMinute` (M4 P4.4a-1) is the public API's per-key ceiling, not a per-IP one. It is
+// 0 below Scale because `apiAccess` is false there and `resolveApiKey` rejects the key before any
+// limiter runs — the 0 records that "no access" and "zero budget" agree, rather than leaving a
+// tier out of the table and making a reader guess which.
 export const PLAN_LIMITS = {
   starter: {
     workspaces: 1,
@@ -596,6 +1019,7 @@ export const PLAN_LIMITS = {
     whiteLabel: false,
     crossChannelAttribution: "mer_only",
     apiAccess: false,
+    apiRequestsPerMinute: 0,
   },
   growth: {
     workspaces: 5,
@@ -608,6 +1032,7 @@ export const PLAN_LIMITS = {
     whiteLabel: true,
     crossChannelAttribution: "full",
     apiAccess: false,
+    apiRequestsPerMinute: 0,
   },
   scale: {
     workspaces: Infinity,
@@ -620,8 +1045,36 @@ export const PLAN_LIMITS = {
     whiteLabel: true,
     crossChannelAttribution: "full_custom",
     apiAccess: true,
+    apiRequestsPerMinute: 120,
   },
 } as const satisfies Record<Plan, Record<string, unknown>>;
+
+/**
+ * List price per plan, in US cents per month.
+ *
+ * Cents rather than dollars because this is the figure MRR is summed from, and floating-point
+ * dollars accumulate error once a few hundred subscriptions are added together. Rendering is the
+ * caller's job — `planPriceLabel` below produces the two forms the app actually uses.
+ *
+ * It lives here, beside PLAN_LIMITS, for the same reason the seeded demo figures live in exactly
+ * one file (CLAUDE.md): the price was previously written out three separate times — the pricing
+ * page, the pricing teaser, and the billing settings section — each with its own formatting. Two
+ * of those carried a comment claiming the number was derived from PLAN_LIMITS when it was a
+ * literal sitting next to it. Import this; do not retype the number.
+ *
+ * Stripe stays the authority on what a customer is actually charged (PLAN_PRICE_ENV in
+ * apps/api/src/billing.ts holds the price ids). This is the list price we quote and report on.
+ */
+export const PLAN_PRICE_USD_CENTS = {
+  starter: 7_900,
+  growth: 19_900,
+  scale: 39_900,
+} as const satisfies Record<Plan, number>;
+
+/** `$199`, or `$199/mo` with `perMonth`. Every list price is a whole number of dollars. */
+export function planPriceLabel(plan: Plan, opts?: { perMonth?: boolean }): string {
+  return `$${PLAN_PRICE_USD_CENTS[plan] / 100}${opts?.perMonth ? "/mo" : ""}`;
+}
 
 // Metered/gated features (M5 P5.2). `limit: null` means unlimited (Infinity isn't valid JSON).
 export type CountedMetric = "recommendations_generated" | "ai_creatives_generated";
@@ -641,3 +1094,80 @@ export type WebSocketEvent =
   | { type: "meta:fatigue_alert"; workspaceId: string; adSetId: string }
   | { type: "analytics:mer_alert"; workspaceId: string }
   | { type: "report:ready"; workspaceId: string; periodStart: string };
+
+// ── Marketing blog (authored in the Super Admin console) ─────────────────────
+//
+// Platform content, not workspace content: a post belongs to GrowthOS, so nothing here carries a
+// workspaceId and the routes that write it check a platform role rather than membership. See
+// docs/superpowers/specs/2026-09-03-blog-cms-design.md.
+
+/**
+ * A post body, as a ProseMirror document.
+ *
+ * Kept structural rather than fully typed: the node set is decided by the editor's schema and the
+ * renderer's capability (apps/web/components/marketing/PostBody.tsx), and a mirror of ProseMirror's
+ * type here would be a second definition of that set, free to disagree with both.
+ */
+export interface RichTextNode {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: RichTextNode[];
+  marks?: Array<{ type: string; attrs?: Record<string, unknown> }>;
+  text?: string;
+}
+
+export interface RichTextDoc {
+  type: "doc";
+  content?: RichTextNode[];
+}
+
+/** Derived from `publishedAt` alone — there is no status column that could disagree with the date. */
+export type BlogPostState = "draft" | "scheduled" | "published";
+
+export interface BlogAuthor {
+  name: string;
+  role: string | null;
+  avatarUrl: string | null;
+}
+
+/** What a list needs. Deliberately without `body`, so listing never ships every document. */
+export interface BlogPostSummary {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  tag: string;
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
+  author: BlogAuthor;
+  featured: boolean;
+  /** ISO 8601, or null while it is a draft. */
+  publishedAt: string | null;
+  state: BlogPostState;
+  wordCount: number;
+  /** `ceil(wordCount / 220)`, floored at 1 — the figure the public page prints. */
+  readingMinutes: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BlogPost extends BlogPostSummary {
+  body: RichTextDoc;
+}
+
+/** The writable shape. `slug` is generated from the title on create when it is omitted. */
+export interface BlogPostInput {
+  slug?: string;
+  title: string;
+  description: string;
+  body: RichTextDoc;
+  tag?: string;
+  coverImageUrl?: string | null;
+  coverImageAlt?: string | null;
+  authorName?: string;
+  authorRole?: string | null;
+  authorAvatarUrl?: string | null;
+}
+
+export type BlogPostFilter = BlogPostState;
+export type BlogPostSort = "updated" | "published" | "title";

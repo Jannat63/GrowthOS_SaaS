@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
+import { Detail, LEGAL } from "@/lib/legal";
 
-const LAST_UPDATED = "[DATE — set when this is reviewed and published]";
-
-export const metadata: Metadata = {
+export const metadata = pageMeta({
   title: "Terms of Service",
   description: "The terms governing use of GrowthOS.",
-};
+  path: "/terms",
+});
 
 export default function TermsPage() {
   return (
@@ -18,14 +18,16 @@ export default function TermsPage() {
       </p>
 
       <h1 className="mt-8 font-display text-4xl font-bold tracking-tight">Terms of Service</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Last updated: {LAST_UPDATED}</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Last updated: <Detail value={LEGAL.lastUpdated} label="DATE — set on review" />
+      </p>
 
       <div className="mt-10 space-y-8 text-sm leading-relaxed text-foreground">
         <section>
           <h2 className="font-display text-lg font-semibold">1. Agreement to terms</h2>
           <p className="mt-2 text-muted-foreground">
             These Terms of Service (&quot;Terms&quot;) govern access to and use of GrowthOS
-            (the &quot;Service&quot;), provided by [Company Legal Name] (&quot;GrowthOS,&quot;
+            (the &quot;Service&quot;), provided by <Detail value={LEGAL.entity} label="COMPANY LEGAL NAME" /> (&quot;GrowthOS,&quot;
             &quot;we,&quot; &quot;us&quot;). By creating an account or using the Service, you agree
             to these Terms on behalf of yourself and, if applicable, the organization you represent.
             If you don&apos;t agree, don&apos;t use the Service.
@@ -35,12 +37,16 @@ export default function TermsPage() {
         <section>
           <h2 className="font-display text-lg font-semibold">2. The Service</h2>
           <p className="mt-2 text-muted-foreground">
-            GrowthOS connects to your SEO, Google Ads, and Meta Ads accounts to surface
-            cross-channel recommendations, reports, and (where you enable it) automated actions.
-            We may add, change, or remove features at any time. Some features depend on
-            third-party platforms (Google, Meta, DataForSEO, and others) and may be limited by
-            those platforms&apos; availability, rate limits, or policies, which are outside our
-            control.
+            GrowthOS reads from your SEO, Google Ads, and Meta Ads accounts to surface
+            cross-channel recommendations, reports, content briefs, and creative queues. It does
+            not write to those accounts: every connection requests read-only scopes, and automation
+            rules act on work inside GrowthOS — queueing a brief, flagging a fatiguing creative —
+            or run as a dry run that shows what would happen. Should we ever add the ability to
+            change a live campaign, it would require a new authorization from you, and we would
+            update these Terms first. We may otherwise add, change, or remove features at any time.
+            Some features depend on third-party platforms (Google, Meta, DataForSEO, and others)
+            and may be limited by those platforms&apos; availability, rate limits, or policies,
+            which are outside our control.
           </p>
         </section>
 
@@ -83,9 +89,11 @@ export default function TermsPage() {
           <h2 className="font-display text-lg font-semibold">6. Connected third-party accounts</h2>
           <p className="mt-2 text-muted-foreground">
             When you connect a Google, Meta, or other third-party account, you authorize GrowthOS
-            to access and act on that account within the scope you grant (e.g. reading rankings,
-            reading or adjusting ad campaigns). You can disconnect any account at any time from
-            Settings. We are not responsible for changes those third parties make to their APIs,
+            to read that account within the scope you grant — rankings, search queries, campaign
+            and creative performance, spend. The scopes we request are read-only, so GrowthOS
+            cannot change a bid, edit a campaign, or spend budget even if it were asked to. You can
+            disconnect any account at any time from Settings, which deletes the stored credential
+            immediately. We are not responsible for changes those third parties make to their APIs,
             pricing, or policies.
           </p>
         </section>
@@ -108,9 +116,9 @@ export default function TermsPage() {
           <p className="mt-2 text-muted-foreground">
             GrowthOS surfaces recommendations and automations based on the data available to it.
             We don&apos;t guarantee any specific ranking, ad performance, revenue, or business
-            outcome. You&apos;re responsible for reviewing and approving any recommended action
-            before it&apos;s applied to a live ad account or website, unless you&apos;ve
-            explicitly enabled automatic execution for that action type.
+            outcome. Acting on a recommendation is your decision and your responsibility: because
+            GrowthOS cannot reach your ad accounts to change anything, every recommendation it
+            makes is applied by a person, in the platform&apos;s own tools, after reviewing it.
           </p>
         </section>
 
@@ -148,7 +156,7 @@ export default function TermsPage() {
         <section>
           <h2 className="font-display text-lg font-semibold">12. Governing law</h2>
           <p className="mt-2 text-muted-foreground">
-            These Terms are governed by the laws of [Jurisdiction], without regard to conflict-of-law
+            These Terms are governed by the laws of <Detail value={LEGAL.jurisdiction} label="JURISDICTION" />, without regard to conflict-of-law
             principles. [Confirm jurisdiction and dispute-resolution process with counsel.]
           </p>
         </section>
@@ -156,7 +164,8 @@ export default function TermsPage() {
         <section>
           <h2 className="font-display text-lg font-semibold">13. Contact</h2>
           <p className="mt-2 text-muted-foreground">
-            Questions about these Terms? Contact us at [support email].
+            Questions about these Terms? Contact us at{" "}
+            <Detail value={LEGAL.supportEmail} label="SUPPORT EMAIL" />.
           </p>
         </section>
       </div>

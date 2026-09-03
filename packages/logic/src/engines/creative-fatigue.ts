@@ -18,9 +18,29 @@ export interface FatigueResult extends CreativePerformance {
   message: string;
 }
 
-const FREQUENCY_THRESHOLD = 3;
-const CTR_DECLINE_THRESHOLD = 20; // %
-const ALERT_WINDOW_HOURS = 72;
+/**
+ * The three numbers the verdict is made of.
+ *
+ * Exported because the UI states them: a creative is told it is "at risk" on the strength of these
+ * values, and a reader who cannot see the line being crossed has to take the verdict on trust.
+ * They were private, so the page hard-coded a description of the rule in its subtitle — and got it
+ * wrong, describing the `fatigued` AND while showing rows that qualified on the `at-risk` OR.
+ */
+export const FATIGUE_THRESHOLDS = {
+  /** Average impressions per unique user, above which an audience is over-exposed. */
+  frequency: 3,
+  /** Week-over-week CTR decline, in percent. */
+  ctrDecline: 20,
+  /**
+   * Hours since launch before the softer `at-risk` rule applies at all. A new creative has not run
+   * long enough for one bad signal to mean anything — blueprint §7.4.2, "Alerts at 72 hours".
+   */
+  alertWindowHours: 72,
+} as const;
+
+const FREQUENCY_THRESHOLD = FATIGUE_THRESHOLDS.frequency;
+const CTR_DECLINE_THRESHOLD = FATIGUE_THRESHOLDS.ctrDecline;
+const ALERT_WINDOW_HOURS = FATIGUE_THRESHOLDS.alertWindowHours;
 
 export function detectFatigue(c: CreativePerformance): FatigueResult {
   const ctrDeclinePercent =

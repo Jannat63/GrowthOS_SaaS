@@ -24,6 +24,8 @@ import { useSidebarStore } from "@/lib/stores/sidebar";
 import { useWorkspace } from "@/lib/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useBranding } from "@/lib/hooks/useBranding";
+import { LogoMark } from "@/components/brand/LogoMark";
+import { RailMarker } from "@/components/layout/RailMarker";
 
 // Ghost icon button restyled for the dark ink rail (tailwind-merge overrides the
 // default light accent hover). Reused for both collapse/expand affordances.
@@ -128,12 +130,12 @@ export function Sidebar() {
             aria-label="Expand sidebar"
             className={cn("group relative h-9 w-9 rounded-lg", INK_ICON_BTN)}
           >
-            <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg bg-primary transition-opacity duration-200 group-hover:opacity-0">
+            <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-lg transition-opacity duration-200 group-hover:opacity-0">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logoUrl} alt={brandName} className="h-full w-full object-cover" />
               ) : (
-                <span className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
+                <LogoMark />
               )}
             </span>
             <PanelLeftOpen className="absolute h-4 w-4 text-ink-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
@@ -144,12 +146,12 @@ export function Sidebar() {
               href="/growth-hub"
               className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg">
                 {logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={logoUrl} alt={brandName} className="h-full w-full object-cover" />
                 ) : (
-                  <span className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
+                  <LogoMark />
                 )}
               </span>
               <span className="truncate font-display text-lg font-semibold tracking-tight">
@@ -169,7 +171,12 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4">
+      {/* The marker is a direct child of the scrolling nav so it travels with the list, and the
+          groups keep their own wrapper so its out-of-flow presence cannot join the `space-y` run
+          and push the first group down. */}
+      <nav className="relative flex-1 overflow-y-auto px-3 py-4">
+        <RailMarker />
+        <div className="space-y-4">
         {NAV_GROUPS.map((group, gi) => (
           <div key={group.label ?? `group-${gi}`} className={gi > 0 ? "pt-2" : undefined}>
             {group.label && !collapsed && (
@@ -210,6 +217,9 @@ export function Sidebar() {
                     key={label}
                     href={href}
                     title={collapsed ? label : undefined}
+                    // What RailMarker measures against. The bar is no longer drawn inside the row,
+                    // because a bar that belongs to a row cannot travel between rows.
+                    data-rail-active={active ? "true" : undefined}
                     className={cn(
                       base,
                       spacing,
@@ -218,9 +228,6 @@ export function Sidebar() {
                         : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
                     )}
                   >
-                    {active && (
-                      <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary" />
-                    )}
                     <Icon
                       className={cn(
                         "h-4 w-4 shrink-0 transition-colors",
@@ -236,12 +243,18 @@ export function Sidebar() {
             </div>
           </div>
         ))}
+        </div>
       </nav>
 
-      <div className="shrink-0 border-t border-ink-border px-3 py-4">
+      {/* Its own region, so it gets its own marker: the footer sits below a border and outside the
+          scrolling list, and a bar cannot travel across that. Moving between the two cross-fades,
+          which is what actually happened. */}
+      <div className="relative shrink-0 border-t border-ink-border px-3 py-4">
+        <RailMarker />
         <Link
           href="/settings"
           title={collapsed ? "Settings" : undefined}
+          data-rail-active={pathname === "/settings" ? "true" : undefined}
           className={cn(
             "group flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
             collapsed ? "justify-center px-0" : "gap-3 px-3",

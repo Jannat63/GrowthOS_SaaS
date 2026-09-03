@@ -1,0 +1,3 @@
+ALTER TABLE "twoFactor" ADD COLUMN "verified" boolean DEFAULT true;--> statement-breakpoint
+ALTER TABLE "twoFactor" ADD COLUMN "failed_verification_count" integer DEFAULT 0;--> statement-breakpoint
+ALTER TABLE "twoFactor" ADD COLUMN "locked_until" timestamp;

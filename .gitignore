@@ -3,8 +3,20 @@ node_modules/
 
 # Build outputs
 dist/
+build/
+out/
 .next/
+.next-dev/
 .turbo/
+*.tsbuildinfo
+
+# Python (apps/worker)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
 
 # Environment files — scripts/local/setup.mjs generates these automatically with real secrets.
 # Never commit them. Committed *.env.example files are the templates; those stay tracked.

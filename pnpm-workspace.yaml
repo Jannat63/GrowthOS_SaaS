@@ -1,6 +1,9 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+# NOTE: `overrides` lives in the root package.json under "pnpm", not here. An `overrides:` key in
+# this file was not picked up by pnpm 11.0.9 — the lockfile came back with no overrides section and
+# install reported "Already up to date" even with --force. See that file for what is pinned and why.
 allowBuilds:
   # Optional Better Auth CLI adapters we don't use (drizzle/neon only) — deny their build scripts.
   '@prisma/client': false

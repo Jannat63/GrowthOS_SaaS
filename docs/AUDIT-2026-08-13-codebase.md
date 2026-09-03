@@ -256,6 +256,11 @@ the default for every new workspace. The dashboard layout now says so plainly, o
 is connected. `resolveProvenance` is a pure function so the rule is tested (8 cases, weighted toward
 what must never return `live`).
 
+The banner is dismissible, but only for the browser session and only for the workspace it was
+dismissed in. A permanent dismissal would outlive its own reason — hide it on day one, connect
+nothing, and weeks later there is no longer anything on screen saying the revenue is invented.
+Session scope keeps the escape hatch without letting "I've seen it" harden into "I was never told".
+
 This was logged as "a product decision, not a code fix". Half true — how much to disclose was a
 judgement call, but *not misrepresenting seeded data as the customer's own* never needed a decision.
 

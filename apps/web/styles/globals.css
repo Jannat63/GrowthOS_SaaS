@@ -4,92 +4,190 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   GrowthOS brand — "Signal"
+
+   Ember accent on cold graphite. The warm primary is the point: every tool in
+   this category is blue or violet, and keeping the accent warm leaves green
+   free to mean "up" in a chart instead of competing with the brand.
+
+   The brand does NOT live in --primary. BrandingProvider.tsx overrides it per
+   workspace for white-labelling (an inline style, so it beats both :root and
+   .dark). Identity lives in the ink surfaces, the type, and the Exchange
+   signature — all of which a tenant cannot repaint. Treat --primary as the
+   action colour and never rely on its specific hue for legibility.
+   ───────────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --radius: 0.75rem;
+  --radius: 0.625rem;
 
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  /* Motion. One easing curve for the whole product: a fast start that decelerates
+     into place, so a move reads as something settling rather than sliding. The two
+     durations are the only ones a route change is allowed to spend — long enough to
+     be seen, short enough that navigation never feels like it is waiting on us. */
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-page: 200ms;
+  --motion-view: 240ms;
+
+  --background: #fafaf9;
+  --foreground: #0b0f14;
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #0b0f14;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  /* Trust blue — matches the "Analytics Dashboard" + "SaaS (General)" reasoning: clarity and
-     data-credibility over a warmer/quirkier brand color. */
-  --primary: #1e40af;
+  --popover-foreground: #0b0f14;
+
+  /* Ember. Deepened from the display swatch to clear 4.5:1 on white — it is
+     used as `text-primary` for eyebrows, not just as a button fill. */
+  --primary: #ce4218;
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #f1f5f9;
-  --accent-foreground: #0f172a;
-  --success: #10b981;
+
+  --secondary: #f2f1ee;
+  --secondary-foreground: #0b0f14;
+  --muted: #f2f1ee;
+  --muted-foreground: #5c6470;
+  --accent: #f2f1ee;
+  --accent-foreground: #0b0f14;
+
+  --success: #0e9f6e;
   --success-foreground: #ffffff;
-  /* Amber. Dual purpose by design: (1) "this is sample data, not yours" during onboarding — seeing
-     demo figures before connecting an account isn't an error, so it stays visually distinct from
-     --destructive; (2) the shared "needs attention, not broken" tone for High/Medium severity
-     badges and opportunity highlights across the dashboard. */
-  --warning: #d97706;
+  /* Gold, for states that are neither healthy nor broken — chiefly "this is
+     sample data, not yours". Pushed firmly yellow: against an ember primary an
+     orange amber would read as brand chrome rather than as a caution. */
+  --warning: #a16207;
   --warning-foreground: #ffffff;
-  --destructive: #ef4444;
+  /* Rose rather than red. Ember already owns orange-red; destructive has to be
+     unmistakable at badge size, so it leans pink. */
+  --destructive: #be123c;
   --destructive-foreground: #ffffff;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
-  --ring: #1e40af;
 
-  /* Brand ink — deep navy for dark bands (the loop's "night" surface), tuned to sit with the blue primary */
-  --ink: #0a1128;
-  --ink-2: #13214a;
-  --ink-foreground: #eaf1fe;
-  --ink-muted: #93a3c9;
-  --ink-border: #23345f;
+  --border: #e7e5e1;
+  --input: #e7e5e1;
+  --ring: #ce4218;
 
-  /* Glass surfaces — used sparingly: sticky chrome, popovers/modals, and signature hero cards.
-     Never on dense tables/forms (translucency reduces text contrast). */
+  /* Brand ink — cold graphite. The "night" surface: landing bands, dashboard
+     left rail. This is the half of the identity white-labelling cannot touch. */
+  --ink: #0b0f14;
+  --ink-2: #141b24;
+  --ink-3: #1c242f;
+  --ink-foreground: #f4f5f7;
+  --ink-muted: #9aa6b4;
+  --ink-border: #232e3b;
+
+  /* Channel identity. The six bridges between these three are the product, so
+     each channel keeps one colour everywhere it appears — marketing and app.
+     Light values are text-safe on white; the old brand indigo lives on here as
+     Meta's hue, which is a real job rather than a default. */
+  --channel-seo: #047857;
+  --channel-google: #1d4ed8;
+  --channel-meta: #6d28d9;
+
+  /* Super Admin console only.
+
+     Two accents, and nothing in apps/web outside app/(admin) and
+     components/admin references them — they are additive tokens, so the
+     customer product cannot be affected by anything here.
+
+     They exist because ember was doing five jobs on the console at once: spend,
+     growth, plan mix, campaigns and every bar. One hue carrying five meanings
+     is the same as carrying none. These split off the two categories that are
+     genuinely different from "money going out":
+
+       revenue — money coming back: return on spend, attributed revenue,
+                 paying customers, revenue per plan.
+       output  — what the product made: recommendations, content briefs.
+
+     Teal and magenta, checked rather than chosen by eye: 31.2 normal-vision dE
+     apart in both themes, well over the 15 floor, and both clear 3:1 on their
+     surface. Their deuteranopia separation is ~5-8 dE, which is only acceptable
+     because they are never two unlabelled series in one chart — every use is a
+     figure with its own words beside it, in a different panel. Do not put them
+     adjacent in a single plot. */
+  --console-revenue: #0d9488;
+  --console-output: #be185d;
+
+  /* Elevation. Warm-cast in light so shadows sit under the paper background
+     rather than greying it. */
+  --elev-1: 0 1px 2px 0 rgb(12 10 8 / 0.05);
+  --elev-2:
+    0 1px 3px 0 rgb(12 10 8 / 0.08), 0 1px 2px -1px rgb(12 10 8 / 0.06);
+  --elev-3:
+    0 4px 14px -3px rgb(12 10 8 / 0.1), 0 2px 4px -2px rgb(12 10 8 / 0.05);
+  --elev-4:
+    0 14px 32px -8px rgb(12 10 8 / 0.14), 0 4px 10px -5px rgb(12 10 8 / 0.07);
+  --elev-5: 0 28px 56px -14px rgb(12 10 8 / 0.18);
+
+  /* Glass surfaces — used sparingly: sticky chrome, popovers/dialogs, and signature
+     hero cards. Derived from the ink ramp above so translucency stays on-brand. */
   --glass-bg: rgba(255, 255, 255, 0.6);
   --glass-border: rgba(255, 255, 255, 0.5);
-  --glass-ink-bg: rgba(19, 33, 74, 0.55);
-  --glass-ink-border: rgba(234, 241, 254, 0.1);
+  --glass-ink-bg: rgba(20, 27, 36, 0.55);
+  --glass-ink-border: rgba(244, 245, 247, 0.1);
   --glass-blur: 20px;
 }
 
 .dark {
-  --background: #0b1220;
-  --foreground: #f8fafc;
-  --card: #0f172a;
-  --card-foreground: #f8fafc;
-  --popover: #0f172a;
-  --popover-foreground: #f8fafc;
-  /* Lifted to blue-400 for contrast on the dark surface — #1e40af reads muddy on near-black. */
-  --primary: #60a5fa;
-  --primary-foreground: #0b1220;
-  --secondary: #1e293b;
-  --secondary-foreground: #f8fafc;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --accent: #1e293b;
-  --accent-foreground: #f8fafc;
-  --success: #10b981;
-  --success-foreground: #0b1220;
-  /* Lifted for contrast on the dark surface — #d97706 fails against near-black. */
-  --warning: #f59e0b;
-  --warning-foreground: #0b1220;
-  --destructive: #ef4444;
-  --destructive-foreground: #f8fafc;
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #60a5fa;
+  --background: #0b0f14;
+  --foreground: #f4f5f7;
+  --card: #141b24;
+  --card-foreground: #f4f5f7;
+  --popover: #141b24;
+  --popover-foreground: #f4f5f7;
 
-  --ink: #060a1c;
-  --ink-2: #0f1a3d;
-  --ink-foreground: #eaf1fe;
-  --ink-muted: #93a3c9;
-  --ink-border: #1c2a54;
+  /* Lifted and brightened — #ce4218 disappears against graphite. Dark text on
+     the ember reads better than white at this luminance. */
+  --primary: #ff6b41;
+  --primary-foreground: #1a0a04;
 
-  --glass-bg: rgba(15, 23, 42, 0.55);
+  --secondary: #1c242f;
+  --secondary-foreground: #f4f5f7;
+  --muted: #1c242f;
+  --muted-foreground: #94a0b0;
+  --accent: #1c242f;
+  --accent-foreground: #f4f5f7;
+
+  --success: #34d399;
+  --success-foreground: #052e21;
+  --warning: #facc15;
+  --warning-foreground: #2a1f02;
+  --destructive: #fb7185;
+  --destructive-foreground: #2b0512;
+
+  --border: #222c38;
+  --input: #222c38;
+  --ring: #ff6b41;
+
+  /* Ink goes *below* --background here so the night bands still separate from
+     the page they sit on. */
+  --ink: #05080b;
+  --ink-2: #0e141b;
+  --ink-3: #161e27;
+  --ink-foreground: #f4f5f7;
+  --ink-muted: #9aa6b4;
+  --ink-border: #1d2731;
+
+  --channel-seo: #34d399;
+  --channel-google: #60a5fa;
+  --channel-meta: #a78bfa;
+
+  /* Lifted for the dark surface; same pairing, same 31.2 dE separation. */
+  --console-revenue: #2dd4bf;
+  --console-output: #f472b6;
+
+  /* On dark surfaces a drop shadow alone reads as nothing; the hairline rim is
+     what actually communicates elevation. */
+  --elev-1: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+  --elev-2: 0 1px 3px 0 rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.03);
+  --elev-3:
+    0 6px 18px -4px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.04);
+  --elev-4:
+    0 18px 40px -10px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.05);
+  --elev-5:
+    0 32px 64px -16px rgb(0 0 0 / 0.85), 0 0 0 1px rgb(255 255 255 / 0.06);
+
+  --glass-bg: rgba(20, 27, 36, 0.55);
   --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-ink-bg: rgba(15, 26, 61, 0.55);
-  --glass-ink-border: rgba(234, 241, 254, 0.08);
+  --glass-ink-bg: rgba(14, 20, 27, 0.55);
+  --glass-ink-border: rgba(244, 245, 247, 0.08);
   --glass-blur: 20px;
 }
 
@@ -120,10 +218,16 @@
 
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
   --color-ink-foreground: var(--ink-foreground);
   --color-ink-muted: var(--ink-muted);
   --color-ink-border: var(--ink-border);
 
+  --color-console-revenue: var(--console-revenue);
+  --color-console-output: var(--console-output);
+  --color-channel-seo: var(--channel-seo);
+  --color-channel-google: var(--channel-google);
+  --color-channel-meta: var(--channel-meta);
   --color-glass-bg: var(--glass-bg);
   --color-glass-border: var(--glass-border);
   --color-glass-ink-bg: var(--glass-ink-bg);
@@ -133,10 +237,21 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 12px);
+  --radius-2xl: calc(var(--radius) + 10px);
+  --radius-3xl: calc(var(--radius) + 18px);
 
-  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  /* Indirected through --elev-* so shadows re-tone with the theme; a literal
+     value here would bake the light-mode shadow into dark mode. */
+  --shadow-xs: var(--elev-1);
+  --shadow-sm: var(--elev-2);
+  --shadow-md: var(--elev-3);
+  --shadow-lg: var(--elev-4);
+  --shadow-xl: var(--elev-5);
+  --shadow-2xl: var(--elev-5);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-archivo), var(--font-inter), sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
 @layer base {
@@ -157,6 +272,11 @@
   }
   ::selection {
     background: color-mix(in oklab, var(--primary) 28%, transparent);
+  }
+  /* Figures are read in columns across this product — never let them jitter. */
+  .tabular,
+  [data-metric] {
+    font-variant-numeric: tabular-nums;
   }
   /* Themed, unobtrusive scrollbars */
   * {
@@ -222,23 +342,79 @@
     repeating-radial-gradient(circle at 50% 42%, transparent 0, transparent 78px, color-mix(in oklab, var(--primary) 6%, transparent) 79px, transparent 80px);
 }
 
-/* Reusable entrance for cards/sections */
-@keyframes rise-in {
+/* ─────────────────────────────────────────────────────────────────────────────
+   Route transitions
+
+   Applied once per navigation by <PageTransition>, at the shell, never by a page
+   on itself. Two variants, because two different things happen when you navigate:
+
+   • .page-enter — the app surfaces (dashboard, console). The rail and the header
+     hold their place and only the panel beside them is replaced, so the panel
+     comes off the rail you just clicked: 6px on the horizontal axis, the axis the
+     rail sits on. It does not drift upward, because nothing about this navigation
+     is vertical and a table that lifts while you are reading it is a distraction.
+
+   • .view-enter — the full-screen views (auth, onboarding, marketing sub-pages).
+     Here the whole screen is replaced rather than one panel, so the page settles
+     down into place on the axis it is read on.
+
+   Both are short and small on purpose. The predecessor was 500ms and 12px, ran on
+   every page's own root, and made a click feel like it was buffering. Motion that
+   answers a click has to finish before the person wonders whether it worked.
+   ───────────────────────────────────────────────────────────────────────────── */
+@keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translate3d(-6px, 0, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
-.animate-rise {
-  animation: rise-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+@keyframes view-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
+.page-enter {
+  animation: page-enter var(--motion-page) var(--ease-settle) both;
+}
+.view-enter {
+  animation: view-enter var(--motion-view) var(--ease-settle) both;
+}
+
+/* The ember edge on the active rail item, which travels between sections instead of
+   cutting. It is the one place the navigation raises its voice, so everything else
+   in the transition stays quiet. `top`/`height` rather than a transform: the bar is
+   two pixels wide and a scaled transform would blur its rounded ends.
+
+   The class is applied only once the marker already has a position — on first paint
+   there is nowhere for it to travel from, and a bar sliding down from the top of the
+   rail on every cold load would be motion answering nothing. */
+.rail-marker {
+  transition: opacity 200ms ease-out;
+}
+.rail-marker-move {
+  transition:
+    top var(--motion-view) var(--ease-settle),
+    height var(--motion-view) var(--ease-settle),
+    opacity 200ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-rise {
+  .page-enter,
+  .view-enter {
     animation: none;
+  }
+  .rail-marker,
+  .rail-marker-move {
+    transition: none;
   }
 }
 
@@ -266,4 +442,223 @@
   .loop-flow-rev {
     animation: none;
   }
+}
+
+/* Radix accordion — the primitive measures the panel and exposes it as a custom property,
+   so the height transition has something to animate to. */
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+.animate-accordion-down {
+  animation: accordion-down 0.2s ease-out;
+}
+.animate-accordion-up {
+  animation: accordion-up 0.2s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-accordion-down,
+  .animate-accordion-up {
+    animation: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Post prose — ONE definition, used by both the published page and the editor.
+
+   This exists as a stylesheet rather than as a React component map because the
+   editor cannot use a component map: Tiptap renders into a contenteditable, so
+   its h2 is a real <h2>, not something we get to wrap. Defining the type scale
+   twice — once as classNames for the public page, once as CSS for the editor —
+   is exactly how "what you type is what ships" quietly stops being true.
+
+   So both surfaces put `.prose-signal` on their container and emit bare tags.
+   The editor is therefore the preview, and there is no preview tab, because a
+   preview tab is an admission that the editor lies.
+
+   Carried over from the MDX component map this replaces, value for value. Note
+   the deliberate absence of a plugin: @tailwindcss/typography ships a colour
+   scale of its own that would need overriding token by token to respect the
+   theme, which is more work than the twelve elements a post actually uses.
+   ───────────────────────────────────────────────────────────────────────────── */
+.prose-signal {
+  color: var(--muted-foreground);
+}
+
+/* Every block carries its top margin, so the first one would push the body away
+   from the rule above it. */
+.prose-signal > :first-child {
+  margin-top: 0;
+}
+
+.prose-signal h2 {
+  margin-top: 3rem;
+  scroll-margin-top: 6rem;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--foreground);
+}
+
+.prose-signal h3 {
+  margin-top: 2.25rem;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--foreground);
+}
+
+.prose-signal p {
+  margin-top: 1.25rem;
+  line-height: 1.75;
+}
+
+.prose-signal ul,
+.prose-signal ol {
+  margin-top: 1.25rem;
+  padding-left: 1.25rem;
+}
+
+.prose-signal ul > li {
+  list-style-type: disc;
+}
+
+.prose-signal ol > li {
+  list-style-type: decimal;
+}
+
+.prose-signal li {
+  padding-left: 0.375rem;
+  line-height: 1.7;
+}
+
+.prose-signal li + li {
+  margin-top: 0.625rem;
+}
+
+/* A list item's paragraph is the item — it must not inherit the block spacing a
+   standalone paragraph gets, or every bullet grows a blank line above it. */
+.prose-signal li > p {
+  margin-top: 0;
+}
+
+.prose-signal strong {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.prose-signal em {
+  font-style: italic;
+}
+
+.prose-signal a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.prose-signal blockquote {
+  margin-top: 1.5rem;
+  border-left: 2px solid var(--primary);
+  padding-left: 1.25rem;
+  font-style: italic;
+}
+
+.prose-signal code {
+  border-radius: 0.25rem;
+  background: var(--muted);
+  padding: 0.125rem 0.375rem;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--foreground);
+}
+
+.prose-signal pre {
+  margin-top: 1.5rem;
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--muted) 50%, transparent);
+  padding: 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--foreground);
+}
+
+/* The pre already carries the surface; a nested code element must not paint a
+   second one on top of it. */
+.prose-signal pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+.prose-signal hr {
+  margin-top: 2.5rem;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.prose-signal figure {
+  margin-top: 2rem;
+}
+
+.prose-signal img {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+}
+
+.prose-signal figcaption {
+  margin-top: 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+/* ── The editor half ──────────────────────────────────────────────────────── */
+
+/* The caret is the focus indicator inside a contenteditable; a ring around the
+   whole document would be focus feedback on the wrong scale. */
+.prose-signal .ProseMirror:focus,
+.prose-signal.ProseMirror:focus {
+  outline: none;
+}
+
+.prose-signal .ProseMirror {
+  min-height: 24rem;
+}
+
+/* Tiptap's Placeholder extension marks the empty node; this is what draws it.
+   Only on the first block, so an empty paragraph mid-document stays silent
+   rather than repeating the prompt every time you press Enter. */
+.prose-signal .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+}
+
+/* A selected image needs to say so; it is the one node you can select as a whole. */
+.prose-signal .ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }

@@ -1,15 +1,19 @@
 import { getClickhouse } from './analytics.js'
+import { clusterKeywords } from '@growthos/logic'
+import { seedDates, missingSeedDates } from './seed-window.js'
+import { getDataBounds, resolveWindow } from './date-window.js'
 import type {
   KeywordRanking,
   OrganicPage,
   OrganicTrafficPoint,
   OrganicTrafficResponse,
+  SeoClustersResponse,
   SeoRankingsResponse,
 } from '@growthos/types'
 
 // SEO rank tracking (M3 P3.1, GSC-fed slice). Reads keyword positions from ClickHouse
 // `keyword_rankings` — the table P3.0's Google Search Console sync populates. Until a real GSC
-// connection syncs, a deterministic 30-day series is seeded so the tracker reads alive (same
+// connection syncs, a deterministic series is seeded so the tracker reads alive (same
 // generate-if-empty pattern as ensureAdPerformanceSeed).
 //
 // KNOWN LIMITATION (shared by every seed here): the check-count-then-insert is not atomic and the
@@ -118,6 +122,52 @@ export async function getKeywordRankings(workspaceId: string): Promise<SeoRankin
   return { keywords, summary: { tracked, avgPosition, topThree, improved } }
 }
 
+/**
+ * Topical clusters over the workspace's tracked keywords (M3 P3.1 slice).
+ *
+ * Adapts the pure `clusterKeywords` engine over the same `keyword_rankings` data the rank tracker
+ * reads, the same way `google-ads-advisor` is adapted over `ad_performance` — the engine takes
+ * `string[]` and knows nothing about ClickHouse, so `apps/web` runs the identical engine over its
+ * fixtures and gets identical groupings.
+ *
+ * Positions come from `getKeywordRankings` rather than a second query: it already seeds an empty
+ * workspace, and re-querying would risk the two surfaces disagreeing about the keyword set.
+ *
+ * Every cluster comes back `intentVerified: false` — see `SeoKeywordCluster` for why that matters
+ * and must reach the UI.
+ */
+export async function getKeywordClusters(workspaceId: string): Promise<SeoClustersResponse> {
+  const { keywords } = await getKeywordRankings(workspaceId)
+  const positionByKeyword = new Map(keywords.map((k) => [k.keyword, k.position]))
+
+  const clusters = clusterKeywords(keywords.map((k) => k.keyword)).map((cluster) => {
+    const members = cluster.keywords.map((keyword) => ({
+      keyword,
+      position: positionByKeyword.get(keyword) ?? 0,
+    }))
+    // Best-ranking keyword first, so the cluster leads with the page already closest to winning.
+    members.sort((a, b) => a.position - b.position)
+    const avgPosition = members.length
+      ? Math.round((members.reduce((s, m) => s + m.position, 0) / members.length) * 10) / 10
+      : 0
+    return { clusterName: cluster.clusterName, intentVerified: cluster.intentVerified, keywords: members, avgPosition }
+  })
+
+  // Biggest clusters first — a cluster of one is a keyword with no topical neighbours, which is the
+  // least actionable thing on the page.
+  clusters.sort((a, b) => b.keywords.length - a.keywords.length || a.avgPosition - b.avgPosition)
+
+  return {
+    clusters,
+    summary: {
+      clusters: clusters.length,
+      keywords: keywords.length,
+      largestCluster: clusters.reduce((m, c) => Math.max(m, c.keywords.length), 0),
+      singletons: clusters.filter((c) => c.keywords.length === 1).length,
+    },
+  }
+}
+
 // ── Organic traffic (GSC page dimension → organic_traffic) ───────────────────────────────────
 
 const SEED_PAGES = [
@@ -131,13 +181,15 @@ const SEED_PAGES = [
   '/collections/keyboards',
 ]
 
-function seedOrganicRows(workspaceId: string): Record<string, unknown>[] {
-  const base = new Date('2026-06-18T00:00:00Z')
+// See seedRows in analytics.ts — `only` backfills a partial window, `day` stays the index within
+// the full one so a page's figures are stable regardless of which dates were inserted.
+function seedOrganicRows(workspaceId: string, only?: Set<string>): Record<string, unknown>[] {
   const rows: Record<string, unknown>[] = []
+  const dates = seedDates()
   SEED_PAGES.forEach((page, i) => {
-    for (let day = 0; day < 30; day++) {
-      const d = new Date(base)
-      d.setUTCDate(base.getUTCDate() + day)
+    dates.forEach((date, day) => {
+      if (only && !only.has(date)) return
+      const d = new Date(`${date}T00:00:00Z`)
       const weekend = d.getUTCDay() === 0 || d.getUTCDay() === 6
       const demand = (1 + Math.sin(day / 3 + i) * 0.2 + day * 0.01) * (weekend ? 0.8 : 1)
       const impressions = Math.round((900 - i * 80) * demand)
@@ -145,36 +197,49 @@ function seedOrganicRows(workspaceId: string): Record<string, unknown>[] {
       const ctr = 0.03 + (SEED_PAGES.length - i) * 0.004
       rows.push({
         workspace_id: workspaceId,
-        date: d.toISOString().slice(0, 10),
+        date,
         page_url: page,
         sessions: 0, // GSC has no sessions (a GA metric) — 0 until GA4 lands
         clicks: Math.max(0, Math.round(impressions * ctr)),
         impressions,
         avg_position: Math.max(1, 5 + i * 1.5 - day * 0.08),
       })
-    }
+    })
   })
   return rows
 }
 
 export async function ensureOrganicTrafficSeed(workspaceId: string): Promise<void> {
-  const rs = await getClickhouse().query({
-    query: 'SELECT count() AS c FROM organic_traffic WHERE workspace_id = {ws:String}',
-    query_params: { ws: workspaceId },
-    format: 'JSONEachRow',
-  })
-  const [row] = (await rs.json()) as { c: string }[]
-  if (row && Number(row.c) > 0) return
+  const missing = await missingSeedDates(getClickhouse(), 'organic_traffic', workspaceId)
+  if (missing.length === 0) return
   await getClickhouse().insert({
     table: 'organic_traffic',
-    values: seedOrganicRows(workspaceId),
+    values: seedOrganicRows(workspaceId, new Set(missing)),
     format: 'JSONEachRow',
   })
 }
 
-/** Per-page organic traffic (clicks/impressions/CTR/avg position) + a daily clicks trend. */
+/** How many days of organic traffic the SEO tab reports on. Matches the "(30d)" labels it renders. */
+const TRAFFIC_DAYS = 30
+
+/**
+ * Per-page organic traffic (clicks/impressions/CTR/avg position) + a daily clicks trend.
+ *
+ * WINDOWED. Both queries used to run with no date filter, so they summed the entire seeded history
+ * — `SEED_DAYS` is 180 — behind tiles reading "Clicks (30d)" and "Impressions (30d)". The live
+ * numbers were six times the window they claimed and six times what the offline fallback computed
+ * for the same labels, so connecting a backend made every figure on the tab jump 6x for no visible
+ * reason.
+ *
+ * Anchored to the newest day with data rather than the calendar, like every other windowed surface
+ * here: the seed ends at a fixed date, so a calendar window would return nothing at all once real
+ * time moved past it.
+ */
 export async function getOrganicTraffic(workspaceId: string): Promise<OrganicTrafficResponse> {
   await ensureOrganicTrafficSeed(workspaceId)
+
+  const bounds = await getDataBounds(workspaceId)
+  const window = resolveWindow(bounds, { days: TRAFFIC_DAYS })
 
   const pagesRs = await getClickhouse().query({
     query: `
@@ -183,9 +248,9 @@ export async function getOrganicTraffic(workspaceId: string): Promise<OrganicTra
         toUInt64(sum(impressions)) AS impressions,
         toFloat64(avg(avg_position)) AS avgPosition
       FROM organic_traffic
-      WHERE workspace_id = {ws:String}
+      WHERE workspace_id = {ws:String} AND date >= {from:Date} AND date <= {to:Date}
       GROUP BY page_url ORDER BY clicks DESC`,
-    query_params: { ws: workspaceId },
+    query_params: { ws: workspaceId, from: window.from, to: window.to },
     format: 'JSONEachRow',
   })
   const pageRows = (await pagesRs.json()) as {
@@ -208,9 +273,9 @@ export async function getOrganicTraffic(workspaceId: string): Promise<OrganicTra
         toUInt64(sum(clicks)) AS clicks,
         toUInt64(sum(impressions)) AS impressions
       FROM organic_traffic
-      WHERE workspace_id = {ws:String}
+      WHERE workspace_id = {ws:String} AND date >= {from:Date} AND date <= {to:Date}
       GROUP BY date ORDER BY date`,
-    query_params: { ws: workspaceId },
+    query_params: { ws: workspaceId, from: window.from, to: window.to },
     format: 'JSONEachRow',
   })
   const trend = ((await trendRs.json()) as { date: string; clicks: number; impressions: number }[]).map(
@@ -231,6 +296,9 @@ export async function getOrganicTraffic(workspaceId: string): Promise<OrganicTra
   return {
     pages,
     trend,
+    // Null only when the workspace has no organic rows at all, in which case there is no window to
+    // report and the UI says so rather than printing an invented range.
+    period: bounds.last ? { from: window.from, to: window.to } : null,
     summary: { pages: pages.length, totalClicks, totalImpressions, avgCtr, avgPosition },
   }
 }

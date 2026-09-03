@@ -28,9 +28,21 @@ export function calculateFunnelBudgetSplit(
   };
 }
 
+/**
+ * How well the audience already knows you — the thing Meta is actually bought by.
+ *
+ * A separate field rather than a prefix on `audience`. It used to be smuggled into that string as
+ * "Cold — Interest-based targeting for X", which meant the only way to show the temperature on its
+ * own was to split the sentence back apart in the view, and the only way to show the targeting
+ * without it was not to. TOFU/MOFU/BOFU is trade jargon; cold/warm/hot is what it means.
+ */
+export type AudienceTemperature = "Cold" | "Warm" | "Hot";
+
 export interface FunnelStage {
   stage: "TOFU" | "MOFU" | "BOFU";
+  temperature: AudienceTemperature;
   budget: number;
+  /** Who to target — the targeting spec alone, with no temperature prefix. */
   audience: string;
   objective: string;
 }
@@ -44,20 +56,23 @@ export function buildFullFunnelPlan(
   return [
     {
       stage: "TOFU",
+      temperature: "Cold",
       budget: split.tofu,
-      audience: `Cold — Interest-based targeting for ${productName}`,
+      audience: `Interest-based targeting for ${productName}`,
       objective: "Awareness / Reach",
     },
     {
       stage: "MOFU",
+      temperature: "Warm",
       budget: split.mofu,
-      audience: "Warm — Website visitors, video viewers",
+      audience: "Website visitors, video viewers",
       objective: "Traffic / Engagement",
     },
     {
       stage: "BOFU",
+      temperature: "Hot",
       budget: split.bofu,
-      audience: "Hot — Cart abandoners, add-to-cart",
+      audience: "Cart abandoners, add-to-cart",
       objective: "Conversions",
     },
   ];
@@ -67,7 +82,8 @@ export function buildFullFunnelPlan(
 
 const HOOKS = [
   "Tired of {painPoint}?",
-  "Finally, a {product} that actually works.",
+  // `{aProduct}`, not `a {product}` — see `article()`.
+  "Finally, {aProduct} that actually works.",
   "This {product} changed everything.",
   "Stop settling for less.",
   "The secret to {benefit} isn't what you think.",
@@ -87,8 +103,28 @@ export interface AdCopyVariant {
   cta: string;
 }
 
+/**
+ * Words whose leading vowel is pronounced "y" — they take "a", not "an".
+ *
+ * The template used to read `a {product}`, which shipped "Finally, a Ergonomic Office Chair that
+ * actually works." to screen. The rule is about the initial SOUND, so neither the spelling nor a
+ * blanket vowel test gets it right on its own: "an ergonomic chair" but "a unique chair".
+ *
+ * This is a heuristic and it knows it — it will say "a hour". It is applied only to templated ad
+ * copy, where the alternative on the page was plainly broken English, and never to anything a
+ * customer's own text passes through.
+ */
+const SOUNDS_LIKE_Y = /^(uni|use|ubiq|utili|usual|eu|one)/i;
+
+function article(noun: string): "a" | "an" {
+  const first = noun.trim();
+  if (SOUNDS_LIKE_Y.test(first)) return "a";
+  return /^[aeiou]/i.test(first) ? "an" : "a";
+}
+
 const fill = (template: string, product: string, benefit: string, painPoint: string) =>
   template
+    .replaceAll("{aProduct}", `${article(product)} ${product}`)
     .replaceAll("{product}", product)
     .replaceAll("{benefit}", benefit)
     .replaceAll("{painPoint}", painPoint);

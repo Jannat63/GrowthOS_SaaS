@@ -1,7 +1,17 @@
 import { and, count, eq } from 'drizzle-orm'
 import { db, schema } from '@growthos/db'
-import type { ContentBriefRecord, RecommendationStatus, ScoredSearchTerm } from '@growthos/types'
-import { analyzeSearchTerms, generateContentBrief, paidToOrganicRecommendation, type SearchTerm } from '@growthos/logic'
+import type {
+  ContentBriefRecord,
+  ContentBriefStatus,
+  RecommendationStatus,
+  ScoredSearchTerm,
+} from '@growthos/types'
+import {
+  analyzeSearchTerms,
+  generateContentBrief,
+  paidToOrganicRecommendation,
+  type SearchTerm,
+} from '@growthos/logic'
 import { searchTerms } from '@growthos/logic/fixtures'
 import { publish } from './ws.js'
 import type { Page, Paged } from './pagination.js'
@@ -122,10 +132,61 @@ export async function getContentBriefs(
       workspaceId: r.workspaceId,
       recommendationId: r.recommendationId,
       keyword: r.keyword,
-      status: r.status,
+      status: r.status as ContentBriefStatus,
       brief: r.brief as ContentBriefRecord['brief'],
+      source: r.source,
+      publishedUrl: r.publishedUrl,
+      createdAt: r.createdAt ? r.createdAt.toISOString() : null,
     })),
     total: totalRow?.n ?? 0,
+  }
+}
+
+/**
+ * Move a brief along the editorial pipeline, optionally recording where it shipped.
+ *
+ * `status` and `published_url` were written once at insert and never again — there was no endpoint
+ * to change either, so "Content Pipeline" listed drafts that could not leave the draft stage. This
+ * is the write side.
+ *
+ * Guards on workspace like every other mutation here, and clears `publishedUrl` when a brief moves
+ * back out of `published`, so a URL cannot outlive the state that justified it.
+ */
+export async function updateContentBriefStatus(
+  workspaceId: string,
+  briefId: string,
+  status: ContentBriefStatus,
+  publishedUrl?: string | null,
+): Promise<ContentBriefRecord | null> {
+  const set: Partial<typeof schema.contentBriefs.$inferInsert> = { status }
+  if (status === 'published') {
+    if (publishedUrl !== undefined) set.publishedUrl = publishedUrl
+  } else {
+    set.publishedUrl = null
+  }
+
+  const [row] = await db
+    .update(schema.contentBriefs)
+    .set(set)
+    .where(
+      and(
+        eq(schema.contentBriefs.id, briefId),
+        eq(schema.contentBriefs.workspaceId, workspaceId),
+      ),
+    )
+    .returning()
+
+  if (!row) return null
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    recommendationId: row.recommendationId,
+    keyword: row.keyword,
+    status: row.status as ContentBriefStatus,
+    brief: row.brief as ContentBriefRecord['brief'],
+    source: row.source,
+    publishedUrl: row.publishedUrl,
+    createdAt: row.createdAt ? row.createdAt.toISOString() : null,
   }
 }
 

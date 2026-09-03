@@ -69,7 +69,7 @@ export async function ensureOrganicToPaid(workspaceId: string): Promise<void> {
       keyword: k.keyword,
       source: 'organic_top_page',
       sourceData: k,
-      brief: generateCreativeBrief(k.keyword),
+      brief: generateCreativeBrief(k),
     })),
   )
   void publish({ type: 'recommendation:new', workspaceId, payload: { count: top.length, source: 'organic_to_paid' } })

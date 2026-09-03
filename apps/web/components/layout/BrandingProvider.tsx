@@ -7,6 +7,10 @@ import { useBranding } from "@/lib/hooks/useBranding";
 // Applies the workspace's white-label primary color by overriding the `--primary` CSS token
 // on the document root (an inline style beats the stylesheet, incl. dark mode). Renders nothing.
 // The agency name + logo are read directly by the Sidebar via useBranding.
+//
+// `--ring` moves with it. The two carry the same value in both themes, so overriding only
+// --primary left focus rings painted in the stock brand colour on white-labelled workspaces —
+// a visible mismatch on every input the tenant focused.
 export function BrandingProvider() {
   const { data: me } = useWorkspace();
   const activeId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -18,11 +22,14 @@ export function BrandingProvider() {
     const root = document.documentElement;
     if (primaryColor) {
       root.style.setProperty("--primary", primaryColor);
+      root.style.setProperty("--ring", primaryColor);
     } else {
       root.style.removeProperty("--primary");
+      root.style.removeProperty("--ring");
     }
     return () => {
       root.style.removeProperty("--primary");
+      root.style.removeProperty("--ring");
     };
   }, [primaryColor]);
 

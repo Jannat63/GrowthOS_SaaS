@@ -40,6 +40,18 @@ export interface CampaignSummary {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/**
+ * Rounding for a RATIO, which needs two more places than a dollar figure to say the same thing.
+ *
+ * `conversionRate` was rounded with `round2`, so a rate of 0.0014 became 0.00 and every campaign
+ * under half a percent reported a flat zero. `detectWastedSpend` computes its own unrounded rate and
+ * prints "Very low conversion rate (0.14%)" — so the wasted-spend panel and the campaign table could
+ * state the same campaign's rate as 0.14% and 0.00% side by side. It also made
+ * `cross-channel-engine`'s `>= 0.05` filter a whole-percent test, and its `(rate * 100).toFixed(1)`
+ * message could never print anything but a trailing `.0`.
+ */
+const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
+
 /** Per-campaign efficiency metrics + a status classification and a plain-English recommendation. */
 export function analyzeCampaigns(campaigns: CampaignInput[]): CampaignInsight[] {
   return campaigns.map((c) => {
@@ -68,7 +80,7 @@ export function analyzeCampaigns(campaigns: CampaignInput[]): CampaignInsight[] 
       recommendation = "Performing within range — monitor and optimize incrementally.";
     }
 
-    return { ...c, cpa, roas, conversionRate: round2(conversionRate), status, recommendation };
+    return { ...c, cpa, roas, conversionRate: round4(conversionRate), status, recommendation };
   });
 }
 

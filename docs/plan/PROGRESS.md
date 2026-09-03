@@ -1,9 +1,27 @@
 # GrowthOS — Master Progress Dashboard
 
-> **Where we are: M4 — V2: Automation & Scale · P4.3 Automated Campaign Management.**
+> **Where we are: M4 — V2: Automation & Scale · P4.4a COMPLETE.**
 > P4.3a (the control plane) is done; P4.3b (live Google Ads / Meta adapters) is blocked on external
-> credentials. Everything else still open in M3/M4 is likewise externally gated — the un-gated
-> backlog is in `docs/AUDIT-2026-08-13-codebase.md`.
+> credentials. **P4.4a-1 per-key rate limits and P4.4a-2 outbound webhooks both shipped 2026-08-27**,
+> alongside **P3.1 keyword clustering**. **All four un-gated slices designed on 2026-08-20 are now
+> built.** The last of them, **P4.2a, completed 2026-08-27** — brand guidelines, server-side
+> generation + metering (which closes the last open M5 P5.2 item), the creative scorecard, and
+> variant experiments. Only **P4.2b** (image/video generation) remains, deferred on a paid
+> generation API.
+>
+> **Every P4.2 slice needed its plan corrected against the source before it could be built** — three
+> of four, and twice the error was in a correction written the day before. A plan written from the
+> roadmap rather than the code is not yet a specification. The two sharpest findings:
+> `aiCreativesPerMonth` was **a paid limit that could not bind**, because every copy generator ran in
+> the browser; and the scorecard's named inputs (hook rate, hold rate, then `fatigue_score`) were
+> variously absent from the schema or dead columns carrying a constant. Both fixed.
+>
+> **Do not read "everything else is externally gated" into this tracker — it said that until
+> 2026-08-27 and it was wrong twice over.** The claim came from `docs/AUDIT-2026-08-13-codebase.md`'s
+> summary rather than from the phase-level plans; reading those on 2026-08-20 turned up four
+> un-gated slices, all written up in `M4-v2-automation/P4.2-ai-creative/`,
+> `M4-v2-automation/P4.4-geo-public-api/` and `M3-v1-channels/P3.1-seo-module/`. Two more features
+> shipped in the meantime that this file did not know about at all (below).
 
 Overall status: **🟨 In progress** — M0 done; **M1 COMPLETE**; **M2 COMPLETE** (seeded Insight Loop MVP,
 P2.1–P2.8); **M3 IN PROGRESS** — every channel module now has a live UI (P3.0 OAuth built, live pending
@@ -34,7 +52,31 @@ four still open are tracked in **`docs/AUDIT-2026-08-13-codebase.md`** — API t
 `/health/ready` exists but nothing polls it and there's no Sentry), `README.md` (#13), and seeded
 data being presented as real throughout the UI (#14, a product decision). Those four are the real
 un-gated backlog — most of what's left in M3/M4 needs external credentials.
-·  Updated: 2026-08-13
+
+**2026-08-27 — two features shipped between 2026-08-20 and 2026-08-25 that this tracker never
+recorded**, both by Ahsan and both merged into `shihab-restructure` by `76d1296`:
+
+- **Team invitations** (`83e0431`). `POST`/`GET`/`DELETE /api/v1/workspaces/:id/invitations` plus an
+  unauthenticated invite-preview endpoint, `apps/api/src/invitations.ts`, an `/accept-invite` page and
+  a settings Team section, with seat counting wired into `plan-limits.ts`. This closes a gap that had
+  been open since **M2 P2.8 deferred it to M5, where it was never delivered either** — the platform
+  was single-seat until now, while two of the three PRD personas are multi-seat by definition.
+- **Local Demo Mode** (`ee0c97d`, refined by `427340d`). `pnpm setup:local` / `pnpm local` stand up
+  Postgres, Redis and ClickHouse from `docker-compose.local.yml`, so **the project now runs with no
+  Neon account at all** (`packages/db/src/client.ts` picks its driver from `DATABASE_DRIVER`).
+  `GETTING_STARTED` instructions elsewhere that assume a Neon URL are now the slower path, not the
+  only one.
+
+**2026-08-27 — audit #9's root cause came back and is fixed again.** `ec43f8f` had raised
+`packages/db` to `drizzle-orm@^0.45.2` (a SQL-injection advisory in the auth path, and the fix for
+the five-duplicate-copies problem audit #9 names). The `76d1296` merge resolved that file in favour
+of main's side and **reverted it to `^0.38.3`**, silently undoing the security patch and putting two
+copies of `drizzle-orm` back in the store — which broke `pnpm typecheck` in `@growthos/api`
+outright, since the two copies' types are not interchangeable. Restored to `^0.45.2` (and
+`drizzle-kit` to `^0.31.10`), keeping the `pg` / `@types/pg` deps main added for Local Demo Mode.
+Typecheck is 9/9 again and `pnpm peers check` reports no issues.
+
+·  Updated: 2026-08-27
 
 Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked (note blocker)
 
@@ -55,7 +97,7 @@ Rows in **execution order** (UI-front-loaded now that auth is done: shadcn → l
 | 1 | P1.1 | packages/db (Drizzle + Neon) | 🔧 BE | [x] | Tenancy schema live on Neon; migration applied; write/read verified. |
 | 2 | P1.2 | Better Auth + workspaces | 🔧 BE | [x] | Live on Neon; sign-up + create-workspace(owner) verified. |
 | 3 | P1.5 | shadcn/ui foundation | 🎨 FE | [x] | Via Frontend Rebuild Slice 1 (`packages/ui`, Tailwind v4 tokens). |
-| 4 | P1.6 | Landing page | 🎨 FE | [x] | Via Slice 1 — redesigned (loop signature, bento, ink bands). |
+| 4 | P1.6 | Landing page | 🎨 FE | [x] | P1.6a via Slice 1. **P1.6b 2026-08-27** — "Signal" rebrand + landing rebuilt on the six bridges; blog/FAQ/about/security. |
 | 5 | P1.4a | Web login | 🎨 FE | [x] | Via Slice 1 — auth + onboarding; browser→Neon verified. |
 | 6 | P1.3 | Fastify domain skeleton | 🔧 BE | [x] | `/api/v1` + member guard + `@growthos/types`; verified (member/403/401). |
 | 7 | P1.4b | Web data re-point | 🎨 FE | [x] | Via Slice 2 — dashboard shell + Growth Hub; `lib/api`→`/api/v1`, hooks live/mock via `liveOrMock`, `DataSourceBadge`. |
@@ -86,7 +128,7 @@ approvals mature → then P3.2/P3.3.
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
 | P3.0 | Real platform integrations (OAuth) | [~] | **Built.** Custom OAuth → `platform_connections`; GSC first; encrypted tokens; live sync → ClickHouse; connections UI. 27 API tests. **Live E2E pending user's Google Cloud creds.** Meta/Ads/Shopify adapters + approvals later. |
-| P3.1 | SEO module | [~] | **Rank-tracker + organic-traffic slices done 2026-07-18** — GSC-fed keyword positions + per-page traffic from ClickHouse (`apps/api/src/seo.ts`), `/seo` tabs (rankings sparkline + clicks chart). DataForSEO features (research/audit/clustering) gated on paid key. |
+| P3.1 | SEO module | [~] | **Rank-tracker + organic-traffic slices done 2026-07-18** — GSC-fed keyword positions + per-page traffic from ClickHouse (`apps/api/src/seo.ts`), `/seo` tabs (rankings sparkline + clicks chart). **Keyword clustering done 2026-08-27** — `clusterKeywords` in `@growthos/logic` (Jaccard over tokenised word sets), `GET .../seo/clusters`, and a Clusters tab; it never needed pgvector, which is why it sat mislabelled as gated for months. Clusters are **lexical, not intent-verified**, and the UI says so — verifying intent needs SERP data. DataForSEO features (keyword research) still gated on the paid key; **site audit is free and unbuilt**. |
 | P3.2 | Google Ads module | [~] | **Advisor + RSA + budget planner done 2026-07-18** — `@growthos/logic` google-ads-advisor (wasted-spend, classification, RSA, target-CPA/ROAS, budget allocator; 8 tests) + `/google-ads` page. Live fetch/push + Quality Score gated on the dev token. |
 | P3.3 | Meta Ads module | [~] | **Advisor + funnel/copy slice done 2026-07-18** — `@growthos/logic` meta-ads-advisor (funnel split, ad-copy + UGC generators; 4 tests) + `/meta-ads` page; fatigue done in M2. Live sync/publish + CAPI/EMQ gated on App Review. |
 | P3.4 | Intelligence Engine V1 | [x] | **V1 done 2026-07-18.** Weekly report + budget-reallocation engine; `intelligence_reports` table; `GET /intelligence/report`; `/intelligence` page. **Real-time WS delivery + the autonomous scheduled loop are both live** — the loop landed 2026-07-23, was dropped by the 2026-08-13 main merge, and was restored 2026-08-13 (see `docs/AUDIT-2026-08-13-post-merge.md`): Redis-lock single-runner, per-workspace cadence/enable (`automation_config`), persistent-dedupe alerting (`automation_alerts` → mer/fatigue re-fire only on change), observability (`scheduler_runs` + Settings activity), `intelligence:report_ready` WS event. |
@@ -103,9 +145,9 @@ Gate: 500 users / MRR >$50K / agency tier.
 | — | Scheduler | [x] | **Done 2026-07-26, consolidated 2026-08-13** — `apps/api/src/scheduler.ts`, lightweight `node-cron` in-process (Celery/Beat stays deferred per D2). Two locked tasks: `checkTrialsEndingSoon` (daily, claim-before-send) + the autonomous intelligence tick (hourly, `scheduler/`). The merge briefly left two rival schedulers; the unguarded 4h refresh + re-firing MER anomaly check were folded into the deduped tick — see `docs/AUDIT-2026-08-13-post-merge.md` #1/#8/#10. Deliberately does NOT wire `ensureFatigueAlerts` — see progress.md for why re-running that specific function is a guaranteed no-op today. |
 | — | Real-time WebSocket transport | [x] | **Done 2026-07-27** — resolves a deferral independently named across P2.5/P2.6/P2.7/P3.4. `ws.ts` (in-process rooms + Redis relay) + `routes/ws.ts` (cookie-session auth via `preHandler`, before the upgrade completes) + a real Python-worker→Redis→API relay for `job:complete`/`job:failed`. All 5 named events wired to real trigger points. 9 tests (6 pure logic + 3 real server/real `ws` client). Caught and fixed a real hang-forever bug in `publish()` when Redis is down. Full writeup in P2.7's progress.md. |
 | P4.4 | Public API (buildable half) | [~] | **Done 2026-07-26** — `api_keys` table (SHA-256 hash only), Bearer-authenticated `/api/public/v1/*` routes, OpenAPI spec + docs UI via `@fastify/swagger`, Settings → API Keys UI. Verified with a real signup→upgrade→create-key→call-public-API→revoke run. GEO/AI-citation tracking (this phase's other half) still needs external access this codebase doesn't have. 15 tests. |
-| P4.2 | AI creative automation | [ ] | Outline — expand to folder when reached. |
+| P4.2 | AI creative automation | [x] | **← current phase. P4.2a COMPLETE 2026-08-27 — all four slices.** Split at the credential line: **P4.2a buildable now**, **P4.2b deferred** (15–25 image variants/week + video storyboards need a paid generation API, D4). The roadmap's "performance prediction" bullet was deliberately rescoped to a scorecard over creatives that have *actually run* — honest prediction needs a trained model this codebase has neither the data nor the credential for, and a confident-looking fake number is audit #14 again. **Brand guidelines (P4.2a-1) shipped** — `brand_guidelines` (migration `0016`), a pure `applyBrandGuidelines` filter in `@growthos/logic`, `GET`/`PUT /workspaces/:id/brand-guidelines`, Settings section; 31 engine + 13 route tests. **The plan was re-audited against the source first, and two of its four slices were unbuildable as written** (both rewritten — see the phase `plan.md` and `progress.md`): (1) **P4.2a-4 metering had no call site** — all four copy generators run *in the browser* from `"use client"` components, `apps/api` references none of them, so `aiCreativesPerMonth` is **a Scale-tier limit that cannot bind** and generation is free and unlimited on every plan. Re-scoped to "make generation a server action, then meter it" and moved out of first position — **and then built: `POST /workspaces/:id/creatives/generate` (manager+), guidelines applied server-side, `assertWithinLimit` → `recordUsage` on delivered creatives only, both studio components switched off the browser generators (verified absent from the built bundle), 13 route tests including driving the starter ceiling to a real 402. `aiCreativesPerMonth` binds for the first time, which closes the last open M5 P5.2 metering item. Behaviour change: starter goes from unlimited to 10/month — the advertised limit finally taking effect, but it belongs in release notes.** (2) **the scorecard's named primary inputs (hook rate, hold rate) do not exist** in `creative_performance`, and two of its three benchmarks are for TikTok/YouTube, which nothing ingests; rewritten around the columns that exist with the workspace's own median as the primary reference. |
 | P4.3 | Automated campaign management | [~] | **← current phase. P4.3a done 2026-08-13.** Backbone (autonomous scheduler, Redis-lock single-runner, per-workspace cadence, persistent-dedupe alerting, `scheduler_runs`) landed 2026-07-23 and was restored after the merge. On top of it, the **control plane**: `automation_rules` + `automation_actions`, a pure planner in `@growthos/logic`, an executor enforcing caps + reversibility, dry-run and real `content-queue` adapters, 6 routes, and the `/automation` approval queue. 32 tests. **P4.3b — live Google Ads / Meta adapters — blocked** on a developer token + App Review (and on having ad-account data to test against). See `M4-v2-automation/P4.3-automated-campaigns/`. |
-| P4.4 | GEO tracking + public API | [ ] | Outline — expand to folder when reached. |
+| P4.4 | GEO tracking + public API | [~] | **Folder + plan written 2026-08-20** — `M4-v2-automation/P4.4-geo-public-api/` (this row and the "Public API (buildable half)" row above are the same phase; the folder now consolidates both). Public API + OpenAPI **done**. **P4.4a-1 per-key rate limits done 2026-08-27** — scoped limiter inside the `public-api.ts` plugin bucketed by `api_keys.id`, ceiling from `PLAN_LIMITS[plan].apiRequestsPerMinute` (Scale 120/min), Redis-backed on a dedicated fail-fast connection, draft-spec `RateLimit-*` on every response + `Retry-After` on a 429, and the global per-IP limiter now exempts these routes. 8 tests. It also uncovered and fixed a pre-existing bug: **every 429 in the app was rendering as a 500**, because `@fastify/rate-limit` throws whatever `errorResponseBuilder` returns and a plain object misses the error handler's typed branches. **P4.4a-2 outbound webhooks done 2026-08-27** — Standard Webhooks signing over raw bytes, `webhook_endpoints` + `webhook_deliveries` (migration `0015`), fan-out from the existing `publish()` bus, a 1-minute scheduler sweep under the Redis lock with jittered backoff and auto-disable, and a Settings → Webhooks section. 37 tests. It also caught a bug no unit test could have: the sweep compared a Postgres-generated `next_attempt_at` against the **Node** clock, and Neon runs ~900ms ahead, so every webhook silently missed its first sweep. **SSRF guard added 2026-08-27 (`webhooks/url-guard.ts`)** — a customer-supplied URL that our own server fetches is textbook SSRF, and the slice as first written accepted `https://169.254.169.254/...`, RFC1918 and loopback. Now checked at creation **and** again before every delivery (creation-time-only is defeated by DNS rebinding), all A/AAAA records must be public, IPv4-mapped IPv6 is decided on the embedded v4, unresolvable hosts fail closed, and `redirect: 'manual'` stops `fetch` chasing a 302 into the metadata endpoint. The dev hatch `WEBHOOK_ALLOW_PRIVATE_TARGETS` opens only on the exact string `'true'` and `validateEnv` refuses to boot with it set in production. 42 url-guard + 10 env tests, plus route- and delivery-level wiring tests. **P4.4a is now complete.** ~~Still planned, un-gated: outbound webhooks~~ (Standard Webhooks signing, `webhook_endpoints`/`webhook_deliveries`, fan-out from the existing `publish()` bus, scheduler-driven delivery with jittered backoff). **P4.4b GEO/AI-citation tracking deferred** on paid ChatGPT/Perplexity/Gemini access. |
 | P4.5 | Mobile app | [ ] | Outline — expand to folder when reached. |
 
 Gate: 2,000 users / MRR >$200K.

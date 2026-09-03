@@ -8,8 +8,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // The inset rim keeps the fill from reading as a flat block. It has to flip with the
+        // theme: light primary is a deep ember under white text, so a white top-edge highlight
+        // lifts it; dark primary is a bright ember under near-black text, where a white rim
+        // vanishes and a dark one is what gives the edge definition.
         default:
-          "bg-primary text-primary-foreground shadow-sm ring-1 ring-inset ring-white/15 hover:bg-primary/90 hover:shadow-md",
+          "bg-primary text-primary-foreground shadow-sm ring-1 ring-inset ring-white/20 dark:ring-black/15 hover:bg-primary/90 hover:shadow-md",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline:

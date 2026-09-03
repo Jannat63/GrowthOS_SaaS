@@ -21,8 +21,16 @@ export * from './audit.js';
 export * from './billing.js';
 // Public API keys (M4 P4.4 buildable half).
 export * from './api-keys.js';
+// Outbound webhooks — endpoints + delivery ledger (M4 P4.4a-2).
+export * from './webhooks.js';
 // Autonomous automation loop — alert de-dupe + scheduler run log (M4).
 export * from './automation.js';
+// Per-workspace brand guidelines for the copy generators (M4 · P4.2a-1).
+export * from './brand.js';
+// Creative variant experiments — the A/B log (M4 · P4.2a-3).
+export * from './experiments.js';
 // Super Admin panel — platform-wide admin audit log (cross-workspace; distinct from the
 // per-workspace audit_logs in ./audit.js).
 export * from './admin.js';
+// Marketing blog posts, authored in the Super Admin console. Platform content: no workspaceId.
+export * from './blog.js';

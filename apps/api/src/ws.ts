@@ -1,6 +1,7 @@
 import type { WebSocket } from 'ws'
 import { getRedis } from './jobs/client.js'
 import { moduleLogger } from './logger.js'
+import { enqueueWebhookDeliveries } from './webhooks/dispatch.js'
 
 const log = moduleLogger('ws')
 
@@ -103,6 +104,16 @@ export async function publish(event: WsEvent): Promise<void> {
     log.error({ err }, 'redis publish failed — falling back to local-only delivery')
     publishLocal(event)
   }
+
+  // Second transport, same bus (M4 · P4.4a-2). Webhooks fan out from HERE rather than from a
+  // parallel set of trigger points at each event site: those would drift out of sync with the
+  // WebSocket ones the first time somebody added an event and updated only one list.
+  //
+  // This only writes `pending` rows — nothing is sent on the request path, so a slow or dead
+  // customer endpoint cannot slow down the operation that raised the event. It is outside the
+  // try/catch above on purpose: a Redis failure must not skip the durable half, which is the half
+  // that survives a crash. `enqueueWebhookDeliveries` never throws, so it cannot break a caller.
+  await enqueueWebhookDeliveries(event)
 }
 
 let subscriberStarted = false

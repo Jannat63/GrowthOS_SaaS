@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
+import { Detail, LEGAL } from "@/lib/legal";
 
-const LAST_UPDATED = "[DATE — set when this is reviewed and published]";
-
-export const metadata: Metadata = {
+export const metadata = pageMeta({
   title: "Privacy Policy",
   description: "How GrowthOS collects, uses, and protects your data.",
-};
+  path: "/privacy",
+});
 
 export default function PrivacyPage() {
   return (
@@ -19,7 +19,9 @@ export default function PrivacyPage() {
       </p>
 
       <h1 className="mt-8 font-display text-4xl font-bold tracking-tight">Privacy Policy</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Last updated: {LAST_UPDATED}</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Last updated: <Detail value={LEGAL.lastUpdated} label="DATE — set on review" />
+      </p>
 
       <div className="mt-10 space-y-8 text-sm leading-relaxed text-foreground">
         <section>
@@ -43,7 +45,11 @@ export default function PrivacyPage() {
               Meta Ads, or similar, we access the data those platforms make available (e.g. rankings,
               campaign performance, ad spend) within the scope you authorize.
             </li>
-            <li><strong>Usage data</strong> — how you interact with the Service, for product improvement and support.</li>
+            <li>
+              <strong>Usage data</strong> — which features get used, to improve the Service. This is
+              collected through PostHog and only after you agree to it; declining the analytics
+              cookie means it is not collected at all, and the Service works the same either way.
+            </li>
             <li><strong>Communications</strong> — messages you send us for support or feedback.</li>
           </ul>
         </section>
@@ -67,11 +73,28 @@ export default function PrivacyPage() {
           <h2 className="font-display text-lg font-semibold">4. Sharing information</h2>
           <p className="mt-2 text-muted-foreground">We share information with:</p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-            <li><strong>Service providers</strong> we rely on to operate GrowthOS — for example our database, hosting, and infrastructure providers, Stripe for payments, and Resend for transactional email.</li>
-            <li><strong>Connected platforms</strong> — solely to the extent needed to read or act on the data you&apos;ve authorized (e.g. Google, Meta).</li>
+            <li>
+              <strong>Service providers</strong> we rely on to run GrowthOS: Neon (managed Postgres,
+              for account and workspace data), ClickHouse (the time-series store behind the metrics),
+              Stripe (payments — they hold your card details, we do not), Resend (transactional
+              email), and PostHog (product analytics, only with your consent).
+            </li>
+            <li>
+              <strong>Connected platforms</strong> — we read from Google and Meta within the
+              read-only scopes you grant. We send them nothing about you beyond what an
+              authenticated read requires, and we cannot change anything in those accounts.
+            </li>
             <li><strong>Legal or safety reasons</strong> — if required by law, or to protect the rights, property, or safety of GrowthOS, our users, or others.</li>
             <li><strong>Business transfers</strong> — if GrowthOS is involved in a merger, acquisition, or asset sale, in which case we&apos;ll notify you.</li>
           </ul>
+          <p className="mt-4 text-muted-foreground">
+            Our own staff are the case worth stating plainly. GrowthOS platform staff can open a
+            workspace to investigate a problem or answer a support request. Every such view is
+            written to an audit log at the moment it happens — who looked, at what, and when —
+            along with every change they make. Staff accounts require two-factor authentication,
+            and changes to another account&apos;s billing or access require re-authentication at
+            the time of the action.
+          </p>
         </section>
 
         <section>
@@ -86,10 +109,17 @@ export default function PrivacyPage() {
         <section>
           <h2 className="font-display text-lg font-semibold">6. Security</h2>
           <p className="mt-2 text-muted-foreground">
-            We use industry-standard measures to protect your data, including encryption in
-            transit, encrypted storage of connected-account credentials, and access controls. No
-            method of transmission or storage is 100% secure, and we can&apos;t guarantee absolute
-            security.
+            Specifically: traffic is encrypted in transit; the OAuth credentials for a connected
+            platform are encrypted at rest with AES-256-GCM under a key held outside the database,
+            so a copy of the database alone does not yield a usable token; the scopes we request
+            are read-only; each workspace&apos;s data is isolated and every data request is checked
+            against your membership and role in it; and platform staff accounts require two-factor
+            authentication. We hold no third-party security certification — our{" "}
+            <a href="/security" className="underline underline-offset-4 hover:text-foreground">
+              security page
+            </a>{" "}
+            says so in more detail. No method of transmission or storage is completely secure, and
+            we can&apos;t guarantee absolute security.
           </p>
         </section>
 
@@ -100,16 +130,19 @@ export default function PrivacyPage() {
             disconnect any connected platform at any time. Depending on where you live, you may
             have additional rights — such as access, correction, deletion, portability, or
             objection to processing under GDPR, or the rights described under CCPA/CPRA. To
-            exercise these rights, contact us at [privacy email]. [Confirm applicable regional
-            rights and response timelines with counsel.]
+            exercise these rights, contact us at{" "}
+            <Detail value={LEGAL.privacyEmail} label="PRIVACY EMAIL" />.{" "}
+            <Detail value={null} label="CONFIRM REGIONAL RIGHTS + RESPONSE TIMELINES WITH COUNSEL" />
           </p>
         </section>
 
         <section>
           <h2 className="font-display text-lg font-semibold">8. Cookies</h2>
           <p className="mt-2 text-muted-foreground">
-            We use an essential cookie to keep you signed in, and — only where enabled for this
-            deployment — an analytics cookie to understand feature usage. See our{" "}
+            We use an essential cookie to keep you signed in, and — only if you agree, and only
+            where analytics is enabled for this deployment — one analytics cookie. You are asked
+            once, in a banner, and can change the answer at any time from the Cookie Policy. See
+            our{" "}
             <a href="/cookies" className="underline underline-offset-4 hover:text-foreground">
               Cookie Policy
             </a>{" "}
@@ -146,8 +179,8 @@ export default function PrivacyPage() {
         <section>
           <h2 className="font-display text-lg font-semibold">12. Contact</h2>
           <p className="mt-2 text-muted-foreground">
-            Questions about this policy, or want to exercise a data right? Contact us at
-            [privacy email].
+            Questions about this policy, or want to exercise a data right? Contact us at{" "}
+            <Detail value={LEGAL.privacyEmail} label="PRIVACY EMAIL" />.
           </p>
         </section>
       </div>

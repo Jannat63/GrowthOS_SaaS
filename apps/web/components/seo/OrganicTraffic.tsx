@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { OrganicTrafficResponse } from "@growthos/types";
 import { Card } from "@growthos/ui/components/card";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import {
@@ -25,23 +26,58 @@ import { SeoTile } from "@/components/seo/SeoTile";
 
 const num = (n: number) => n.toLocaleString("en-US");
 
+/**
+ * "18 Jun – 17 Jul", from the window the figures were actually measured over.
+ *
+ * The tiles used to be hard-labelled "(30d)" while the API summed every seeded day. Reading the
+ * period off the response means the label cannot drift from the number again — and it says *which*
+ * 30 days, which matters on seeded or lagging data where the newest row is weeks behind today.
+ */
+function periodLabel(period: OrganicTrafficResponse["period"]): string | null {
+  if (!period || !period.from || !period.to) return null;
+  const fmt = (iso: string) =>
+    new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    });
+  return `${fmt(period.from)} – ${fmt(period.to)}`;
+}
+
 export function OrganicTraffic({ workspaceId }: { workspaceId: string | null }) {
   const { data: traffic } = useOrganicTraffic(workspaceId);
   const t = traffic?.data;
 
   if (!t) return <Skeleton className="h-64 w-full rounded-lg" />;
 
+  const period = periodLabel(t.period);
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">{traffic && <DataSourceBadge source={traffic.source} platform={MODULE_PLATFORMS.seo} />}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {period ? (
+          <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+            {period}
+          </p>
+        ) : (
+          <span />
+        )}
+        {traffic && <DataSourceBadge source={traffic.source} platform={MODULE_PLATFORMS.seo} />}
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SeoTile label="Clicks (30d)" value={num(t.summary.totalClicks)} />
-        <SeoTile label="Impressions (30d)" value={num(t.summary.totalImpressions)} />
+        <SeoTile label="Clicks" value={num(t.summary.totalClicks)} />
+        <SeoTile label="Impressions" value={num(t.summary.totalImpressions)} />
         <SeoTile label="Avg CTR" value={`${t.summary.avgCtr}%`} />
         <SeoTile label="Avg position" value={t.summary.avgPosition} />
       </div>
 
-      <Card className="p-6 text-primary">
+      <Card className="p-6 text-channel-seo">
+        {/*
+          Coloured with the SEO channel token rather than --primary. BrandingProvider overwrites
+          --primary per workspace for white-labelling, so a chart keyed to it changes hue with the
+          tenant and can land somewhere illegible; --channel-seo is the same colour this channel
+          carries everywhere else in the product.
+        */}
         <h2 className="font-display text-lg font-semibold tracking-tight text-foreground">
           Organic clicks
         </h2>
@@ -93,7 +129,9 @@ export function OrganicTraffic({ workspaceId }: { workspaceId: string | null }) 
           <TableBody>
             {t.pages.map((p) => (
               <TableRow key={p.pageUrl}>
-                <TableCell className="max-w-[320px] truncate font-medium">{p.pageUrl}</TableCell>
+                <TableCell className="max-w-[320px] truncate font-medium" title={p.pageUrl}>
+                  {p.pageUrl}
+                </TableCell>
                 <TableCell className="text-right tabular-nums">{num(p.clicks)}</TableCell>
                 <TableCell className="text-right tabular-nums text-muted-foreground">
                   {num(p.impressions)}

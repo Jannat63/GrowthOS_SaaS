@@ -1,28 +1,82 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import type {
+  AdminActivityItem,
   AdminAuditLogEntry,
+  BlogPost,
+  BlogPostSummary,
+  AdminUserDetail,
+  AdminUserSpend,
   AdminUserSummary,
   AdminWorkspaceDetail,
   AdminWorkspaceSummary,
   Plan,
-  PlatformHealth,
+  PlatformOverview,
+  UsageSummary,
 } from '@growthos/types'
 import { AppError } from '../errors.js'
 import { requireUser } from '../auth-context.js'
 import { requirePlatformRole } from '../guards.js'
 import { logAdminAction } from '../admin-audit.js'
+import { alertSuperAdmins } from '../admin-alerts.js'
+import { requireStepUp } from '../admin-stepup.js'
 import { parsePage } from '../pagination.js'
+import { getUsageSummary } from '../plan-limits.js'
 import {
   listWorkspaces,
   getWorkspaceDetail,
+  getWorkspaceActivity,
+  getWorkspaceAdminHistory,
   overrideWorkspacePlan,
+  extendTrial,
   listUsers,
-  getPlatformHealth,
+  getUserDetail,
+  getUserSpend,
+  setPlatformRole,
+  revokeUserSessions,
+  getPlatformOverview,
   listAuditLog,
 } from '../admin.js'
+import {
+  createPost,
+  deletePost,
+  getPostById,
+  listAllPosts,
+  publishPost,
+  setFeatured,
+  unpublishPost,
+  updatePost,
+} from '../blog.js'
+import { revalidateBlog } from '../blog-revalidate.js'
 
 const searchQuery = z.object({ search: z.string().trim().max(200).optional() })
+
+/**
+ * The two things every write in this console carries: why, and proof it is still you.
+ *
+ * The reason goes in the audit log and in the alert email. The password is re-checked at the moment
+ * of the write (see admin-stepup.ts) because a live session says who opened the browser, not who is
+ * sitting at it now.
+ */
+const stepUp = {
+  reason: z.string().trim().min(10, 'A reason (10+ characters) is required.'),
+  password: z.string().min(1, 'Confirm your password to make this change.'),
+}
+
+/**
+ * Filter and sort are parsed leniently: an unrecognised value falls back to the default rather
+ * than 400-ing. A directory is a place someone lands from a bookmark or a hand-edited URL, and
+ * refusing to render the list because one query parameter is stale helps nobody.
+ */
+const workspaceListQuery = z.object({
+  filter: z.enum(['past_due', 'trial_ending', 'no_connections', 'cancelling']).optional().catch(undefined),
+  sort: z.enum(['created', 'name', 'members', 'activity']).optional().catch(undefined),
+})
+
+const userListQuery = z.object({
+  filter: z.enum(['staff', 'no_workspace']).optional().catch(undefined),
+  sort: z.enum(['created', 'name', 'last_seen']).optional().catch(undefined),
+})
 
 /**
  * Super Admin panel routes — everything under /api/v1/admin/*. Every route requires a platform
@@ -45,9 +99,16 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     const user = await requireUser(request)
     await requirePlatformRole(user.id, 'support_agent')
     const query = searchQuery.safeParse(request.query)
+    const list = workspaceListQuery.safeParse(request.query)
     const page = parsePage(request.query, 50)
-    const result = await listWorkspaces(query.success ? query.data.search : undefined, page)
-    await logAdminAction(user.id, 'workspace.list', 'workspace', 'all', { search: query.success ? query.data.search : undefined })
+    const search = query.success ? query.data.search : undefined
+    const options = list.success ? list.data : {}
+    const result = await listWorkspaces(search, page, options)
+    await logAdminAction(user.id, 'workspace.list', 'workspace', 'all', {
+      search,
+      filter: options.filter,
+      sort: options.sort,
+    })
     return result
   })
 
@@ -64,9 +125,41 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     return detail
   })
 
+  app.get('/api/v1/admin/workspaces/:id/usage', async (request): Promise<UsageSummary> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'support_agent')
+    const { id } = request.params as { id: string }
+    const summary = await getUsageSummary(id)
+    await logAdminAction(user.id, 'workspace.usage.view', 'workspace', id)
+    return summary
+  })
+
+  app.get('/api/v1/admin/workspaces/:id/activity', async (request): Promise<AdminActivityItem[]> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'support_agent')
+    const { id } = request.params as { id: string }
+    const activity = await getWorkspaceActivity(id)
+    await logAdminAction(user.id, 'workspace.activity.view', 'workspace', id)
+    return activity
+  })
+
+  /**
+   * Who from our side has touched this account. Super admin only, for the same reason the full
+   * audit log is: a support agent should not be able to review — or notice gaps in — the record of
+   * what other admins have been doing.
+   */
+  app.get('/api/v1/admin/workspaces/:id/admin-history', async (request): Promise<AdminAuditLogEntry[]> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const history = await getWorkspaceAdminHistory(id)
+    await logAdminAction(user.id, 'workspace.admin_history.view', 'workspace', id)
+    return history
+  })
+
   const planOverrideBody = z.object({
     plan: z.enum(['starter', 'growth', 'scale']),
-    reason: z.string().trim().min(10, 'A reason (10+ characters) is required for a manual plan override.'),
+    ...stepUp,
   })
   app.post('/api/v1/admin/workspaces/:id/plan-override', async (request) => {
     const user = await requireUser(request)
@@ -78,12 +171,23 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
     }
 
+    await requireStepUp(request, body.data.password)
+
     const before = await getWorkspaceDetail(id)
     await overrideWorkspacePlan(id, body.data.plan as Plan)
     await logAdminAction(user.id, 'workspace.plan_override', 'workspace', id, {
       reason: body.data.reason,
       before: before?.subscription.plan ?? null,
       after: body.data.plan,
+    })
+    alertSuperAdmins({
+      actorId: user.id,
+      actorName: user.name,
+      actorEmail: user.email,
+      action: 'Changed a plan',
+      target: before?.name ?? id,
+      reason: body.data.reason,
+      change: `${before?.subscription.plan ?? 'unknown'} to ${body.data.plan}`,
     })
     return { success: true }
   })
@@ -92,26 +196,415 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     const user = await requireUser(request)
     await requirePlatformRole(user.id, 'support_agent')
     const query = searchQuery.safeParse(request.query)
+    const list = userListQuery.safeParse(request.query)
     const page = parsePage(request.query, 50)
-    const result = await listUsers(query.success ? query.data.search : undefined, page)
-    await logAdminAction(user.id, 'user.list', 'user', 'all', { search: query.success ? query.data.search : undefined })
+    const search = query.success ? query.data.search : undefined
+    const options = list.success ? list.data : {}
+    const result = await listUsers(search, page, options)
+    await logAdminAction(user.id, 'user.list', 'user', 'all', {
+      search,
+      filter: options.filter,
+      sort: options.sort,
+    })
     return result
   })
 
-  app.get('/api/v1/admin/health', async (request): Promise<PlatformHealth> => {
+  app.get('/api/v1/admin/users/:id', async (request, reply): Promise<AdminUserDetail | { error: unknown }> => {
     const user = await requireUser(request)
     await requirePlatformRole(user.id, 'support_agent')
-    const health = await getPlatformHealth()
-    await logAdminAction(user.id, 'health.view', 'workspace', 'all')
-    return health
+    const { id } = request.params as { id: string }
+    const detail = await getUserDetail(id)
+    if (!detail) {
+      reply.status(404)
+      return { error: { code: 'NOT_FOUND', message: 'No account with that ID.', statusCode: 404 } }
+    }
+    await logAdminAction(user.id, 'user.view', 'user', id)
+    return detail
+  })
+
+  app.get('/api/v1/admin/users/:id/spend', async (request): Promise<AdminUserSpend> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'support_agent')
+    const { id } = request.params as { id: string }
+    const spend = await getUserSpend(id)
+    await logAdminAction(user.id, 'user.spend.view', 'user', id)
+    return spend
+  })
+
+  const platformRoleBody = z.object({
+    // null removes the role entirely; the two strings grant one.
+    role: z.enum(['support_agent', 'super_admin']).nullable(),
+    ...stepUp,
+  })
+  app.post('/api/v1/admin/users/:id/platform-role', async (request) => {
+    const actor = await requireUser(request)
+    await requirePlatformRole(actor.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const body = platformRoleBody.safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    /**
+     * Nobody edits their own platform access here.
+     *
+     * The console is the only interface to this field, so a super admin who removed their own role
+     * would be locked out of the surface that could restore it — recoverable only by running
+     * grant-admin against the database. Making it someone else's action to take also means the
+     * audit log always names two different people, which is the property that makes the record
+     * worth having.
+     */
+    if (id === actor.id) {
+      throw new AppError(
+        'FORBIDDEN',
+        'You cannot change your own platform access. Ask another super admin to do it.',
+      )
+    }
+
+    await requireStepUp(request, body.data.password)
+
+    const before = await getUserDetail(id)
+    if (!before) throw new AppError('NOT_FOUND', 'No account with that ID.')
+
+    await setPlatformRole(id, body.data.role)
+    await logAdminAction(actor.id, 'user.platform_role', 'user', id, {
+      reason: body.data.reason,
+      before: before.platformRole,
+      after: body.data.role,
+      subjectEmail: before.email,
+    })
+    alertSuperAdmins({
+      actorId: actor.id,
+      actorName: actor.name,
+      actorEmail: actor.email,
+      action: 'Changed platform access',
+      target: before.email,
+      reason: body.data.reason,
+      change: `${before.platformRole ?? 'customer'} to ${body.data.role ?? 'customer'}`,
+    })
+    return { success: true }
+  })
+
+  const reasonBody = z.object(stepUp)
+  app.post('/api/v1/admin/users/:id/revoke-sessions', async (request) => {
+    const actor = await requireUser(request)
+    await requirePlatformRole(actor.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const body = reasonBody.safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    await requireStepUp(request, body.data.password)
+
+    const subject = await getUserDetail(id)
+    if (!subject) throw new AppError('NOT_FOUND', 'No account with that ID.')
+
+    const revoked = await revokeUserSessions(id)
+    await logAdminAction(actor.id, 'user.revoke_sessions', 'user', id, {
+      reason: body.data.reason,
+      revoked,
+      subjectEmail: subject.email,
+    })
+    alertSuperAdmins({
+      actorId: actor.id,
+      actorName: actor.name,
+      actorEmail: actor.email,
+      action: 'Signed someone out everywhere',
+      target: subject.email,
+      reason: body.data.reason,
+      change: `${revoked} session${revoked === 1 ? '' : 's'} ended`,
+    })
+    return { success: true, revoked }
+  })
+
+  const extendTrialBody = z.object({
+    // Capped at 90: past that it is not an extension, it is a comp, and a comp is a plan override.
+    days: z.number().int().min(1).max(90),
+    ...stepUp,
+  })
+  app.post('/api/v1/admin/workspaces/:id/extend-trial', async (request) => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const body = extendTrialBody.safeParse(request.body)
+    if (!body.success) {
+      throw new AppError('VALIDATION_ERROR', body.error.issues[0]?.message ?? 'Invalid input.')
+    }
+
+    await requireStepUp(request, body.data.password)
+
+    const before = await getWorkspaceDetail(id)
+    if (!before) throw new AppError('WORKSPACE_NOT_FOUND', 'No workspace with that ID.')
+
+    const trialEndsAt = await extendTrial(id, body.data.days)
+    await logAdminAction(user.id, 'workspace.extend_trial', 'workspace', id, {
+      reason: body.data.reason,
+      days: body.data.days,
+      before: before.subscription.trialEndsAt,
+      after: trialEndsAt?.toISOString() ?? null,
+    })
+    alertSuperAdmins({
+      actorId: user.id,
+      actorName: user.name,
+      actorEmail: user.email,
+      action: 'Extended a trial',
+      target: before.name,
+      reason: body.data.reason,
+      change: `+${body.data.days} day${body.data.days === 1 ? '' : 's'}`,
+    })
+    return { success: true, trialEndsAt: trialEndsAt?.toISOString() ?? null }
+  })
+
+  /**
+   * `from`/`to` are parsed leniently and only honoured as a pair — half a range is no range, and
+   * falling back to the default window is friendlier than refusing to render the page because a
+   * bookmark carried one stale parameter.
+   */
+  const overviewQuery = z.object({
+    from: z.coerce.date().optional().catch(undefined),
+    to: z.coerce.date().optional().catch(undefined),
+  })
+
+  app.get('/api/v1/admin/overview', async (request): Promise<PlatformOverview> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'support_agent')
+    const parsed = overviewQuery.safeParse(request.query)
+    const q = parsed.success ? parsed.data : {}
+    const range = q.from && q.to && q.from <= q.to ? { from: q.from, to: q.to } : {}
+    const overview = await getPlatformOverview(range)
+    await logAdminAction(user.id, 'health.view', 'workspace', 'all', {
+      from: range.from?.toISOString().slice(0, 10),
+      to: range.to?.toISOString().slice(0, 10),
+    })
+    return overview
   })
 
   // The audit log itself requires super_admin — a support_agent shouldn't be able to review
   // (or, worse, notice gaps in) the record of what other admins have been doing.
+  const auditQuery = z.object({
+    // Defaults to changes only. The reads are still recorded and still reachable; they are just not
+    // what someone opening this page is looking for.
+    mutatingOnly: z
+      .enum(['true', 'false'])
+      .optional()
+      .catch(undefined)
+      .transform((v) => v !== 'false'),
+    actorUserId: z.string().trim().max(200).optional().catch(undefined),
+    action: z.string().trim().max(100).optional().catch(undefined),
+    targetType: z.enum(['workspace', 'user', 'subscription', 'audit_log', 'blog_post']).optional().catch(undefined),
+    from: z.coerce.date().optional().catch(undefined),
+    to: z.coerce.date().optional().catch(undefined),
+  })
+
   app.get('/api/v1/admin/audit-log', async (request): Promise<{ data: AdminAuditLogEntry[]; total: number }> => {
     const user = await requireUser(request)
     await requirePlatformRole(user.id, 'super_admin')
     const page = parsePage(request.query, 50)
-    return listAuditLog(page)
+    const parsed = auditQuery.safeParse(request.query)
+    const filters = parsed.success ? parsed.data : { mutatingOnly: true }
+    const result = await listAuditLog(page, filters)
+    // Reading the log is itself an admin action, and one worth recording — the point of the record
+    // is that nothing about this console is unobserved, including the observing.
+    await logAdminAction(user.id, 'audit_log.view', 'audit_log', 'all', {
+      mutatingOnly: filters.mutatingOnly,
+    })
+    return result
+  })
+
+  // ── The marketing blog ────────────────────────────────────────────────────
+  //
+  // Deliberately the one part of this console with NO step-up and NO alert fan-out, and the reason
+  // is worth stating where someone will read it before copying the pattern.
+  //
+  // Everywhere else here, a write changes a customer's account: invisible to them, effectively
+  // irreversible, so it costs a typed reason and a re-entered password. A blog post is the
+  // opposite — visible to the entire internet the moment it ships, and reversible in one click.
+  // Demanding a password on every save would have an operator typing it repeatedly mid-writing
+  // session, which is exactly how you train the reflex that makes step-up worthless where it
+  // matters.
+  //
+  // What remains: super_admin to write, support_agent to read, every write in the audit log, and
+  // one hard rail — a published post cannot be deleted, only unpublished (enforced in ../blog.ts).
+  // See D-B4 in docs/superpowers/specs/2026-09-03-blog-cms-design.md.
+
+  const postListQuery = z.object({
+    filter: z.enum(['draft', 'scheduled', 'published']).optional().catch(undefined),
+    sort: z.enum(['updated', 'published', 'title']).optional().catch(undefined),
+  })
+
+  /**
+   * `body` is accepted as an opaque object rather than validated node by node.
+   *
+   * The document's shape is defined by the editor's schema and the renderer that consumes it, and a
+   * third definition here would be free to disagree with both — rejecting a legitimate document
+   * because this file had not heard of a node type yet. The safety that matters is downstream and
+   * structural: the renderer walks a fixed set of node types and ignores anything else, so an
+   * unexpected node cannot render, let alone execute. Nothing here is ever interpreted as HTML.
+   */
+  /**
+   * Saving a draft asks for nothing, deliberately.
+   *
+   * `title` and `description` were both `min(1)` here, which put the requirement on the wrong verb:
+   * "New post" creates an empty draft, so the very first write failed with "A description is
+   * required" before the writer had typed a word — and autosave would have gone on failing until
+   * they wrote the dek, which is the last thing anyone writes.
+   *
+   * A draft is allowed to be unfinished. The requirement belongs on publish, where it is enforced
+   * (see publishPost in ../blog.ts) — that is the moment incompleteness actually costs something,
+   * because an empty description is also the meta description on a live page.
+   */
+  const postBody = z.object({
+    slug: z.string().trim().max(120).optional(),
+    title: z.string().trim().max(200),
+    description: z.string().trim().max(500),
+    body: z.object({ type: z.literal('doc') }).passthrough(),
+    tag: z.string().trim().max(60).optional(),
+    coverImageUrl: z.string().trim().max(2000).nullish(),
+    coverImageAlt: z.string().trim().max(300).nullish(),
+    authorName: z.string().trim().max(120).optional(),
+    authorRole: z.string().trim().max(120).nullish(),
+    authorAvatarUrl: z.string().trim().max(2000).nullish(),
+  })
+
+  function parsePost(input: unknown) {
+    const parsed = postBody.safeParse(input)
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', parsed.error.issues[0]?.message ?? 'Invalid post.')
+    }
+    // The zod shape is structurally the input type; the cast is only to hand drizzle the document
+    // as the domain type rather than as a passthrough object.
+    return parsed.data as unknown as Parameters<typeof createPost>[0]
+  }
+
+  app.get('/api/v1/admin/blog', async (request): Promise<{ data: BlogPostSummary[]; total: number }> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'support_agent')
+    const page = parsePage(request.query, 20)
+    const query = searchQuery.safeParse(request.query)
+    const list = postListQuery.safeParse(request.query)
+    const search = query.success ? query.data.search : undefined
+    const options = list.success ? list.data : {}
+    const result = await listAllPosts(page, { ...options, search })
+    await logAdminAction(user.id, 'blog.list', 'blog_post', 'all', {
+      search,
+      filter: options.filter,
+      sort: options.sort,
+    })
+    return result
+  })
+
+  app.get('/api/v1/admin/blog/:id', async (request, reply): Promise<BlogPost | { error: unknown }> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'support_agent')
+    const { id } = request.params as { id: string }
+    const post = await getPostById(id)
+    if (!post) {
+      reply.status(404)
+      return { error: { code: 'NOT_FOUND', message: 'No post with that ID.', statusCode: 404 } }
+    }
+    await logAdminAction(user.id, 'blog.view', 'blog_post', id)
+    return post
+  })
+
+  app.post('/api/v1/admin/blog', async (request, reply): Promise<BlogPost> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const input = parsePost(request.body)
+    // The byline defaults to whoever wrote it, but stays editable — a byline is a credit, not an
+    // audit trail, and the audit trail is kept separately below.
+    const post = await createPost(input, { userId: user.id, name: user.name })
+    await logAdminAction(user.id, 'blog.create', 'blog_post', post.id, { title: post.title, slug: post.slug })
+    reply.status(201)
+    return post
+  })
+
+  app.patch('/api/v1/admin/blog/:id', async (request): Promise<BlogPost> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const before = await getPostById(id)
+    if (!before) throw new AppError('NOT_FOUND', 'No post with that ID.')
+
+    const post = await updatePost(id, parsePost(request.body))
+    await logAdminAction(user.id, 'blog.update', 'blog_post', id, {
+      title: post.title,
+      // Only recorded when it actually moved: a slug change on a live post breaks inbound links,
+      // and that is the one edit worth being able to find again later.
+      slugBefore: before.slug === post.slug ? undefined : before.slug,
+      slugAfter: before.slug === post.slug ? undefined : post.slug,
+    })
+    // Editing a live post changes what the public sees, so the cache hint is owed here too — not
+    // only on publish.
+    if (post.state === 'published') revalidateBlog(post.slug)
+    if (before.slug !== post.slug) revalidateBlog(before.slug)
+    return post
+  })
+
+  const publishBody = z.object({
+    /** Absent means now. A future date schedules, with no worker involved — see D-B5. */
+    publishedAt: z.coerce.date().optional(),
+  })
+
+  app.post('/api/v1/admin/blog/:id/publish', async (request): Promise<BlogPost> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const parsed = publishBody.safeParse(request.body ?? {})
+    const at = parsed.success ? parsed.data.publishedAt : undefined
+
+    const post = await publishPost(id, at)
+    await logAdminAction(user.id, 'blog.publish', 'blog_post', id, {
+      title: post.title,
+      slug: post.slug,
+      publishedAt: post.publishedAt,
+      scheduled: post.state === 'scheduled',
+    })
+    revalidateBlog(post.slug)
+    return post
+  })
+
+  app.post('/api/v1/admin/blog/:id/unpublish', async (request): Promise<BlogPost> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const post = await unpublishPost(id)
+    await logAdminAction(user.id, 'blog.unpublish', 'blog_post', id, { title: post.title, slug: post.slug })
+    revalidateBlog(post.slug)
+    return post
+  })
+
+  const featureBody = z.object({ featured: z.boolean() })
+
+  app.post('/api/v1/admin/blog/:id/feature', async (request): Promise<BlogPost> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const parsed = featureBody.safeParse(request.body)
+    if (!parsed.success) throw new AppError('VALIDATION_ERROR', 'Say whether to pin or unpin.')
+
+    const post = await setFeatured(id, parsed.data.featured)
+    await logAdminAction(user.id, 'blog.feature', 'blog_post', id, {
+      title: post.title,
+      featured: post.featured,
+    })
+    // Pinning reorders the index, so that page has to be rebuilt even though no post's own content
+    // changed.
+    revalidateBlog(null)
+    return post
+  })
+
+  app.delete('/api/v1/admin/blog/:id', async (request): Promise<{ success: true }> => {
+    const user = await requireUser(request)
+    await requirePlatformRole(user.id, 'super_admin')
+    const { id } = request.params as { id: string }
+    const before = await getPostById(id)
+    // deletePost refuses a published post; reading it first is only so the log can name what went.
+    await deletePost(id)
+    await logAdminAction(user.id, 'blog.delete', 'blog_post', id, {
+      title: before?.title,
+      slug: before?.slug,
+    })
+    return { success: true }
   })
 }

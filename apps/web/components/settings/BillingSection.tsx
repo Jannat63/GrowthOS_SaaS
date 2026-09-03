@@ -6,7 +6,7 @@ import { Card } from "@growthos/ui/components/card";
 import { Badge } from "@growthos/ui/components/badge";
 import { Button } from "@growthos/ui/components/button";
 import { Skeleton } from "@growthos/ui/components/skeleton";
-import { PLAN_LIMITS, type Plan, type CountedMetric, type BooleanFeature } from "@growthos/types";
+import { PLAN_LIMITS, planPriceLabel, type Plan, type CountedMetric, type BooleanFeature } from "@growthos/types";
 import { useSubscription, useUsage, useCheckout, usePortal } from "@/lib/hooks/useBilling";
 import { trackEvent } from "@/lib/analytics";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
@@ -29,17 +29,18 @@ const STATUS_VARIANT: Record<string, "default" | "muted" | "outline"> = {
   canceled: "outline",
 };
 
-const PLAN_PRICE: Record<Plan, string> = {
-  starter: "$79/mo",
-  growth: "$199/mo",
-  scale: "$399/mo",
-};
-
 const PLAN_BLURB: Record<Plan, string[]> = {
   starter: ["1 workspace", "500 tracked keywords", "5 recommendations/week"],
   growth: ["5 workspaces", "2,500 tracked keywords", "Unlimited recommendations", "GEO tracking + white-label"],
   scale: ["Unlimited workspaces", "10,000 tracked keywords", "Unlimited everything", "API access"],
 };
+
+/**
+ * Cheapest to dearest. Used only to tell an upgrade from a downgrade — both offered a button
+ * reading "Switch plan", so moving *down* a tier and losing white-label, GEO tracking or API access
+ * looked exactly like moving up one. The direction of a plan change is the whole decision.
+ */
+const PLAN_ORDER: Plan[] = ["starter", "growth", "scale"];
 
 function daysLeft(iso: string | null): number | null {
   if (!iso) return null;
@@ -70,7 +71,10 @@ export function BillingSection({
   useEffect(() => {
     if (searchParams.get("checkout") === "success") {
       trackEvent("checkout_completed");
-      router.replace("/settings");
+      // Back to the pane the purchase came from. Stripe's success_url returns here with the query
+      // param, and dropping the reader at the top of an eight-pane settings page with no sign of
+      // what just happened was the old behaviour.
+      router.replace("/settings?tab=billing");
     }
   }, [searchParams, router]);
 
@@ -117,7 +121,7 @@ export function BillingSection({
                 <div key={plan} className="flex flex-col rounded-lg border border-border p-4">
                   <div className="flex items-center justify-between">
                     <span className="font-display text-sm font-semibold capitalize">{plan}</span>
-                    <span className="text-sm text-muted-foreground">{PLAN_PRICE[plan]}</span>
+                    <span className="text-sm text-muted-foreground">{planPriceLabel(plan, { perMonth: true })}</span>
                   </div>
                   <ul className="mt-3 flex-1 space-y-1 text-xs text-muted-foreground">
                     {PLAN_BLURB[plan].map((line) => (
@@ -127,7 +131,11 @@ export function BillingSection({
                   {isAdmin && (
                     <Button
                       className="mt-4"
-                      variant={isCurrent ? "outline" : "default"}
+                      variant={
+                        isCurrent || PLAN_ORDER.indexOf(plan) < PLAN_ORDER.indexOf(sub.plan)
+                          ? "outline"
+                          : "default"
+                      }
                       disabled={isCurrent || checkout.isPending}
                       onClick={() => checkout.mutate(plan)}
                     >
@@ -135,7 +143,9 @@ export function BillingSection({
                         ? "Current plan"
                         : checkout.isPending && checkout.variables === plan
                           ? "Redirecting…"
-                          : "Switch plan"}
+                          : PLAN_ORDER.indexOf(plan) > PLAN_ORDER.indexOf(sub.plan)
+                            ? "Upgrade"
+                            : "Downgrade"}
                     </Button>
                   )}
                 </div>

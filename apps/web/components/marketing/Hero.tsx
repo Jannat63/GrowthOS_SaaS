@@ -1,57 +1,53 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@growthos/ui/components/button";
-import { LoopDiagram } from "@/components/marketing/LoopDiagram";
+import { ExchangeBoard } from "./ExchangeBoard";
 
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
-      {/* top glow */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] bg-gradient-to-b from-primary/5 to-transparent" />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-gradient-to-b from-primary/[0.07] to-transparent"
+      />
 
-      <div className="relative mx-auto grid max-w-6xl items-center gap-16 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:py-28">
+      <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:py-28">
         <div>
-          <span className="glass-surface inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium text-muted-foreground">
-            <span className="h-1.5 w-1.5 rounded-full bg-success" />
-            SEO · Google Ads · Meta Ads, on one loop
-          </span>
+          <p className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground">
+            SEO <span className="text-border">/</span> GOOGLE ADS{" "}
+            <span className="text-border">/</span> META ADS
+          </p>
 
-          <h1 className="mt-6 font-display text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-            Your channels,
-            <br />
-            finally{" "}
-            <span className="relative whitespace-nowrap text-primary">
-              talking to each other
-              <span className="absolute -bottom-1 left-0 h-[3px] w-full rounded-full bg-success/70" />
-            </span>
+          <h1 className="mt-5 font-display text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.4rem]">
+            A win in one channel becomes the{" "}
+            <span className="whitespace-nowrap text-primary">next move</span> in another.
           </h1>
 
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-            Most teams run SEO, Google Ads, and Meta in three separate tabs.
-            GrowthOS connects them into one loop — a win in one channel becomes
-            the next move in another, ranked by impact.
+            Google captures demand. Meta creates it. SEO sustains it. GrowthOS runs six
+            bridges between them — so a converting search term writes an SEO brief, and a
+            hook that beats 3% CTR becomes next week&rsquo;s article.
           </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="lg" className="group">
+          <div className="mt-9 flex flex-wrap items-center gap-3">
+            <Button asChild size="lg">
               <Link href="/sign-up">
                 Start free
                 <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline">
-              <Link href="#how">See how the loop works</Link>
+              <Link href="#bridges">See the six bridges</Link>
             </Button>
           </div>
 
-          <p className="mt-4 text-sm text-muted-foreground">
-            No credit card · Connect your first channel in minutes
+          <p className="mt-5 font-mono text-[11px] tracking-[0.1em] text-muted-foreground">
+            14-DAY GROWTH TRIAL <span className="text-border">·</span> NO CARD{" "}
+            <span className="text-border">·</span> READ-ONLY CONNECTIONS
           </p>
         </div>
 
-        <div className="lg:pl-4">
-          <LoopDiagram />
-        </div>
+        <ExchangeBoard />
       </div>
     </section>
   );

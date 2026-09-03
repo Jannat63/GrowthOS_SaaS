@@ -6,12 +6,12 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ThemeProvider } from "next-themes";
 import { toast } from "sonner";
 import { Toaster } from "@growthos/ui/components/sonner";
 import { TooltipProvider } from "@growthos/ui/components/tooltip";
-import { initAnalytics } from "@/lib/analytics";
+import { CookieBanner } from "@/components/CookieBanner";
 import { ApiError } from "@/lib/api/client";
 
 /**
@@ -53,9 +53,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       })
   );
-  useEffect(() => {
-    initAnalytics();
-  }, []);
   return (
     <ThemeProvider
       attribute="class"
@@ -68,7 +65,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
             usage — DataSourceBadge renders a tooltip and appears on nearly every dashboard page. */}
         <TooltipProvider delayDuration={200}>
           {children}
-          <Toaster position="top-center" richColors />
+          {/* No `richColors` — it makes sonner inject its own success/error palette at
+              runtime, outside the token system, so toasts would keep the old indigo-era
+              colours after a rebrand. sonner.tsx maps our tokens instead. */}
+          <Toaster position="top-center" />
+          {/* Mounted at the root so the consent decision is made once for the whole app, not per
+              route group. It renders nothing at all once the question has been answered — or if
+              there is no analytics key, in which case there was never a question. */}
+          <CookieBanner />
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

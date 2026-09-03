@@ -38,7 +38,7 @@ export function InternalLinkOptimizer({ workspaceId }: { workspaceId: string | n
       ) : (
         <div className="mt-4 space-y-3">
           {recs.map((r) => (
-            <div key={r.targetPage} className="rounded-lg border p-4">
+            <div key={`${r.sourcePage}->${r.targetPage}`} className="rounded-lg border p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={PRIORITY_VARIANT[r.priority]} className="capitalize">
                   {r.priority} priority

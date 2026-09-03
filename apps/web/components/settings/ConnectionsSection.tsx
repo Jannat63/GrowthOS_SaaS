@@ -2,17 +2,28 @@
 import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Search, Check, RefreshCw, Loader2, MousePointerClick, Megaphone } from "lucide-react";
+import { Check, RefreshCw, Loader2 } from "lucide-react";
 import { Card } from "@growthos/ui/components/card";
 import { Button } from "@growthos/ui/components/button";
 import { Badge } from "@growthos/ui/components/badge";
 import { useConnections } from "@/lib/hooks/useConnections";
 import { useConnectionActions } from "@/lib/hooks/useConnectionActions";
+import {
+  GoogleAdsMark,
+  GoogleSearchConsoleMark,
+  MetaMark,
+} from "@/components/brand/PlatformMarks";
 
+/**
+ * `markClass` is per-provider because the three marks have different aspect ratios, and sizing them
+ * to one box makes the wide one look smaller than the others. Meta is 1.5:1, so in a 22px square it
+ * renders 22×15 and reads as the lightest thing in the column; given a wider box it carries the same
+ * visual weight as the two near-square Google marks.
+ */
 const PROVIDERS = [
-  { platform: "google_search_console", name: "Google Search Console", desc: "Organic search & rankings", icon: Search, ready: true },
-  { platform: "google_ads", name: "Google Ads", desc: "Paid search — coming soon", icon: MousePointerClick, ready: false },
-  { platform: "meta", name: "Meta Ads", desc: "Facebook & Instagram — coming soon", icon: Megaphone, ready: false },
+  { platform: "google_search_console", name: "Google Search Console", desc: "Organic search & rankings", icon: GoogleSearchConsoleMark, markClass: "h-[22px] w-[22px]", ready: true },
+  { platform: "google_ads", name: "Google Ads", desc: "Paid search — coming soon", icon: GoogleAdsMark, markClass: "h-[22px] w-[22px]", ready: false },
+  { platform: "meta", name: "Meta Ads", desc: "Facebook & Instagram — coming soon", icon: MetaMark, markClass: "h-[26px] w-[26px]", ready: false },
 ] as const;
 
 export function ConnectionsSection({ workspaceId }: { workspaceId: string | null }) {
@@ -48,8 +59,8 @@ export function ConnectionsSection({ workspaceId }: { workspaceId: string | null
           const Icon = p.icon;
           return (
             <div key={p.platform} className="flex flex-wrap items-center gap-3 rounded-xl border p-4">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Icon className="h-5 w-5" />
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg border bg-secondary">
+                <Icon className={p.markClass} />
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

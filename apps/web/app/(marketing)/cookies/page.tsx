@@ -1,11 +1,12 @@
-import type { Metadata } from "next";
+import { pageMeta } from "@/lib/seo";
+import { CookiePreferences } from "@/components/marketing/CookiePreferences";
+import { Detail, LEGAL } from "@/lib/legal";
 
-const LAST_UPDATED = "[DATE — set when this is reviewed and published]";
-
-export const metadata: Metadata = {
+export const metadata = pageMeta({
   title: "Cookie Policy",
   description: "The cookies GrowthOS uses — an essential sign-in cookie, and an optional analytics cookie where enabled.",
-};
+  path: "/cookies",
+});
 
 export default function CookiesPage() {
   return (
@@ -19,7 +20,9 @@ export default function CookiesPage() {
       </p>
 
       <h1 className="mt-8 font-display text-4xl font-bold tracking-tight">Cookie Policy</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Last updated: {LAST_UPDATED}</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Last updated: <Detail value={LEGAL.lastUpdated} label="DATE — set on review" />
+      </p>
 
       <div className="mt-10 space-y-8 text-sm leading-relaxed text-foreground">
         <section>
@@ -84,10 +87,14 @@ export default function CookiesPage() {
         <section>
           <h2 className="font-display text-lg font-semibold">4. Managing cookies</h2>
           <p className="mt-2 text-muted-foreground">
-            Most browsers let you block or delete cookies in their privacy settings — blocking the
-            session cookie will sign you out. If analytics is enabled on this deployment,
-            [add opt-out mechanism here once decided, e.g. a cookie-preferences link or PostHog's
-            opt-out API].
+            You are asked once, in a banner, the first time you visit — and you can change the
+            answer here at any time. Declining stops the analytics SDK from loading at all rather
+            than loading it and asking it not to look.
+          </p>
+          <CookiePreferences />
+          <p className="mt-3 text-muted-foreground">
+            Separately, most browsers let you block or delete cookies in their privacy settings.
+            Blocking the session cookie will sign you out.
           </p>
         </section>
 
@@ -102,7 +109,8 @@ export default function CookiesPage() {
         <section>
           <h2 className="font-display text-lg font-semibold">6. Contact</h2>
           <p className="mt-2 text-muted-foreground">
-            Questions about this policy? Contact us at [privacy email]. See also our{" "}
+            Questions about this policy? Contact us at{" "}
+            <Detail value={LEGAL.privacyEmail} label="PRIVACY EMAIL" />. See also our{" "}
             <a href="/privacy" className="underline underline-offset-4 hover:text-foreground">
               Privacy Policy
             </a>

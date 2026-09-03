@@ -1,4 +1,5 @@
 import { index, integer, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { workspaces } from './auth.js';
 
 /**
  * Billing (M5 · P5.1). Mirrors Stripe — this table is a read model kept in sync by the
@@ -8,14 +9,15 @@ import { index, integer, pgTable, text, timestamp, unique, uuid } from 'drizzle-
  *
  * One row per workspace (a workspace has at most one active subscription). Before checkout
  * completes, a workspace has no row here — the app treats that as `plan: 'starter', status:
- * 'trialing'` (see `getCurrentSubscription`). workspaceId is app-layer enforced (no FK — see
+ * 'trialing'` (see `getCurrentSubscription`). workspaceId cascades from workspaces; access is
+ * still app-layer enforced (no RLS — see
  * tenancy.ts).
  */
 export const subscriptions = pgTable(
   'subscriptions',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull(),
     stripeCustomerId: text('stripe_customer_id').unique(),
     stripeSubscriptionId: text('stripe_subscription_id').unique(),
     plan: text('plan').notNull(), // starter | growth | scale
@@ -36,13 +38,14 @@ export const subscriptions = pgTable(
  * Usage metering (M5 · P5.1 table; enforcement lands in P5.2). One row per
  * (workspace, metric, billing-period-start) — incremented as the workspace consumes a metered
  * feature. `period` is the first day of the billing period (UTC) so a metric's usage resets
- * cleanly each cycle. workspaceId is app-layer enforced (no FK — see tenancy.ts).
+ * cleanly each cycle. workspaceId cascades from workspaces; access is app-layer enforced
+ * (no RLS — see tenancy.ts).
  */
 export const usageRecords = pgTable(
   'usage_records',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }).notNull(),
     // keywords_tracked | ai_creatives_generated | recommendations_generated
     // | content_briefs_created | report_generated
     metric: text('metric').notNull(),

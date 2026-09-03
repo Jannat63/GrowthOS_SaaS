@@ -11,6 +11,7 @@ import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@growthos/ui/components/button";
 import { Skeleton } from "@growthos/ui/components/skeleton";
+import { AuthFormSkeleton } from "@/components/auth/AuthFormSkeleton";
 
 const STATUS_MESSAGE: Record<string, string> = {
   accepted: "This invitation has already been accepted.",
@@ -159,7 +160,7 @@ function AcceptInviteContent() {
 
 export default function AcceptInvitePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<AuthFormSkeleton />}>
       <AcceptInviteContent />
     </Suspense>
   );

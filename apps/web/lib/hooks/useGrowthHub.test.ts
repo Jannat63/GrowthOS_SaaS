@@ -15,6 +15,15 @@ const base: GrowthHubResponse = {
     organicClicks: { current: 128400, previous: 111000 },
     conversions: { current: 6142, previous: 4933 },
   },
+  daily: {
+    revenue: [1200, 1400, 1600],
+    adSpend: [300, 320, 310],
+    conversions: [180, 200, 210],
+    organicClicks: [4000, 4200, 4400],
+  },
+  window: { from: "2026-06-18", to: "2026-07-17" },
+  dataFrom: "2026-01-19",
+  dataThrough: "2026-07-17",
   channels: {
     seo: { organicClicks: 128400 },
     google: { conversions: 1842 },
@@ -39,6 +48,18 @@ describe("toGrowthHubData", () => {
     expect(byKey.adSpend!.value).toBe("$11,180");
     expect(byKey.conversions!.value).toBe("6,142");
     expect(byKey.organicClicks!.value).toBe("128K");
+  });
+
+  it("passes each metric's daily series through to its tile", () => {
+    const { kpis } = toGrowthHubData(base);
+    const byKey = Object.fromEntries(kpis.map((k) => [k.key, k]));
+
+    // Each KPI gets its OWN series — an easy one to cross-wire, and a cross-wired sparkline is
+    // invisible in review because it still draws a plausible-looking line.
+    expect(byKey.revenue!.series).toEqual([1200, 1400, 1600]);
+    expect(byKey.adSpend!.series).toEqual([300, 320, 310]);
+    expect(byKey.conversions!.series).toEqual([180, 200, 210]);
+    expect(byKey.organicClicks!.series).toEqual([4000, 4200, 4400]);
   });
 
   it("reports a null delta rather than Infinity when the previous window was zero", () => {

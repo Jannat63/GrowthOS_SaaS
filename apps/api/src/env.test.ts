@@ -51,6 +51,34 @@ describe('env', () => {
         } as NodeJS.ProcessEnv),
       ).not.toThrow()
     })
+
+    // The webhook SSRF escape hatch is the one env var whose PRESENCE is the danger, so it is
+    // asserted from the deployed side rather than trusted to a comment in url-guard.ts.
+    it('refuses to boot in production with the webhook SSRF escape hatch on', () => {
+      expect(() =>
+        validateEnv({
+          ...base,
+          NODE_ENV: 'production',
+          WEBHOOK_ALLOW_PRIVATE_TARGETS: 'true',
+        } as NodeJS.ProcessEnv),
+      ).toThrow(/WEBHOOK_ALLOW_PRIVATE_TARGETS/)
+    })
+
+    it('allows the escape hatch outside production, which is the only place it is meant to be used', () => {
+      expect(() =>
+        validateEnv({
+          ...base,
+          NODE_ENV: 'development',
+          WEBHOOK_ALLOW_PRIVATE_TARGETS: 'true',
+        } as NodeJS.ProcessEnv),
+      ).not.toThrow()
+    })
+
+    it('boots in production when the hatch is merely absent', () => {
+      expect(() =>
+        validateEnv({ ...base, NODE_ENV: 'production' } as NodeJS.ProcessEnv),
+      ).not.toThrow()
+    })
   })
 
   describe('logIntegrationStatus', () => {

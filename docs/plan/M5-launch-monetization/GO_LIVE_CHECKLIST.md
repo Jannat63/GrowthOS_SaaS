@@ -1,6 +1,6 @@
 # Go-Live Checklist
 
-Status: living document — updated as gated items get resolved. Last updated: 2026-07-22.
+Status: living document — updated as gated items get resolved. Last updated: 2026-08-20.
 
 This is the honest list of everything standing between "the code is built" and "this is safe to
 put in front of paying customers." Items are grouped by what actually blocks launch vs. what's
@@ -28,13 +28,23 @@ and how to verify it, not just a checkbox to tick.
 - [x] **Trial-ending-soon reminders now run automatically.** ~~Nothing calls `checkTrialsEndingSoon()`
       periodically~~ — resolved 2026-07-26: `apps/api/src/scheduler.ts` wires it to a daily
       `node-cron` job (09:00 UTC). No further action needed here.
-- [ ] **Plan-limit enforcement is partial by design, not oversight.** Only white-label branding is
-      actually gated by `assertFeatureEnabled` today. `recommendations_generated` /
-      `ai_creatives_generated` metering has no real call site yet — see
-      `docs/plan/M5-launch-monetization/progress.md` (P5.2 log entry) for exactly why and what
-      unblocks it. This means Starter-plan customers currently get unlimited recommendations in
-      practice, not the 5/week the pricing page promises. Decide whether that's acceptable for
-      launch or whether it blocks it.
+- [x] **Plan limits are enforced for recommendations.** ~~Metering has no real call site yet~~ —
+      resolved 2026-08-13 (`b16dda7`). `ensureGenerated` checks `getRemainingAllowance` and then
+      records `recordUsage(workspaceId, 'recommendations_generated', created)`
+      (`apps/api/src/recommendations.ts`); workspace creation is capped by
+      `assertCanCreateWorkspace`; `assertFeatureEnabled` gates white-label branding and API access
+      (`apps/api/src/api-keys.ts`). The first-run onboarding batch (`before === 0`) is deliberately
+      left unmetered — see `docs/AUDIT-2026-08-13-codebase.md`. Starter customers are now held to
+      the 5/week the pricing page advertises, so this no longer gates launch.
+- [x] **`ai_creatives_generated` is metered — done 2026-08-27 (M4 P4.2a-4).** The reason nothing
+      called `recordUsage` turned out to be worse than "the feature doesn't exist yet": the
+      generators ran **entirely in the browser**, so `aiCreativesPerMonth` was a limit that could not
+      bind on any plan. `POST /workspaces/:id/creatives/generate` moves generation server-side,
+      where `assertWithinLimit` → `recordUsage` now runs on delivered creatives only. Verified by
+      driving a starter workspace to its 10/month ceiling and getting a real 402, and by confirming
+      the generator templates are absent from the built client bundle.
+      **Release-note item:** starter workspaces go from unlimited generation to the advertised
+      10/month. Growth 100, scale unlimited; there is no free tier.
 
 ## 2. Real third-party integrations — blocks the features that depend on them
 
@@ -84,13 +94,34 @@ If launching without these, the honest move is telling users upfront which chann
   it's a dependency that needs staying current.
 
 **Not done — recommended before launch:**
-- [ ] Re-run `pnpm audit --prod` — findings other than `better-auth` (e.g. `vite`/`vitest`, dev-only)
-      weren't individually triaged here; confirm nothing shipped depends on them at runtime.
+- [x] **Dependency audit re-run and triaged 2026-08-20.** Every runtime-reachable high was fixed by
+      upgrading: `fastify` 5.9.0 → 5.12.1 (patched `find-my-way`, HTTP/2 DoS), `@fastify/swagger-ui`
+      5 → 6 (pulls `@fastify/static` 10.1.3, fixing a route-guard bypass via path traversal that was
+      reachable through the public API docs UI), `@fastify/swagger` → 9.8.1 and `fast-uri` → 3.1.5
+      (host confusion), `@fastify/helmet` 12 → 13, `brace-expansion` → 5.0.9, `drizzle-orm`
+      0.38.4 → 0.45.2 (SQL injection via improperly escaped identifiers — this sat in the auth and
+      every data path), and `next` 15.5.20 → 15.5.23 in `apps/web` (two SSRF highs plus a Server
+      Actions DoS). The drizzle bump also resolved the duplicate-copy problem behind
+      `docs/AUDIT-2026-08-13-codebase.md` #9 and cleared every peer warning — `pnpm peers check`
+      now reports none. Verified with a full typecheck, 174 API tests, 128 logic tests, and a real
+      Next production build.
+- [ ] **Two framework-pinned transitives remain, both deliberately not forced.** `next` pins
+      `postcss` at 8.4.31 (advisory wants >=8.5.12) and declares `sharp: ^0.34.3` optional (advisory
+      wants >=0.35.0). Overriding either would push Next outside its own supported range for a
+      build-time CSS tool and an optional image-processing dep. Re-check when Next 15 moves its
+      pins, or when a runtime path actually reaches them.
+- [ ] Re-run `pnpm audit` before each release — this is not a one-time fix.
 - [ ] CSP is at helmet's default, not hand-tuned. Fine for a JSON-only API; revisit if this app
       ever serves HTML/inline scripts directly.
-- [ ] No error monitoring (Sentry or equivalent) — a production crash currently only shows up in
-      logs, not an alert.
-- [ ] No uptime/health monitoring beyond the `/health` endpoint existing — nothing polls it yet.
+- [x] **Error monitoring is wired.** `apps/api/src/monitoring.ts` reports crashes via Sentry when
+      `SENTRY_DSN` is set, with process-level handlers, and degrades to logs-only when it isn't —
+      the same optional-integration shape as Stripe and Resend. Set `SENTRY_DSN` in production to
+      turn it on.
+- [ ] **Nothing polls the health endpoints yet.** `/health` (liveness) and `/health/ready`
+      (readiness — reports each dependency by name, 200/ok only when all are reachable) both exist
+      and are covered by tests. What is missing is an external uptime service pointed at them,
+      which needs a deployed URL first. This is the last open item from
+      `docs/AUDIT-2026-08-13-codebase.md` #10.
 - [ ] Rate limiting exists (`@fastify/rate-limit`, M2 P2.8) but limits haven't been load-tested
       against realistic traffic.
 - [ ] **Public API (`/api/public/v1/*`, M4 P4.4) shares the same global rate limit as everything
@@ -106,8 +137,9 @@ If launching without these, the honest move is telling users upfront which chann
 - [x] **Scheduler now exists.** ~~No scheduler exists~~ — resolved 2026-07-26: `apps/api/src/scheduler.ts`,
       a lightweight `node-cron` in-process scheduler (Celery/Beat remains deferred per D2 — this
       isn't that, it's a smaller single-dependency alternative). Wires trial-ending reminders
-      (daily) and the Intelligence Engine's weekly-report refresh (every 4h, recomputes each
-      workspace's channel spend/revenue/ROAS from current data). **Still not wired**: the Creative
+      (daily @ 09:00 UTC), the autonomous intelligence tick (hourly — consolidated 2026-08-13 from what
+      had been an unguarded 4h refresh, now persistent-dedupe so alerts re-fire only on change), and
+      a stuck-job sweep (every 15m). **Still not wired**: the Creative
       Fatigue Monitor's alerts — deliberately, not an oversight. `ensureFatigueAlerts` generates
       alerts exactly once per workspace ever (`if (existing.length > 0) return`); scheduling it
       would be a guaranteed no-op for any workspace already past onboarding, and it runs over a

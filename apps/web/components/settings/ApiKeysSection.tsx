@@ -8,11 +8,13 @@ import { Input } from "@growthos/ui/components/input";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import { useApiKeys, useCreateApiKey, useRevokeApiKey } from "@/lib/hooks/useApiKeys";
 import { API_URL } from "@/lib/api/client";
+import { UpgradeNotice, useApiAccess } from "./PlanGate";
 
 export function ApiKeysSection({ workspaceId }: { workspaceId: string | null }) {
   const { data, isLoading } = useApiKeys(workspaceId);
   const create = useCreateApiKey(workspaceId);
   const revoke = useRevokeApiKey(workspaceId);
+  const unlocked = useApiAccess(workspaceId);
   const [name, setName] = useState("");
   const [justCreated, setJustCreated] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -41,7 +43,7 @@ export function ApiKeysSection({ workspaceId }: { workspaceId: string | null }) 
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         Read access to your recommendations, keyword rankings, and weekly report from your own
-        scripts or tools like Zapier. Requires the Scale plan.{" "}
+        scripts or tools like Zapier.{" "}
         <a href={`${API_URL}/api/public/v1/docs`} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">
           View API docs
         </a>
@@ -61,17 +63,22 @@ export function ApiKeysSection({ workspaceId }: { workspaceId: string | null }) 
         </div>
       )}
 
-      <div className="mt-4 flex gap-2">
-        <Input
-          placeholder="Key name, e.g. Zapier"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="max-w-xs"
-        />
-        <Button disabled={!name.trim() || create.isPending} onClick={handleCreate}>
-          {create.isPending ? "Creating…" : "Create key"}
-        </Button>
-      </div>
+      {/* The gate is stated before the form, not after the request fails. */}
+      {!unlocked ? (
+        <UpgradeNotice what="API keys" />
+      ) : (
+        <div className="mt-4 flex gap-2">
+          <Input
+            placeholder="Key name, e.g. Zapier"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="max-w-xs"
+          />
+          <Button disabled={!name.trim() || create.isPending} onClick={handleCreate}>
+            {create.isPending ? "Creating…" : "Create key"}
+          </Button>
+        </div>
+      )}
       {create.isError && (
         <p className="mt-2 text-sm text-destructive">
           {create.error instanceof Error ? create.error.message : "Could not create the key."}

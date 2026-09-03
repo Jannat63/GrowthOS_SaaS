@@ -10,11 +10,20 @@ export async function getSessionUser(request: FastifyRequest): Promise<AuthUser 
     headers: fromNodeHeaders(request.headers),
   })
   if (!session) return null
+  // `platformRole` and `phone` are Better Auth additionalFields, so they ride on the session user
+  // but are not in its base type — hence the cast. Without carrying them here, /auth/me cannot tell
+  // the client whether the person signing in is staff.
+  const extra = session.user as typeof session.user & {
+    platformRole?: string | null
+    phone?: string | null
+  }
   return {
     id: session.user.id,
     email: session.user.email,
     name: session.user.name,
     image: session.user.image ?? null,
+    platformRole: (extra.platformRole as AuthUser['platformRole']) ?? null,
+    phone: extra.phone ?? null,
   }
 }
 
