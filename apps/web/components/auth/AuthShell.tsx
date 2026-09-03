@@ -15,7 +15,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Brand panel */}
       <aside className="relative hidden overflow-hidden bg-ink p-12 text-ink-foreground lg:flex lg:flex-col lg:justify-between">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-primary/30 blur-3xl" />
+        <span aria-hidden="true" className="ambient-glow -right-24 -top-24 h-80 w-80 bg-primary/30" />
         <Link href="/" className="relative flex items-center gap-2.5">
           <LogoMark className="h-8 w-8" />
           <span className="font-display text-lg font-semibold tracking-tight">

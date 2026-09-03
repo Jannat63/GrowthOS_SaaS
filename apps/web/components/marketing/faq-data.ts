@@ -46,6 +46,18 @@ export const FAQ: FaqItem[] = [
     a: "The 14-day trial runs on Growth-tier features and does not ask for a card. When it ends, your data stays where it is and the workspace becomes read-only until you pick a plan. Nothing is deleted, and nothing is charged automatically.",
   },
   {
+    q: "Is there an API?",
+    a: "Yes, on the Scale plan — a Bearer-key-authenticated REST API with an OpenAPI document, for pulling GrowthOS data into your own tools or dashboards. Keys are created and revoked from Settings → Developer.",
+  },
+  {
+    q: "Can I cancel or change plans at any time?",
+    a: "Yes, from Settings → Billing. Plan changes take effect at the start of the next billing period unless checkout says otherwise, and you can cancel whenever you like.",
+  },
+  {
+    q: "What happens to my data if I cancel?",
+    a: "It stays put. Your account and connected-platform data are retained after cancellation in case you come back — see the Privacy Policy for the retention period, or ask us and we will delete it sooner.",
+  },
+  {
     q: "Where does my data live?",
     a: "In managed Postgres for account data and a separate analytics store for time-series metrics. Platform tokens are encrypted at rest, connections use read-only scopes, and you can revoke any connection from the settings page — which deletes the stored token immediately.",
   },

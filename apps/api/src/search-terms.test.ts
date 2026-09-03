@@ -17,9 +17,22 @@ describe('paid-to-organic', () => {
   })
 
   it('scores search terms', () => {
-    const terms = getScoredSearchTerms()
+    const terms = getScoredSearchTerms(ws)
     expect(terms.length).toBeGreaterThan(0)
     expect(terms.some((t) => t.recommendationType === 'paid-proven-organic-needed')).toBe(true)
+  })
+
+  it('varies numbers by workspace (not the same fixture for everyone) but keeps them deterministic', () => {
+    const a1 = getScoredSearchTerms('workspace-aaa')
+    const a2 = getScoredSearchTerms('workspace-aaa')
+    const b = getScoredSearchTerms('workspace-bbb')
+
+    expect(a1).toEqual(a2) // same workspace, same call twice -> identical (deterministic)
+    expect(a1).not.toEqual(b) // different workspace -> different numbers
+    // The categorical signal (does this term rank organically at all?) must NOT drift with the
+    // workspace — only the performance numbers are sample-varied, not the recommendation logic.
+    expect(a1.map((t) => t.organicPosition)).toEqual(b.map((t) => t.organicPosition))
+    expect(a1.map((t) => t.term)).toEqual(b.map((t) => t.term))
   })
 
   it('generates paid_to_organic recs + briefs, idempotently', async () => {

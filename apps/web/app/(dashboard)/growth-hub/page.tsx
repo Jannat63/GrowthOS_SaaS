@@ -39,6 +39,8 @@ import { useConnections } from "@/lib/hooks/useConnections";
 import { platformToChannel, type ChannelKey } from "@/components/dashboard/channels";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
+import { ScoreGauge, computeGrowthScore } from "@/components/dashboard/ScoreGauge";
+import { severityFromScore } from "@/components/dashboard/severity";
 import { GoalSimulator } from "@/components/dashboard/GoalSimulator";
 import { DateRangePicker } from "@/components/dashboard/DateRangePicker";
 import { useRangeStore } from "@/lib/stores/range";
@@ -129,6 +131,26 @@ export default function GrowthHubPage() {
   // already shows — so the page displayed one value in three places: the total, the breakdown
   // row, and a headline tile that looked like an independent metric.
 
+  // Growth score inputs. Self-referential by construction — this workspace against its own
+  // trend, never a percentile against other businesses, because no peer dataset exists behind
+  // this app to back that kind of claim.
+  const highUrgencyPending = pending.filter(
+    (r) => severityFromScore(r.urgencyScore) === "High"
+  ).length;
+  const trend = mer?.data.trend ?? [];
+  const merTrendPct =
+    trend.length >= 2 && trend[0]!.mer > 0
+      ? ((trend[trend.length - 1]!.mer - trend[0]!.mer) / trend[0]!.mer) * 100
+      : null;
+  const growthScore =
+    recs && mer
+      ? computeGrowthScore({
+          merTrendPct,
+          atRiskCreatives: countByType("fatigue_alert"),
+          highUrgencyPending,
+        })
+      : null;
+
   const connectedKeys = new Set(
     (conn?.data ?? [])
       .filter((c) => c.isActive)
@@ -155,6 +177,26 @@ export default function GrowthHubPage() {
           {recs && <DataSourceBadge source={recs.source} platform={MODULE_PLATFORMS.crossChannel} />}
         </div>
       </div>
+
+      {/* Growth score — a composite of this workspace's own signals (MER trend, creative health,
+          open priority load). Sits above the tiles because it is the one figure that answers
+          "how are we doing" without reading the rest of the page. */}
+      <Card className="relative overflow-hidden p-6">
+        <span aria-hidden="true" className="ambient-glow -right-10 -top-16 h-64 w-64 bg-primary/20" />
+        <div className="glass-surface relative rounded-xl p-5">
+          {growthScore !== null ? (
+            <ScoreGauge score={growthScore} />
+          ) : (
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-[120px] w-[120px] rounded-full" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-48" />
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
 
       {conn && connectedKeys.size === 0 && (
         <ChannelStrip connectedKeys={connectedKeys} channelMetric={hub?.data.channelMetric} prominent />

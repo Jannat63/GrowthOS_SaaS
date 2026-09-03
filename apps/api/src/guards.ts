@@ -25,6 +25,40 @@ export function rankOf(role: string): number {
 }
 
 /**
+ * Super Admin panel — platform-wide roles, entirely separate from the workspace-scoped Role above.
+ * A platform admin isn't a member of every workspace; this bypasses workspace membership checks
+ * by design (that's the point of the panel), so it's kept as its own small rank system rather than
+ * folded into ROLE_RANK. See docs/growthos-modular-packages-and-admin.md §3 for the design.
+ */
+export type PlatformRole = 'support_agent' | 'super_admin'
+
+const PLATFORM_ROLE_RANK: Record<PlatformRole, number> = {
+  support_agent: 1,
+  super_admin: 2,
+}
+
+/**
+ * Assert the user holds at least `minRole` platform-wide. Throws FORBIDDEN (403) otherwise.
+ * Does NOT check workspace membership — by design, a platform admin can act on any workspace.
+ * Every call site should immediately follow a successful check with `logAdminAction` (see
+ * apps/api/src/admin-audit.ts) — this function only gates access, it doesn't log on its own,
+ * so the caller can record the actual target/action rather than a generic "checked access" row.
+ */
+export async function requirePlatformRole(userId: string, minRole: PlatformRole): Promise<PlatformRole> {
+  const [row] = await db
+    .select({ platformRole: schema.user.platformRole })
+    .from(schema.user)
+    .where(eq(schema.user.id, userId))
+    .limit(1)
+
+  const role = row?.platformRole as PlatformRole | null | undefined
+  if (!role || PLATFORM_ROLE_RANK[role] < PLATFORM_ROLE_RANK[minRole]) {
+    throw new AppError('FORBIDDEN', `This requires ${minRole === 'super_admin' ? 'Super Admin' : 'admin'} access.`)
+  }
+  return role
+}
+
+/**
  * App-layer workspace isolation (D1): assert the user is a member of the workspace, optionally with
  * at least `minRole`. Throws FORBIDDEN (403) otherwise. Returns the membership row.
  */

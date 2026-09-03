@@ -1,5 +1,5 @@
 from typing import Any, Awaitable, Callable
-from app.handlers import echo, onboarding
+from app.handlers import echo, onboarding, site_audit
 
 Handler = Callable[..., Awaitable[dict[str, Any]]]
 
@@ -16,6 +16,7 @@ async def _echo(payload: dict[str, Any], job_id: str, workspace_id: str) -> dict
 HANDLERS: dict[str, Handler] = {
     "echo": _echo,
     "onboarding_analyze": onboarding.handle,
+    "site_audit": site_audit.handle,
 }
 
 

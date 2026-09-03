@@ -12,6 +12,11 @@ export const ERROR_STATUS = {
   INTEGRATION_NOT_CONNECTED: 409,
   RATE_LIMITED: 429,
   JOB_QUEUED: 202,
+  // A real third-party service (e.g. Google PageSpeed Insights) was reachable but failed or
+  // errored — distinct from INTERNAL_ERROR (our own bug) and INTEGRATION_NOT_CONNECTED (nothing
+  // was even configured). 502 Bad Gateway: this server, acting as a gateway, got an invalid
+  // response from the upstream server it was calling.
+  UPSTREAM_ERROR: 502,
   INTERNAL_ERROR: 500,
 } as const;
 
@@ -317,6 +322,61 @@ export interface InternalLinkRecommendationsResponse {
   summary: { opportunities: number; highPriority: number };
 }
 
+// Site audit (SEO extras — M4, real feature). A genuine crawl over real HTTP, run as a background
+// job (apps/worker's `site_audit` handler) since it can take a while against a real domain. No
+// third-party API — this is GrowthOS's own crawler, restored from the pre-rebuild implementation.
+export interface SiteAuditPageResult {
+  url: string;
+  statusCode: number | null;
+  title: string | null;
+  metaDescription: string | null;
+  h1Count: number;
+  wordCount: number;
+  hasCanonical: boolean;
+  internalLinks: string[];
+  issues: string[];
+}
+export interface SiteAuditResult {
+  startUrl: string;
+  pagesCrawled: number;
+  totalIssues: number;
+  healthyPages: number;
+  pages: SiteAuditPageResult[];
+}
+export interface SiteAuditStatusResponse {
+  jobId: string;
+  status: JobStatus;
+  progress: number;
+  result?: SiteAuditResult;
+  error?: string;
+}
+
+// Core Web Vitals (SEO extras, real feature) — a direct, synchronous call to Google's PageSpeed
+// Insights API (see apps/api/src/core-web-vitals.ts). Real field/lab data, not seeded.
+export interface CoreWebVitalsResponse {
+  url: string;
+  strategy: "mobile" | "desktop";
+  performanceScore: number | null;
+  lcpMs: number | null;
+  clsScore: number | null;
+  inpMs: number | null;
+  ttfbMs: number | null;
+  fetchedAt: string;
+}
+
+// Keyword clustering (SEO extras, real feature) — a pure Jaccard-similarity algorithm
+// (@growthos/logic's clusterKeywords) run over this workspace's already-tracked keywords. Real
+// whenever the tracked keywords themselves are real (a live Search Console sync); same-shaped
+// sample output otherwise, per the usual three-state provenance rule.
+export interface KeywordClusterGroup {
+  clusterName: string;
+  keywords: string[];
+}
+export interface KeywordClustersResponse {
+  clusters: KeywordClusterGroup[];
+  totalKeywords: number;
+}
+
 // An entry in a workspace's audit log (M3 P3.5).
 export interface AuditLogEntry {
   id: string;
@@ -614,7 +674,64 @@ export interface ScoredCreative {
 
 // ── Billing (M5 P5.1) ─────────────────────────────────────────────────────────
 
+// Super Admin panel — platform-wide administration, entirely separate from workspace-scoped Role.
+// See apps/api/src/admin.ts / docs/growthos-modular-packages-and-admin.md §3 for the design.
+export type PlatformRole = "support_agent" | "super_admin";
+
 export type Plan = "starter" | "growth" | "scale";
+
+export interface AdminWorkspaceSummary {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  subscriptionStatus: string;
+  memberCount: number;
+  connectedPlatformCount: number;
+  createdAt: string;
+}
+export interface AdminWorkspaceDetail {
+  id: string;
+  name: string;
+  slug: string;
+  websiteUrl: string | null;
+  createdAt: string;
+  subscription: {
+    plan: Plan;
+    status: SubscriptionStatus;
+    trialEndsAt: string | null;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    cancelAt: string | null;
+  };
+  members: { userId: string; name: string; email: string; role: string }[];
+  connections: { platform: string; accountName: string | null; isActive: boolean | null; lastSyncedAt: string | null }[];
+}
+export interface AdminUserSummary {
+  id: string;
+  name: string;
+  email: string;
+  platformRole: string | null;
+  workspaceCount: number;
+  createdAt: string;
+}
+export interface PlatformHealth {
+  totalWorkspaces: number;
+  totalUsers: number;
+  workspacesByPlan: { plan: string; count: number }[];
+  trialsEndingSoonCount: number;
+}
+export interface AdminAuditLogEntry {
+  id: string;
+  actorUserId: string;
+  actorName: string | null;
+  actorEmail: string | null;
+  action: string;
+  targetType: string;
+  targetId: string;
+  metadata: unknown;
+  createdAt: string;
+}
 
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled";
 

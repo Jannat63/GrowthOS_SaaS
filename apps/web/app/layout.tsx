@@ -28,22 +28,44 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+// Read from the environment for the same reason robots.ts and sitemap.ts do: a preview deployment
+// that hardcodes the production origin emits canonical URLs pointing at production.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://growthos.app";
+const SITE_NAME = "GrowthOS";
+const TITLE = "GrowthOS — SEO, Google Ads and Meta Ads on one exchange";
+const DESCRIPTION =
+  "Most teams run SEO, Google Ads, and Meta in three tabs that disagree. GrowthOS connects them with six working bridges, so a win in one channel becomes the next move in another.";
+const SOCIAL_DESCRIPTION =
+  "Six bridges between your three channels. A converting search term becomes a content brief; a fatiguing hook becomes next week's article.";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://growthos.app"),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "GrowthOS — SEO, Google Ads and Meta Ads on one exchange",
-    template: "%s · GrowthOS",
+    default: TITLE,
+    // Every page below sets its own short `title` and gets " · GrowthOS" appended automatically,
+    // rather than every browser tab and search result sharing one identical title.
+    template: `%s · ${SITE_NAME}`,
   },
-  description:
-    "Most teams run SEO, Google Ads, and Meta in three tabs that disagree. GrowthOS connects them with six working bridges, so a win in one channel becomes the next move in another.",
+  description: DESCRIPTION,
   openGraph: {
     type: "website",
-    siteName: "GrowthOS",
-    title: "GrowthOS — SEO, Google Ads and Meta Ads on one exchange",
-    description:
-      "Six bridges between your three channels. A converting search term becomes a content brief; a fatiguing hook becomes next week's article.",
+    siteName: SITE_NAME,
+    title: TITLE,
+    description: SOCIAL_DESCRIPTION,
+    url: SITE_URL,
   },
-  twitter: { card: "summary_large_image" },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: SOCIAL_DESCRIPTION,
+  },
+  robots: {
+    // The marketing site should be indexed; the authenticated app routes have nothing for a
+    // crawler to index anyway, and robots.ts disallows them explicitly, so indexing is a safe
+    // platform-wide default rather than something each route has to opt into.
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

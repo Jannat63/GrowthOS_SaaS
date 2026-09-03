@@ -12,8 +12,10 @@ import { KeywordClusters } from "@/components/seo/KeywordClusters";
 import { OrganicTraffic } from "@/components/seo/OrganicTraffic";
 import { SchemaMarkupGenerator } from "@/components/seo/SchemaMarkupGenerator";
 import { InternalLinkOptimizer } from "@/components/seo/InternalLinkOptimizer";
+import { SiteAuditPanel } from "@/components/seo/SiteAuditPanel";
+import { CoreWebVitalsCard } from "@/components/seo/CoreWebVitalsCard";
 
-const TABS = ["rankings", "clusters", "traffic", "schema", "links"] as const;
+const TABS = ["rankings", "clusters", "traffic", "audit", "schema", "links"] as const;
 type Tab = (typeof TABS)[number];
 
 function SeoTabs() {
@@ -73,10 +75,11 @@ function SeoTabs() {
           <TabsTrigger value="rankings">Rank tracker</TabsTrigger>
           <TabsTrigger value="clusters">Clusters</TabsTrigger>
           <TabsTrigger value="traffic">Organic traffic</TabsTrigger>
+          <TabsTrigger value="audit">Site audit</TabsTrigger>
           <TabsTrigger value="schema">Schema markup</TabsTrigger>
           <TabsTrigger value="links">Internal links</TabsTrigger>
         </TabsList>
-        <TabsContent value="rankings">
+        <TabsContent value="rankings" className="space-y-6">
           <RankTracker workspaceId={workspaceId} />
         </TabsContent>
         <TabsContent value="clusters">
@@ -84,6 +87,10 @@ function SeoTabs() {
         </TabsContent>
         <TabsContent value="traffic">
           <OrganicTraffic workspaceId={workspaceId} />
+        </TabsContent>
+        <TabsContent value="audit" className="space-y-6">
+          <SiteAuditPanel workspaceId={workspaceId} />
+          <CoreWebVitalsCard workspaceId={workspaceId} />
         </TabsContent>
         <TabsContent value="schema">
           <SchemaMarkupGenerator workspaceId={workspaceId} />

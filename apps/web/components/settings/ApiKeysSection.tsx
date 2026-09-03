@@ -7,6 +7,7 @@ import { Button } from "@growthos/ui/components/button";
 import { Input } from "@growthos/ui/components/input";
 import { Skeleton } from "@growthos/ui/components/skeleton";
 import { useApiKeys, useCreateApiKey, useRevokeApiKey } from "@/lib/hooks/useApiKeys";
+import { API_URL } from "@/lib/api/client";
 import { UpgradeNotice, useApiAccess } from "./PlanGate";
 
 export function ApiKeysSection({ workspaceId }: { workspaceId: string | null }) {
@@ -43,7 +44,7 @@ export function ApiKeysSection({ workspaceId }: { workspaceId: string | null }) 
       <p className="mt-1 text-sm text-muted-foreground">
         Read access to your recommendations, keyword rankings, and weekly report from your own
         scripts or tools like Zapier.{" "}
-        <a href="/api/public/v1/docs" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">
+        <a href={`${API_URL}/api/public/v1/docs`} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">
           View API docs
         </a>
         .

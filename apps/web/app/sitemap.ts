@@ -11,8 +11,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE}/faq`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${SITE}/about`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE}/security`, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${SITE}/sign-up`, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${SITE}/sign-in`, changeFrequency: "monthly", priority: 0.3 },
     { url: `${SITE}/privacy`, changeFrequency: "yearly", priority: 0.3 },
     { url: `${SITE}/terms`, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${SITE}/cookies`, changeFrequency: "yearly", priority: 0.3 },
   ];
 
   const posts: MetadataRoute.Sitemap = getAllPosts().map((p) => ({

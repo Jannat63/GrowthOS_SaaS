@@ -6,14 +6,49 @@ import type {
   RecommendationStatus,
   ScoredSearchTerm,
 } from '@growthos/types'
-import { analyzeSearchTerms, generateContentBrief, paidToOrganicRecommendation } from '@growthos/logic'
+import {
+  analyzeSearchTerms,
+  generateContentBrief,
+  paidToOrganicRecommendation,
+  type SearchTerm,
+} from '@growthos/logic'
 import { searchTerms } from '@growthos/logic/fixtures'
 import { publish } from './ws.js'
 import type { Page, Paged } from './pagination.js'
 
-// Scored search terms (seeded fixtures run through the canonical bridge engine).
-export function getScoredSearchTerms(): ScoredSearchTerm[] {
-  return analyzeSearchTerms(searchTerms).map((t) => ({
+// Real Google Ads search-term data needs the live Ads sync (gated on a developer-token approval —
+// see GO_LIVE_CHECKLIST.md §2, not built yet). Until then this is sample data — and it's now at
+// least workspace-varied sample data rather than the same five numbers for every workspace on
+// earth, which is the concrete bug this fixes (docs/AUDIT-2026-08-13-codebase.md #6). Same
+// deterministic-per-workspace-seed approach as seo.ts's seedRows; this doesn't make the data real,
+// it just stops two different workspaces from seeing byte-identical "coincidences".
+function workspaceSeed(workspaceId: string): number {
+  let h = 0
+  for (let i = 0; i < workspaceId.length; i++) {
+    h = (h * 31 + workspaceId.charCodeAt(i)) >>> 0
+  }
+  return h
+}
+
+function varyForWorkspace(terms: SearchTerm[], workspaceId: string): SearchTerm[] {
+  const seed = workspaceSeed(workspaceId)
+  // `term` and `organicPosition` are left untouched: they drive analyzeSearchTerms' categorical
+  // read (e.g. "no organic presence at all" vs. "ranks at #6"), which is the demo's narrative
+  // intent, not a number that should drift. Only the performance metrics vary.
+  return terms.map((t, i) => {
+    const factor = 0.75 + ((seed >>> (i * 4)) % 61) / 100 // deterministic, in [0.75, 1.35]
+    return {
+      ...t,
+      clicks: Math.round(t.clicks * factor),
+      conversions: Math.round(t.conversions * factor),
+      cost: Math.round(t.cost * factor * 100) / 100,
+    }
+  })
+}
+
+// Scored search terms (workspace-varied fixtures run through the canonical bridge engine).
+export function getScoredSearchTerms(workspaceId: string): ScoredSearchTerm[] {
+  return analyzeSearchTerms(varyForWorkspace(searchTerms, workspaceId)).map((t) => ({
     term: t.term,
     clicks: t.clicks,
     conversions: t.conversions,
@@ -39,7 +74,7 @@ export async function ensurePaidToOrganic(workspaceId: string): Promise<void> {
     )
   if (existing.length > 0) return
 
-  const flagged = analyzeSearchTerms(searchTerms).filter(
+  const flagged = analyzeSearchTerms(varyForWorkspace(searchTerms, workspaceId)).filter(
     (t) => t.recommendation.type === 'paid-proven-organic-needed',
   )
   if (flagged.length === 0) return

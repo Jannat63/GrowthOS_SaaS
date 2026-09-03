@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
+
 const LAST_UPDATED = "[DATE — set when this is reviewed and published]";
+
+export const metadata: Metadata = {
+  title: "Terms of Service",
+  description: "The terms governing use of GrowthOS.",
+};
 
 export default function TermsPage() {
   return (

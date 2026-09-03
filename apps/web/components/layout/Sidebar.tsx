@@ -31,19 +31,49 @@ import { LogoMark } from "@/components/brand/LogoMark";
 const INK_ICON_BTN =
   "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground focus-visible:ring-primary/60 focus-visible:ring-offset-0";
 
-const NAV = [
-  { href: "/growth-hub", label: "Growth Hub", icon: LayoutDashboard, ready: true },
-  { href: "/intelligence", label: "Intelligence", icon: BrainCircuit, ready: true },
-  { href: "/recommendations", label: "Recommendations", icon: Sparkles, ready: true },
-  { href: "/content-pipeline", label: "Content Pipeline", icon: FileText, ready: true },
-  { href: "/creative-queue", label: "Creative Queue", icon: Megaphone, ready: true },
-  { href: "/fatigue-monitor", label: "Creative Fatigue", icon: Flame, ready: true },
-  { href: "/seo", label: "SEO", icon: Search, ready: true },
-  { href: "/google-ads", label: "Google Ads", icon: MousePointerClick, ready: true },
-  { href: "/meta-ads", label: "Meta Ads", icon: Megaphone, ready: true },
-  { href: "/analytics", label: "Analytics", icon: BarChart3, ready: true },
-  { href: "/attribution", label: "Attribution", icon: GitBranch, ready: true },
-  { href: "/automation", label: "Automation", icon: Bot, ready: true },
+export type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; ready: boolean };
+export type NavGroup = { label: string | null; items: NavItem[] };
+
+// Ungrouped items (label: null) render at the top with no section header — the loop's core
+// surfaces. Everything else is grouped to match the product's actual shape rather than a flat list.
+// Exported so MobileNav renders the identical structure below `md` rather than a second,
+// hand-maintained copy that could drift from this one.
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { href: "/growth-hub", label: "Growth Hub", icon: LayoutDashboard, ready: true },
+      { href: "/intelligence", label: "Intelligence", icon: BrainCircuit, ready: true },
+      { href: "/recommendations", label: "Recommendations", icon: Sparkles, ready: true },
+    ],
+  },
+  {
+    label: "Channels",
+    items: [
+      { href: "/content-pipeline", label: "Content", icon: FileText, ready: true },
+      { href: "/seo", label: "SEO", icon: Search, ready: true },
+      { href: "/google-ads", label: "Google Ads", icon: MousePointerClick, ready: true },
+      { href: "/meta-ads", label: "Meta Ads", icon: Megaphone, ready: true },
+    ],
+  },
+  {
+    label: "Creative",
+    items: [
+      { href: "/creative-queue", label: "Creative Queue", icon: Megaphone, ready: true },
+      { href: "/fatigue-monitor", label: "Creative Fatigue", icon: Flame, ready: true },
+    ],
+  },
+  {
+    label: "Analytics",
+    items: [
+      { href: "/analytics", label: "Analytics", icon: BarChart3, ready: true },
+      { href: "/attribution", label: "Attribution", icon: GitBranch, ready: true },
+    ],
+  },
+  {
+    label: "System",
+    items: [{ href: "/automation", label: "Automation", icon: Bot, ready: true }],
+  },
 ];
 
 export function Sidebar() {
@@ -68,13 +98,25 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-ink-border bg-ink text-ink-foreground transition-[width] duration-200 ease-out md:flex",
+        "glass-ink sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-ink-border text-ink-foreground transition-[width] duration-200 ease-out md:flex",
         collapsed ? "w-16" : "w-60"
       )}
     >
+      {/* Ambient glow the frosted rail sits over — decorative, so it's aria-hidden and skipped by reduced-motion via .ambient-glow */}
+      <span
+        aria-hidden="true"
+        className="ambient-glow -left-10 top-24 h-56 w-56 bg-primary/30"
+      />
+      <span
+        aria-hidden="true"
+        className="ambient-glow -right-16 bottom-10 h-64 w-64 bg-warning/10"
+      />
+      {/* Everything visible stacks in its own layer above the glow (positioned elements paint
+          after static ones, so without this the blurred glow would sit on top of the nav text). */}
+      <div className="relative z-10 flex h-full flex-col">
       <div
         className={cn(
-          "flex h-16 items-center",
+          "flex h-16 shrink-0 items-center",
           collapsed ? "justify-center px-0" : "justify-between px-5"
         )}
       >
@@ -128,62 +170,76 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-4">
-        {NAV.map(({ href, label, icon: Icon, ready }) => {
-          const active = ready && pathname === href;
-          const base =
-            "group relative flex items-center rounded-lg py-2 text-sm font-medium transition-colors";
-          const spacing = collapsed ? "justify-center px-0" : "gap-3 px-3";
-          if (!ready) {
-            return (
-              <span
-                key={label}
-                title={label + " — coming soon"}
-                className={cn(base, spacing, "cursor-default text-ink-muted/50")}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!collapsed && (
-                  <>
-                    {label}
-                    <span className="ml-auto rounded-full bg-ink-2 px-1.5 py-0.5 text-[0.6rem] font-medium uppercase tracking-wide text-ink-muted/70">
-                      Soon
+      <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4">
+        {NAV_GROUPS.map((group, gi) => (
+          <div key={group.label ?? `group-${gi}`} className={gi > 0 ? "pt-2" : undefined}>
+            {group.label && !collapsed && (
+              <p className="px-3 pb-1.5 text-[0.65rem] font-semibold uppercase tracking-wider text-ink-muted/60">
+                {group.label}
+              </p>
+            )}
+            {group.label && collapsed && (
+              <div className="mx-3 mb-2 border-t border-ink-border" aria-hidden="true" />
+            )}
+            <div className="space-y-1">
+              {group.items.map(({ href, label, icon: Icon, ready }) => {
+                const active = ready && pathname === href;
+                const base =
+                  "group relative flex items-center rounded-lg py-2 text-sm font-medium transition-colors";
+                const spacing = collapsed ? "justify-center px-0" : "gap-3 px-3";
+                if (!ready) {
+                  return (
+                    <span
+                      key={label}
+                      title={label + " — coming soon"}
+                      className={cn(base, spacing, "cursor-default text-ink-muted/50")}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {!collapsed && (
+                        <>
+                          {label}
+                          <span className="ml-auto rounded-full bg-ink-2 px-1.5 py-0.5 text-[0.6rem] font-medium uppercase tracking-wide text-ink-muted/70">
+                            Soon
+                          </span>
+                        </>
+                      )}
                     </span>
-                  </>
-                )}
-              </span>
-            );
-          }
-          return (
-            <Link
-              key={label}
-              href={href}
-              title={collapsed ? label : undefined}
-              className={cn(
-                base,
-                spacing,
-                active
-                  ? "bg-ink-2 text-ink-foreground"
-                  : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
-              )}
-            >
-              {active && (
-                <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary" />
-              )}
-              <Icon
-                className={cn(
-                  "h-4 w-4 shrink-0 transition-colors",
-                  active
-                    ? "text-primary"
-                    : "text-ink-muted group-hover:text-ink-foreground"
-                )}
-              />
-              {!collapsed && label}
-            </Link>
-          );
-        })}
+                  );
+                }
+                return (
+                  <Link
+                    key={label}
+                    href={href}
+                    title={collapsed ? label : undefined}
+                    className={cn(
+                      base,
+                      spacing,
+                      active
+                        ? "bg-ink-2 text-ink-foreground"
+                        : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
+                    )}
+                  >
+                    {active && (
+                      <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary" />
+                    )}
+                    <Icon
+                      className={cn(
+                        "h-4 w-4 shrink-0 transition-colors",
+                        active
+                          ? "text-primary"
+                          : "text-ink-muted group-hover:text-ink-foreground"
+                      )}
+                    />
+                    {!collapsed && label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
-      <div className="border-t border-ink-border px-3 py-4">
+      <div className="shrink-0 border-t border-ink-border px-3 py-4">
         <Link
           href="/settings"
           title={collapsed ? "Settings" : undefined}
@@ -198,6 +254,7 @@ export function Sidebar() {
           <Settings className="h-4 w-4 shrink-0" />
           {!collapsed && "Settings"}
         </Link>
+      </div>
       </div>
     </aside>
   );

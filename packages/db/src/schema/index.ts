@@ -29,3 +29,6 @@ export * from './automation.js';
 export * from './brand.js';
 // Creative variant experiments — the A/B log (M4 · P4.2a-3).
 export * from './experiments.js';
+// Super Admin panel — platform-wide admin audit log (cross-workspace; distinct from the
+// per-workspace audit_logs in ./audit.js).
+export * from './admin.js';
