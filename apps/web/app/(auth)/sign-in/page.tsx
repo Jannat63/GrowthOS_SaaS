@@ -11,6 +11,7 @@ import { api } from "@/lib/api/client";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@growthos/ui/components/button";
 import { Input } from "@growthos/ui/components/input";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 import { Label } from "@growthos/ui/components/label";
 
 function SignInForm() {
@@ -104,9 +105,8 @@ function SignInForm() {
               Forgot password?
             </Link>
           </div>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

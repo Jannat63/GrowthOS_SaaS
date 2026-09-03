@@ -10,6 +10,7 @@ import { trackEvent } from "@/lib/analytics";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@growthos/ui/components/button";
 import { Input } from "@growthos/ui/components/input";
+import { PasswordInput } from "@/components/auth/PasswordInput";
 import { Label } from "@growthos/ui/components/label";
 
 function SignUpForm() {
@@ -82,9 +83,8 @@ function SignUpForm() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

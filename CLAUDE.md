@@ -54,7 +54,7 @@ root (live). Reusing legacy logic means porting/copying it into the new structur
   skeleton shipped (P1.3)** in `src/routes/v1.ts`: `GET /api/v1/auth/me`, `POST/GET /workspaces`,
   `GET /workspaces/:id/connections`, behind the `requireWorkspaceMember(role)` guard (`src/guards.ts`) + typed
   error envelope (`src/errors.ts`). `app.ts` = routes/plugins (inject-able); `index.ts` = the `listen`
-  entrypoint. Dev runs via `tsx watch --env-file=.env`. The `/api/v1` surface has since grown well past the
+  entrypoint. Dev runs via `node --watch-path=./src --env-file=.env --import tsx` (see the dev-server gotchas below). The `/api/v1` surface has since grown well past the
   skeleton (SEO, Google/Meta Ads, intelligence, attribution, recommendations, audit, collaboration, branding
   — see `src/routes/v1.ts`).
 - `apps/web` — **rebuilt fresh** on Next 15 / React 19 / **Tailwind v4** / shadcn (the old carried-forward
@@ -113,12 +113,23 @@ pnpm --filter @growthos/web build  # next build (verifies all pages compile)
 
 ### Dev-server gotchas (each cost hours before it was pinned down)
 
-- **The API dev script must not use `tsx watch`.** Under `turbo dev` on Windows, `tsx watch` spawns a
-  grandchild to manage reloads and that spawn never survives turbo's stdio setup: the task prints its
-  command line and then hangs forever — no output, no listener, no error. `pnpm --filter @growthos/api dev`
-  masks it because it works fine outside turbo. The script is
-  `node --watch --env-file=.env --import tsx src/index.ts`, which reloads in-process and binds in ~2s.
-  Don't "restore" `tsx watch`.
+- **The API dev script is `node --watch-path=./src …` — not `tsx watch`, and not bare `node --watch`.**
+  Both alternatives fail, differently, and both look like the API "just hanging":
+  - `tsx watch` spawns a grandchild to manage reloads, and that spawn never survives turbo's stdio
+    setup: the task prints its command line and then hangs forever. Don't "restore" it. Anything
+    else that wraps the API in an extra process will hit the same wall — keep the process tree flat.
+  - Bare `node --watch` restart-loops and never binds. Measured standalone, with no turbo involved:
+    6 restarts in 45s and 0 successful binds, the restarts landing *during* module loading — a probe
+    that only imports `app.js` never reached its first `console.log`. A trivial one-line TS file
+    under the same flags is perfectly stable, so it is the size of the graph, not tsx or watch mode
+    as such. `--watch` registers every file it loads, tsx writes transpile cache into `%TEMP%`
+    while loading, and the writes restart the process before it finishes booting.
+    (`TSX_DISABLE_CACHE=1` cuts it from 6 restarts to 2 — so the cache is most of it, not all.)
+
+  `--watch-path=./src` fixes it by watching only source: 0 restarts, binds first time, and editing a
+  file under `src/` still reloads. **Caveat: `--watch-path` is macOS/Windows only** — on Linux it
+  throws `ERR_FEATURE_UNAVAILABLE_ON_PLATFORM`, so use plain `--watch` there (the loop above has not
+  been reproduced on Linux).
 - **The API logs `Server listening at http://127.0.0.1:3001` on success.** If `pnpm dev` shows the
   `@growthos/api:dev: $ …` line and nothing after it, the API is *not* up — that silence is the symptom,
   not normal behaviour. Confirm with `curl localhost:3001/health`: JSON means the API owns the port,
@@ -126,6 +137,11 @@ pnpm --filter @growthos/web build  # next build (verifies all pages compile)
   the second bind succeeds silently, so two processes can listen at once —
   `netstat -ano | grep ":3001"` showing two PIDs is the tell). Kill stale dev servers before restarting;
   overlapping `pnpm dev` runs are what turn this into a recurring mystery.
+- **`pnpm dev` preflights the ports and refuses to start if either is taken**
+  (`scripts/dev-preflight.mjs`), which is what stops the mystery above from recurring. It names the
+  port, the PID and the process holding it. If you bypass it, note that turbo drops the API's
+  `EADDRINUSE` line before the process dies — `index.ts` therefore also writes that error
+  synchronously to fd 2, because pino's async write is truncated by `process.exit()`.
 - **`pnpm build` and `pnpm dev` no longer share an output directory — keep it that way.**
   `apps/web/next.config.mjs` sets `distDir` to `.next-dev` in development and `.next` in production.
   They used to both write `.next`, so running a production build while the dev server was up corrupted
