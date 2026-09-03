@@ -10,10 +10,11 @@ import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
 import { Button } from "@growthos/ui/components/button";
 import { api } from "@/lib/api/client";
 import { useJob } from "@/lib/hooks/useJob";
+import { OnboardingSkeleton } from "@/components/auth/AuthFormSkeleton";
 
 export default function OnboardingCompletePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<OnboardingSkeleton step={4} />}>
       <OnboardingCompleteContent />
     </Suspense>
   );

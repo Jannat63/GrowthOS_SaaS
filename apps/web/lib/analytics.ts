@@ -11,11 +11,16 @@ import posthog from "posthog-js";
  *
  * Safe without configuration: every function below no-ops when `NEXT_PUBLIC_POSTHOG_KEY` isn't
  * set, matching the "gated but never crashes" pattern used for Stripe/Resend on the backend.
+ *
+ * Gated on consent as well as on configuration. `startAnalytics` is called from the consent
+ * layer and from nowhere else — it used to run on mount from Providers, which set PostHog's
+ * cookies before the visitor had been asked anything.
  */
 
 let initialized = false;
 
-export function initAnalytics(): void {
+/** Called once consent is granted. Never call it directly — go through the consent layer. */
+export function startAnalytics(): void {
   if (initialized || typeof window === "undefined") return;
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
   if (!key) return;
@@ -27,12 +32,27 @@ export function initAnalytics(): void {
   initialized = true;
 }
 
-export function trackEvent(name: string, properties?: Record<string, unknown>): void {
+/**
+ * Withdrawing consent after having given it.
+ *
+ * PostHog cannot be un-initialised, so this stops capture and drops the identity and the stored
+ * distinct id rather than pretending the SDK was never loaded. `initialized` stays true: a second
+ * `init` on the same page would re-enable capture, which is the opposite of what was asked.
+ */
+export function stopAnalytics(): void {
   if (!initialized) return;
+  posthog.opt_out_capturing();
+  posthog.reset();
+}
+
+export function trackEvent(name: string, properties?: Record<string, unknown>): void {
+  // `has_opted_out_capturing` is what makes a withdrawal stick for the rest of the page's life —
+  // `initialized` alone would still be true from before the visitor changed their mind.
+  if (!initialized || posthog.has_opted_out_capturing()) return;
   posthog.capture(name, properties);
 }
 
 export function identifyUser(userId: string, traits?: Record<string, unknown>): void {
-  if (!initialized) return;
+  if (!initialized || posthog.has_opted_out_capturing()) return;
   posthog.identify(userId, traits);
 }
