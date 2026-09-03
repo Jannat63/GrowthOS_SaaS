@@ -114,7 +114,7 @@ export default function AutomationPage() {
   const loading = pendingLoading || rulesLoading;
 
   return (
-    <div className="animate-rise space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight">Automation</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">

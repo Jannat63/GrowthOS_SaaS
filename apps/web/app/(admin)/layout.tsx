@@ -7,6 +7,7 @@ import { useAdminAccess } from "@/lib/hooks/useAdmin";
 import { useSession } from "@/lib/auth/client";
 import { AdminRail, AdminNavStrip } from "@/components/admin/AdminRail";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { PageTransition } from "@/components/PageTransition";
 import { OperatorMenu } from "@/components/admin/OperatorMenu";
 import {
   AdminCommandPalette,
@@ -170,7 +171,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             No max-width: the customer app centres its content because it is read; this is scanned
             across, and every column of a directory is width the operator asked for.
           */}
-          <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+          <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
+            <PageTransition>{children}</PageTransition>
+          </main>
         </div>
       </div>
 

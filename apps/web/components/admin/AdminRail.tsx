@@ -15,6 +15,7 @@ import {
 import { Button } from "@growthos/ui/components/button";
 import { cn } from "@/lib/utils/cn";
 import { useSidebarStore } from "@/lib/stores/sidebar";
+import { RailMarker } from "@/components/layout/RailMarker";
 
 /**
  * The console's rail — the same system as the customer dashboard's, deliberately.
@@ -119,7 +120,11 @@ export function AdminRail({ isSuperAdmin }: { isSuperAdmin: boolean }) {
         )}
       </div>
 
-      <nav aria-label="Console sections" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav aria-label="Console sections" className="relative flex-1 overflow-y-auto px-3 py-4">
+        {/* Same travelling bar as the dashboard rail. Its own wrapper for the sections, so the
+            out-of-flow marker cannot join the `space-y` run and push the first one down. */}
+        <RailMarker />
+        <div className="space-y-1">
         {sections.map(({ href, label, icon: Icon }) => {
           // Exact match only: /admin must not light up while you are on /admin/users.
           const active = pathname === href;
@@ -131,6 +136,7 @@ export function AdminRail({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               // Native title rather than a tooltip component: the dashboard rail does the same, and
               // the label is still in the DOM for a screen reader either way.
               title={collapsed ? label : undefined}
+              data-rail-active={active ? "true" : undefined}
               className={cn(
                 "group relative flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
                 collapsed ? "justify-center px-0" : "gap-3 px-3",
@@ -139,9 +145,6 @@ export function AdminRail({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                   : "text-ink-muted hover:bg-ink-2/60 hover:text-ink-foreground"
               )}
             >
-              {active && (
-                <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary" />
-              )}
               <Icon
                 className={cn(
                   "h-4 w-4 shrink-0 transition-colors",
@@ -154,15 +157,18 @@ export function AdminRail({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             </Link>
           );
         })}
+        </div>
       </nav>
 
       {/* The dashboard rail keeps Settings in a footer; this one keeps the console's own security
           page, which is the equivalent destination — the operator's own account rather than a
-          customer's. */}
-      <div className="shrink-0 border-t border-ink-border px-3 py-4">
+          customer's. Its own region, so its own marker. */}
+      <div className="relative shrink-0 border-t border-ink-border px-3 py-4">
+        <RailMarker />
         <Link
           href="/admin/security"
           title={collapsed ? "Two-factor" : undefined}
+          data-rail-active={pathname === "/admin/security" ? "true" : undefined}
           className={cn(
             "group flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
             collapsed ? "justify-center px-0" : "gap-3 px-3",

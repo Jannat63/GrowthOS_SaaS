@@ -76,7 +76,7 @@ export function OnboardingShell({
           })}
         </ol>
 
-        <div className="mt-10 animate-rise">{children}</div>
+        <div className="mt-10">{children}</div>
       </div>
     </div>
   );

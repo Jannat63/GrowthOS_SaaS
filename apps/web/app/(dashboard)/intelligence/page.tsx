@@ -84,7 +84,7 @@ export default function IntelligencePage() {
   const downloadPdf = useDownloadReportPdf(workspaceId);
 
   return (
-    <div className="animate-rise space-y-6">
+    <div className="space-y-6">
       <Masthead
         period={r?.period ?? null}
         weekStart={r?.weekStart}

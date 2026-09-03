@@ -72,7 +72,7 @@ function SettingsView() {
   const label = (id: SettingsPaneId) => ALL_PANES.find((p) => p.id === id)!.label;
 
   return (
-    <div className="animate-rise">
+    <>
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight">Workspace settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -126,7 +126,7 @@ function SettingsView() {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

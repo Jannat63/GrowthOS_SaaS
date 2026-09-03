@@ -98,7 +98,7 @@ export default function RecommendationsPage() {
   const truncated = recs ? recs.total > all.length : false;
 
   return (
-    <div className="animate-rise space-y-6">
+    <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight">

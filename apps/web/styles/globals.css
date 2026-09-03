@@ -21,6 +21,14 @@
 :root {
   --radius: 0.625rem;
 
+  /* Motion. One easing curve for the whole product: a fast start that decelerates
+     into place, so a move reads as something settling rather than sliding. The two
+     durations are the only ones a route change is allowed to spend — long enough to
+     be seen, short enough that navigation never feels like it is waiting on us. */
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-page: 200ms;
+  --motion-view: 240ms;
+
   --background: #fafaf9;
   --foreground: #0b0f14;
   --card: #ffffff;
@@ -334,23 +342,79 @@
     repeating-radial-gradient(circle at 50% 42%, transparent 0, transparent 78px, color-mix(in oklab, var(--primary) 6%, transparent) 79px, transparent 80px);
 }
 
-/* Reusable entrance for cards/sections */
-@keyframes rise-in {
+/* ─────────────────────────────────────────────────────────────────────────────
+   Route transitions
+
+   Applied once per navigation by <PageTransition>, at the shell, never by a page
+   on itself. Two variants, because two different things happen when you navigate:
+
+   • .page-enter — the app surfaces (dashboard, console). The rail and the header
+     hold their place and only the panel beside them is replaced, so the panel
+     comes off the rail you just clicked: 6px on the horizontal axis, the axis the
+     rail sits on. It does not drift upward, because nothing about this navigation
+     is vertical and a table that lifts while you are reading it is a distraction.
+
+   • .view-enter — the full-screen views (auth, onboarding, marketing sub-pages).
+     Here the whole screen is replaced rather than one panel, so the page settles
+     down into place on the axis it is read on.
+
+   Both are short and small on purpose. The predecessor was 500ms and 12px, ran on
+   every page's own root, and made a click feel like it was buffering. Motion that
+   answers a click has to finish before the person wonders whether it worked.
+   ───────────────────────────────────────────────────────────────────────────── */
+@keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translate3d(-6px, 0, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
-.animate-rise {
-  animation: rise-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+@keyframes view-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
+.page-enter {
+  animation: page-enter var(--motion-page) var(--ease-settle) both;
+}
+.view-enter {
+  animation: view-enter var(--motion-view) var(--ease-settle) both;
+}
+
+/* The ember edge on the active rail item, which travels between sections instead of
+   cutting. It is the one place the navigation raises its voice, so everything else
+   in the transition stays quiet. `top`/`height` rather than a transform: the bar is
+   two pixels wide and a scaled transform would blur its rounded ends.
+
+   The class is applied only once the marker already has a position — on first paint
+   there is nowhere for it to travel from, and a bar sliding down from the top of the
+   rail on every cold load would be motion answering nothing. */
+.rail-marker {
+  transition: opacity 200ms ease-out;
+}
+.rail-marker-move {
+  transition:
+    top var(--motion-view) var(--ease-settle),
+    height var(--motion-view) var(--ease-settle),
+    opacity 200ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .animate-rise {
+  .page-enter,
+  .view-enter {
     animation: none;
+  }
+  .rail-marker,
+  .rail-marker-move {
+    transition: none;
   }
 }
 

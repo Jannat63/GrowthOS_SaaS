@@ -58,7 +58,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           <ThemeToggle />
         </div>
         <div className="flex flex-1 items-center justify-center px-6 pb-12">
-          <div className="w-full max-w-sm animate-rise">{children}</div>
+          <div className="w-full max-w-sm">{children}</div>
         </div>
       </main>
     </div>

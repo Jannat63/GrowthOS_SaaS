@@ -28,7 +28,7 @@ export default function WelcomePage() {
       </header>
 
       <div className="flex flex-1 items-center justify-center px-6 pb-20">
-        <div className="w-full max-w-lg animate-rise rounded-2xl border bg-card p-10 text-center shadow-xl">
+        <div className="w-full max-w-lg rounded-2xl border bg-card p-10 text-center shadow-xl">
           <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground ring-8 ring-primary/10">
             <Repeat className="h-7 w-7" />
           </span>

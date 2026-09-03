@@ -65,7 +65,7 @@ export default function FatigueMonitorPage() {
   const needsAttention = creatives.filter((c) => c.status !== "healthy").length;
 
   return (
-    <div className="animate-rise space-y-6">
+    <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight">Creative Fatigue</h1>

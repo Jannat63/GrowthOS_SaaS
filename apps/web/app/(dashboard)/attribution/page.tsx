@@ -64,7 +64,7 @@ export default function AttributionPage() {
   const roles = useMemo(() => channelRoles(paths), [paths]);
 
   return (
-    <div className="animate-rise space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight">

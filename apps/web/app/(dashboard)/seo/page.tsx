@@ -55,7 +55,7 @@ function SeoTabs() {
   );
 
   return (
-    <div className="animate-rise space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight">SEO</h1>
         {/*
@@ -125,7 +125,7 @@ export default function SeoPage() {
 
 function SeoPageSkeleton() {
   return (
-    <div className="animate-rise space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight">SEO</h1>
         <p className="text-sm text-muted-foreground">

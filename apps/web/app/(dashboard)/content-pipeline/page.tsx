@@ -73,7 +73,7 @@ export default function ContentPipelinePage() {
   }));
 
   return (
-    <div className="animate-rise space-y-8">
+    <div className="space-y-8">
       <header>
         <h1 className="font-display text-2xl font-semibold tracking-tight">Content Pipeline</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">

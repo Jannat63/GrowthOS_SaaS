@@ -4,7 +4,7 @@ import { Logo } from "@/components/marketing/Logo";
 
 export default function NotFound() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
+    <main className="view-enter flex min-h-screen flex-col items-center justify-center px-6 text-center">
       <Logo />
       <p className="mt-12 font-mono text-[11px] tracking-[0.18em] text-primary">404</p>
       <h1 className="mt-4 font-display text-3xl font-bold tracking-tight sm:text-4xl">

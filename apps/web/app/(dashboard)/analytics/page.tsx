@@ -44,7 +44,7 @@ export default function AnalyticsPage() {
   const totalRevenue = d ? d.trend.reduce((s, t) => s + t.revenue, 0) : 0;
 
   return (
-    <div className="animate-rise space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight">Blended MER</h1>

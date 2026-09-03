@@ -98,7 +98,7 @@ export default function CreativeQueuePage() {
   const loading = !recs || !briefs;
 
   return (
-    <div className="animate-rise space-y-10">
+    <div className="space-y-10">
       {/*
         No channel eyebrow. An earlier pass put a "META CREATIVE" label here in `--channel-meta`,
         which added a second saturated hue beside the ember brand to say something the sidebar's
