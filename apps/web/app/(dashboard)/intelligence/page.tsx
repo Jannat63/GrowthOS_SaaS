@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowRight,
   ArrowUpRight,
   ChevronLeft,
@@ -224,47 +225,54 @@ function Masthead({
           <Freshness dataThrough={period?.to ?? null} />
         </div>
 
-        {/* The controls wrap among themselves rather than pushing the masthead around. The
-            stepper, the provenance badge and the button are ~310px together, which fits a 375px
-            phone only just — and the error below used to have no width limit at all, so a message
-            the length of "PDF rendering is unavailable in this environment (Puppeteer/Chromium
-            not installed)." set this column's width, forced the whole masthead to wrap, and left
-            the report's own title sitting above a paragraph of red text. */}
-        <div className="flex min-w-0 flex-col gap-2 sm:items-end">
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-            {canStep && (
-              <div className="mr-1 flex items-center rounded-md border">
-                <StepButton
-                  label="Previous week"
-                  disabled={!older}
-                  onClick={() => older && onWeek(older.weekStart)}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </StepButton>
-                <StepButton
-                  label="Next week"
-                  disabled={!newer}
-                  // Stepping back to the newest week clears the pin, so the report regenerates
-                  // rather than serving a snapshot of the week already in progress.
-                  onClick={() => newer && onWeek(index - 1 === 0 ? null : newer.weekStart)}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </StepButton>
-              </div>
-            )}
-            {source && <DataSourceBadge source={source} platform={MODULE_PLATFORMS.crossChannel} />}
-            <Button variant="outline" size="sm" disabled={downloading} onClick={onDownload}>
-              <FileDown className="h-3.5 w-3.5" />
-              {downloading ? "Generating…" : "Download PDF"}
-            </Button>
-          </div>
-          {downloadError && (
-            <p className="max-w-xs text-xs leading-relaxed text-destructive sm:text-right">
-              {downloadError}
-            </p>
+        {/* The controls wrap among themselves rather than pushing the masthead around: the
+            stepper, the provenance badge and the button come to ~310px, which fits a 375px phone
+            only just. Nothing else lives in here — see the note on the failure notice below. */}
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          {canStep && (
+            <div className="mr-1 flex items-center rounded-md border">
+              <StepButton
+                label="Previous week"
+                disabled={!older}
+                onClick={() => older && onWeek(older.weekStart)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </StepButton>
+              <StepButton
+                label="Next week"
+                disabled={!newer}
+                // Stepping back to the newest week clears the pin, so the report regenerates
+                // rather than serving a snapshot of the week already in progress.
+                onClick={() => newer && onWeek(index - 1 === 0 ? null : newer.weekStart)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </StepButton>
+            </div>
           )}
+          {source && <DataSourceBadge source={source} platform={MODULE_PLATFORMS.crossChannel} />}
+          <Button variant="outline" size="sm" disabled={downloading} onClick={onDownload}>
+            <FileDown className="h-3.5 w-3.5" />
+            {downloading ? "Generating…" : "Download PDF"}
+          </Button>
         </div>
       </div>
+
+      {/* A full-width notice on its own line, not a caption under the button.
+          It used to be the second child of the control column, so its own text set that column's
+          width — and a sentence the length of "PDF rendering is unavailable in this environment
+          (Puppeteer/Chromium not installed)." was wide enough to force the entire masthead to
+          wrap and strand the report's title above a block of red text. Down here it cannot
+          influence any column, it gets a readable measure instead of a ragged right-aligned
+          320px column, and `role="alert"` announces a failure the reader did not see happen. */}
+      {downloadError && (
+        <p
+          role="alert"
+          className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-destructive"
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="max-w-prose">{downloadError}</span>
+        </p>
+      )}
     </div>
   );
 }
