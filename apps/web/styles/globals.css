@@ -301,9 +301,22 @@
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
 }
+/* The ink rail's glass.
+   Built on an almost-opaque ink base rather than on transparency, because transparency is what
+   broke it: at the old 0.55 alpha the rail let 45% of the page through, which is invisible against
+   a dark backdrop and turned the whole rail into washed grey against a light one. Same CSS, two
+   completely different surfaces, and only one of them was ever looked at.
+   6% is enough to read as glass at the edges and far too little to tint. The rail is a full-height
+   sticky panel at the viewport edge, so almost nothing passes behind it anyway - the frost comes
+   from the sheen and the glow blobs above this base, not from what is behind it.
+   `border` is left to the element: the rail wants one edge, not four. */
 .glass-ink {
-  background: var(--glass-ink-bg);
-  border: 1px solid var(--glass-ink-border);
+  background-color: color-mix(in oklab, var(--ink) 94%, transparent);
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--ink-foreground) 6%, transparent),
+    transparent 32%
+  );
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
 }
@@ -314,7 +327,7 @@
     -webkit-backdrop-filter: none;
   }
   .glass-ink {
-    background: var(--ink-2);
+    background-color: var(--ink);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }

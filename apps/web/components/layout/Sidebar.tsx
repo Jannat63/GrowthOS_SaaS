@@ -99,11 +99,24 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-ink-border bg-ink text-ink-foreground transition-[width] duration-200 ease-out md:flex",
+        "glass-ink sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-ink-border text-ink-foreground transition-[width] duration-200 ease-out md:flex",
         collapsed ? "w-16" : "w-60"
       )}
     >
-      <div className="flex h-full flex-col">
+      {/* The depth in the glass. These sit *above* the rail's own background rather than behind it
+          - the base is 94% opaque now, so anything behind it would never show. Decorative only,
+          hence aria-hidden, and `.ambient-glow` already softens itself under reduced motion. */}
+      <span
+        aria-hidden="true"
+        className="ambient-glow -left-20 -top-16 h-56 w-56 bg-primary/25"
+      />
+      <span
+        aria-hidden="true"
+        className="ambient-glow -right-16 bottom-10 h-64 w-64 bg-warning/10"
+      />
+      {/* Content rides above the glows: positioned elements paint after static ones, so without
+          this the blurred blobs would sit on top of the nav text. */}
+      <div className="relative z-10 flex h-full flex-col">
       <div
         className={cn(
           "flex h-16 shrink-0 items-center",
