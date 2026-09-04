@@ -117,7 +117,7 @@ export default function IntelligencePage() {
           {/* ── The numbers ──────────────────────────────────────────────────
               Four figures, each with the same week a week earlier. Every one of these was a bare
               value before, which left the reader no way to answer "is this good?". */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <MetricTile
               label="Blended MER"
               value={`${r.blendedMer.value.toFixed(2)}x`}
@@ -205,7 +205,7 @@ function Masthead({
 
   return (
     <div className="border-b pb-5">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-x-6 sm:gap-y-3">
         <div className="min-w-0">
           <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
             {period ? (
@@ -224,8 +224,14 @@ function Masthead({
           <Freshness dataThrough={period?.to ?? null} />
         </div>
 
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-2">
+        {/* The controls wrap among themselves rather than pushing the masthead around. The
+            stepper, the provenance badge and the button are ~310px together, which fits a 375px
+            phone only just — and the error below used to have no width limit at all, so a message
+            the length of "PDF rendering is unavailable in this environment (Puppeteer/Chromium
+            not installed)." set this column's width, forced the whole masthead to wrap, and left
+            the report's own title sitting above a paragraph of red text. */}
+        <div className="flex min-w-0 flex-col gap-2 sm:items-end">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             {canStep && (
               <div className="mr-1 flex items-center rounded-md border">
                 <StepButton
@@ -252,7 +258,11 @@ function Masthead({
               {downloading ? "Generating…" : "Download PDF"}
             </Button>
           </div>
-          {downloadError && <p className="text-xs text-destructive">{downloadError}</p>}
+          {downloadError && (
+            <p className="max-w-xs text-xs leading-relaxed text-destructive sm:text-right">
+              {downloadError}
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -337,7 +347,7 @@ function MetricTile({
   neutral?: boolean;
 }) {
   return (
-    <Card className={cn("flex flex-col p-5", accent && "ring-1 ring-primary/15")}>
+    <Card className={cn("@container flex flex-col p-5", accent && "ring-1 ring-primary/15")}>
       <p
         className={cn(
           "text-xs font-medium uppercase tracking-wide",
@@ -346,7 +356,12 @@ function MetricTile({
       >
         {label}
       </p>
-      <p className="mt-2 font-display text-3xl font-semibold tabular-nums">{value}</p>
+      {/* Four across at `lg` leaves each tile ~130px of interior, which a six-figure currency
+          value at `text-3xl` overruns. Sized against the card the way the Growth Hub's tiles are,
+          because at four columns the viewport is wide and the tile is not. */}
+      <p className="mt-2 font-display text-2xl font-semibold tabular-nums @[11rem]:text-3xl">
+        {value}
+      </p>
       <div className="mt-1.5">
         <Delta metric={metric} neutral={neutral} />
       </div>
@@ -389,7 +404,7 @@ function TheMove({
             </p>
             <p className="mt-1 text-xs text-muted-foreground/80">{move.basis}</p>
           </div>
-          <Button asChild size="sm" variant="outline" className="shrink-0">
+          <Button asChild size="sm" variant="outline" className="w-full shrink-0 sm:w-auto">
             <Link href="/recommendations">
               Open the queue <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
@@ -411,28 +426,84 @@ function channelBarClass(slug: string): string {
   return "bg-muted-foreground";
 }
 
+/**
+ * An em dash, never "0" or "0.00x": these figures do not exist for a channel with no ad spend,
+ * and rendering them as zero ranks the cheapest channel a business has as its worst.
+ */
+const NONE = <span className="text-muted-foreground/50">&mdash;</span>;
+
+type ChannelFigure = {
+  key: string;
+  label: string;
+  /** The table head abbreviates to fit its column; the record below `md` has room for the word. */
+  recordLabel?: string;
+  value: (channel: ReportChannel) => React.ReactNode;
+};
+
+/**
+ * The four numeric columns, defined once.
+ *
+ * The header, the table row and the phone record all read this, so a channel's figures cannot say
+ * one thing in the table and another in the record — and the em-dash rule above, which is this
+ * page's oldest correctness fix, lives in exactly one place.
+ */
+const FIGURES: ChannelFigure[] = [
+  { key: "spend", label: "Spend", value: (c) => (c.paid !== false ? usd(c.spend) : NONE) },
+  { key: "revenue", label: "Revenue", value: (c) => usd(c.revenue) },
+  {
+    key: "conversions",
+    label: "Conv.",
+    recordLabel: "Conversions",
+    value: (c) =>
+      c.paid !== false && c.conversions ? c.conversions.toLocaleString("en-US") : NONE,
+  },
+  { key: "cpa", label: "CPA", value: (c) => (c.cpa === null ? NONE : usd(c.cpa)) },
+];
+
 function ChannelBreakdown({ channels }: { channels: ReportChannel[] }) {
   const showsEstimate = channels.some((c) => c.modelled);
+  const empty = "No channel data yet — connect a channel to populate your report.";
+
   return (
     <section className="space-y-3">
       <SectionHeading>Channel breakdown</SectionHeading>
-      <Card className="p-0">
+
+      {/* Below `md` the rows become records instead of a table you swipe.
+          Six numeric columns do not fit a phone, and the two usual escapes are both wrong for a
+          page that is also a client deliverable: horizontal scrolling puts Channel and ROAS on
+          opposite sides of the viewport, which is the one comparison the table exists to make,
+          and hiding columns leaves the reader unable to tell an omitted figure from a zero. A
+          record keeps all six and reads as what a row already is — a ledger entry. One Card with
+          `divide-y`, not three floating ones, because the table it replaces is a single object. */}
+      <Card className="divide-y md:hidden">
+        {channels.length === 0 ? (
+          <p className="p-8 text-center text-sm text-muted-foreground">{empty}</p>
+        ) : (
+          channels.map((c) => <ChannelRecord key={c.channel} channel={c} />)
+        )}
+      </Card>
+
+      <Card className="hidden p-0 md:block">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-[38%]">Channel</TableHead>
-              <TableHead className="text-right">Spend</TableHead>
-              <TableHead className="text-right">Revenue</TableHead>
-              <TableHead className="text-right">Conv.</TableHead>
-              <TableHead className="text-right">CPA</TableHead>
+              {FIGURES.map((f) => (
+                <TableHead key={f.key} className="text-right">
+                  {f.label}
+                </TableHead>
+              ))}
               <TableHead className="text-right">ROAS</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {channels.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                  No channel data yet — connect a channel to populate your report.
+                <TableCell
+                  colSpan={FIGURES.length + 2}
+                  className="py-8 text-center text-sm text-muted-foreground"
+                >
+                  {empty}
                 </TableCell>
               </TableRow>
             ) : (
@@ -441,6 +512,7 @@ function ChannelBreakdown({ channels }: { channels: ReportChannel[] }) {
           </TableBody>
         </Table>
       </Card>
+
       <p className="text-xs text-muted-foreground">
         ROAS under {BREAK_EVEN.toFixed(2)}x means the channel returns less than it spends.
         {showsEstimate &&
@@ -450,86 +522,115 @@ function ChannelBreakdown({ channels }: { channels: ReportChannel[] }) {
   );
 }
 
-function ChannelRow({ channel: c }: { channel: ReportChannel }) {
-  const isPaid = c.paid !== false;
-  // An em dash, never "0" or "0.00x": these figures do not exist for a channel with no ad spend,
-  // and rendering them as zero ranks the cheapest channel a business has as its worst.
-  const none = <span className="text-muted-foreground/50">&mdash;</span>;
+/** Name, share of revenue, and how the row was measured — identical in both forms. */
+function ChannelIdentity({ channel: c }: { channel: ReportChannel }) {
+  return (
+    <>
+      <div className="font-medium">{channelLabel(c.channel)}</div>
+      <div className="mt-1.5 flex items-center gap-2">
+        {/* The share bar fills the width the numeric columns used to strand, and turns "which
+            channel matters" into something readable without arithmetic. */}
+        <span className="h-1.5 w-full max-w-[10rem] overflow-hidden rounded-full bg-muted">
+          <span
+            className={cn("block h-full rounded-full", channelBarClass(c.channel))}
+            style={{ width: `${Math.round(c.revenueShare * 100)}%` }}
+          />
+        </span>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {Math.round(c.revenueShare * 100)}%
+        </span>
+      </div>
+      {(c.clicks || c.modelled) && (
+        <div className="mt-1 text-xs text-muted-foreground/80">
+          {[
+            c.clicks ? `${c.clicks.toLocaleString("en-US")} clicks` : null,
+            c.modelled ? "estimated" : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+      )}
+    </>
+  );
+}
 
+function ChannelRow({ channel: c }: { channel: ReportChannel }) {
   return (
     <TableRow>
       <TableCell>
-        <div className="font-medium">{channelLabel(c.channel)}</div>
-        <div className="mt-1.5 flex items-center gap-2">
-          {/* The share bar fills the width the numeric columns used to strand, and turns "which
-              channel matters" into something readable without arithmetic. */}
-          <span className="h-1.5 w-full max-w-[10rem] overflow-hidden rounded-full bg-muted">
-            <span
-              className={cn("block h-full rounded-full", channelBarClass(c.channel))}
-              style={{ width: `${Math.round(c.revenueShare * 100)}%` }}
-            />
-          </span>
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {Math.round(c.revenueShare * 100)}%
-          </span>
-        </div>
-        {(c.clicks || c.modelled) && (
-          <div className="mt-1 text-xs text-muted-foreground/80">
-            {[
-              c.clicks ? `${c.clicks.toLocaleString("en-US")} clicks` : null,
-              c.modelled ? "estimated" : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </div>
-        )}
+        <ChannelIdentity channel={c} />
       </TableCell>
-      <TableCell className="text-right tabular-nums">{isPaid ? usd(c.spend) : none}</TableCell>
-      <TableCell className="text-right tabular-nums">{usd(c.revenue)}</TableCell>
-      <TableCell className="text-right tabular-nums">
-        {isPaid && c.conversions ? c.conversions.toLocaleString("en-US") : none}
-      </TableCell>
-      <TableCell className="text-right tabular-nums">{c.cpa === null ? none : usd(c.cpa)}</TableCell>
+      {FIGURES.map((f) => (
+        <TableCell key={f.key} className="text-right tabular-nums">
+          {f.value(c)}
+        </TableCell>
+      ))}
       <TableCell className="text-right">
-        {c.roas === null ? (
-          none
-        ) : (
-          <div className="flex items-center justify-end gap-2">
-            {c.roasDelta !== null && c.roasDelta !== 0 && (
-              <span
-                className={cn(
-                  "text-xs font-medium tabular-nums",
-                  c.roasDelta > 0 ? "text-success" : "text-destructive"
-                )}
-              >
-                {c.roasDelta > 0 ? "+" : "−"}
-                {Math.abs(c.roasDelta).toFixed(2)}
-              </span>
-            )}
-            {/* Encodes profitability, not rank. The badge used to be ember whenever a channel beat
-                the blended average — so a channel at 1.30x against a 1.25x blend read as "good"
-                despite barely clearing break-even. */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge
-                  variant={c.roas >= BREAK_EVEN ? "success" : "destructive"}
-                  className="cursor-help tabular-nums"
-                >
-                  {c.roas.toFixed(2)}x
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>
-                {/* Cents matter here: `usd()` rounds to whole dollars, which would render a
-                    2.21x channel as "returns $2 for every $1". */}
-                {c.roas >= BREAK_EVEN
-                  ? `Returns $${c.roas.toFixed(2)} for every $1 spent.`
-                  : `Returns $${c.roas.toFixed(2)} for every $1 spent — below break-even.`}
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        )}
+        <Roas channel={c} />
       </TableCell>
     </TableRow>
+  );
+}
+
+/** The same row on a phone: identity, then the figures as a labelled ledger. */
+function ChannelRecord({ channel: c }: { channel: ReportChannel }) {
+  return (
+    <div className="p-5">
+      <ChannelIdentity channel={c} />
+      <dl className="mt-3 space-y-1.5 border-t pt-3">
+        {FIGURES.map((f) => (
+          <div key={f.key} className="flex items-baseline justify-between gap-4">
+            <dt className="text-xs text-muted-foreground">{f.recordLabel ?? f.label}</dt>
+            <dd className="text-sm tabular-nums">{f.value(c)}</dd>
+          </div>
+        ))}
+        <div className="flex items-center justify-between gap-4 pt-0.5">
+          <dt className="text-xs text-muted-foreground">ROAS</dt>
+          <dd>
+            <Roas channel={c} />
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function Roas({ channel: c }: { channel: ReportChannel }) {
+  if (c.roas === null) return NONE;
+  return (
+    <div className="flex items-center justify-end gap-2">
+      {c.roasDelta !== null && c.roasDelta !== 0 && (
+        <span
+          className={cn(
+            "text-xs font-medium tabular-nums",
+            c.roasDelta > 0 ? "text-success" : "text-destructive"
+          )}
+        >
+          {c.roasDelta > 0 ? "+" : "−"}
+          {Math.abs(c.roasDelta).toFixed(2)}
+        </span>
+      )}
+      {/* Encodes profitability, not rank. The badge used to be ember whenever a channel beat
+          the blended average — so a channel at 1.30x against a 1.25x blend read as "good"
+          despite barely clearing break-even. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            variant={c.roas >= BREAK_EVEN ? "success" : "destructive"}
+            className="cursor-help tabular-nums"
+          >
+            {c.roas.toFixed(2)}x
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>
+          {/* Cents matter here: `usd()` rounds to whole dollars, which would render a
+              2.21x channel as "returns $2 for every $1". */}
+          {c.roas >= BREAK_EVEN
+            ? `Returns $${c.roas.toFixed(2)} for every $1 spent.`
+            : `Returns $${c.roas.toFixed(2)} for every $1 spent — below break-even.`}
+        </TooltipContent>
+      </Tooltip>
+    </div>
   );
 }
 
@@ -664,7 +765,7 @@ function PageSkeleton() {
   return (
     <div className="space-y-6">
       <Skeleton className="h-8 w-3/4 max-w-xl" />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-36 w-full rounded-lg" />
         ))}
