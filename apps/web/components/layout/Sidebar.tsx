@@ -217,12 +217,15 @@ export function Sidebar() {
                         : "text-ink-muted hover:bg-primary/10 hover:text-primary"
                     )}
                   >
+                    {/* Active: no colour of its own, so it inherits the row's ink-foreground -
+                        the same thing Settings does below. The ember on an active row is the
+                        RailMarker bar and only that. An ember icon here was ember standing for a
+                        state, which tone.ts rules out, and it competed with the one mark the
+                        navigation is allowed to raise its voice with. */}
                     <Icon
                       className={cn(
                         "h-4 w-4 shrink-0 transition-colors",
-                        active
-                          ? "text-primary"
-                          : "text-ink-muted group-hover:text-primary"
+                        !active && "text-ink-muted group-hover:text-primary"
                       )}
                     />
                     {!collapsed && label}
