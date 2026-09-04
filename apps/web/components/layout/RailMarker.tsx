@@ -84,7 +84,12 @@ export function RailMarker() {
         // child resolves against the padding box, so `left-0` would put the bar against the rail's
         // outer edge rather than against the start of the row it marks — which is where the per-row
         // bar it replaces sat, in both the expanded and the collapsed width.
-        "pointer-events-none absolute left-3 w-0.5 rounded-full bg-primary",
+        // `z-10` because an active row is opaque and comes later in the DOM. A row carrying
+        // `relative` becomes a positioned element with `z-index: auto`, which paints above an
+        // earlier positioned sibling - so `bg-ink-2` covered this bar completely and the active
+        // row simply had no marker. The rails no longer set `relative` on their rows, and this
+        // keeps the bar on top if one ever does again.
+        "pointer-events-none absolute left-3 z-10 w-0.5 rounded-full bg-primary",
         marker?.moving ? "rail-marker-move" : "rail-marker",
         marker?.visible ? "opacity-100" : "opacity-0"
       )}

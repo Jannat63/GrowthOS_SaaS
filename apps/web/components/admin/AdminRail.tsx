@@ -156,7 +156,7 @@ export function AdminRail({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               title={collapsed ? label : undefined}
               data-rail-active={active ? "true" : undefined}
               className={cn(
-                "group relative flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
+                "group flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
                 collapsed ? "justify-center px-0" : "gap-3 px-3",
                 active
                   ? "bg-ink-2 text-ink-foreground"
@@ -166,7 +166,7 @@ export function AdminRail({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               <Icon
                 className={cn(
                   "h-4 w-4 shrink-0 transition-colors",
-                  active ? "text-primary" : "text-ink-muted group-hover:text-primary"
+                  !active && "text-ink-muted group-hover:text-primary"
                 )}
                 aria-hidden="true"
               />

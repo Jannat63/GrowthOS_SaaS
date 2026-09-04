@@ -180,7 +180,7 @@ export function Sidebar() {
               {group.items.map(({ href, label, icon: Icon, ready }) => {
                 const active = ready && pathname === href;
                 const base =
-                  "group relative flex items-center rounded-lg py-2 text-sm font-medium transition-colors";
+                  "group flex items-center rounded-lg py-2 text-sm font-medium transition-colors";
                 const spacing = collapsed ? "justify-center px-0" : "gap-3 px-3";
                 if (!ready) {
                   return (
