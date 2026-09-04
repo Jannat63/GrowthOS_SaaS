@@ -115,25 +115,46 @@ export async function getMerTrend(
       SELECT toString(date) AS day,
         toFloat64(sumIf(spend, platform = 'google_ads')) AS googleSpend,
         toFloat64(sumIf(spend, platform = 'meta_ads')) AS metaSpend,
-        toFloat64(sum(conversion_value)) AS convValue
+        toFloat64(sum(conversion_value)) AS convValue,
+        toFloat64(sumIf(conversion_value, platform = 'google_ads')) AS googleConvValue,
+        toFloat64(sumIf(conversion_value, platform = 'meta_ads')) AS metaConvValue
       FROM ad_performance
       WHERE workspace_id = {ws:String} AND date >= {from:Date} AND date <= {to:Date}
       GROUP BY day ORDER BY day`,
     query_params: { ws: workspaceId, from: w.from, to: w.to },
     format: 'JSONEachRow',
   })
-  const rows = (await rs.json()) as { day: string; googleSpend: number; metaSpend: number; convValue: number }[]
+  const rows = (await rs.json()) as {
+    day: string
+    googleSpend: number
+    metaSpend: number
+    convValue: number
+    googleConvValue: number
+    metaConvValue: number
+  }[]
 
   const trend: MerTrendPoint[] = rows.map((r) => {
     const revenue = Math.round(r.convValue * REVENUE_FACTOR)
     const spend = r.googleSpend + r.metaSpend
     const mer = calculateBlendedMER({ totalRevenue: revenue, googleAdsSpend: r.googleSpend, metaAdsSpend: r.metaSpend }).blendedMER
-    return { date: r.day, mer, spend: Math.round(spend * 100) / 100, revenue }
+    return {
+      date: r.day,
+      mer,
+      spend: Math.round(spend * 100) / 100,
+      revenue,
+      googleSpend: Math.round(r.googleSpend * 100) / 100,
+      metaSpend: Math.round(r.metaSpend * 100) / 100,
+    }
   })
 
   const googleAdsSpend = rows.reduce((s, r) => s + r.googleSpend, 0)
   const metaAdsSpend = rows.reduce((s, r) => s + r.metaSpend, 0)
   const totalRevenue = rows.reduce((s, r) => s + r.convValue * REVENUE_FACTOR, 0)
+  // Each platform's own claim, on the same REVENUE_FACTOR basis as the blended figure so the three
+  // are comparable. These do not have to sum to totalRevenue - where they exceed it, both platforms
+  // counted the same conversion, which is exactly what the page is for.
+  const googleAdsRevenue = rows.reduce((s, r) => s + r.googleConvValue * REVENUE_FACTOR, 0)
+  const metaAdsRevenue = rows.reduce((s, r) => s + r.metaConvValue * REVENUE_FACTOR, 0)
   const summary = calculateBlendedMER({ totalRevenue, googleAdsSpend, metaAdsSpend })
 
   // Anomaly: last 7 days avg MER vs prior 7 days.
@@ -152,6 +173,8 @@ export async function getMerTrend(
     channelBreakdown: {
       googleAdsSpend: Math.round(googleAdsSpend * 100) / 100,
       metaAdsSpend: Math.round(metaAdsSpend * 100) / 100,
+      googleAdsRevenue: Math.round(googleAdsRevenue),
+      metaAdsRevenue: Math.round(metaAdsRevenue),
     },
     anomaly,
   }

@@ -14,6 +14,7 @@ import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { DateRangePicker } from "@/components/dashboard/DateRangePicker";
 import { anomalyOf } from "@/lib/mock-data/mer";
 import { MerTrendChart, RevenueVsSpendChart, ChartLegend } from "@/components/analytics/MerCharts";
+import { PlatformClaims } from "@/components/analytics/PlatformClaims";
 import { ratio, share, signedPercent, usd, whatMoved } from "@/components/analytics/merFormat";
 
 export default function AnalyticsPage() {
@@ -40,7 +41,6 @@ export default function AnalyticsPage() {
   const moved = useMemo(() => (d ? whatMoved(d.trend) : null), [d]);
 
   const totalSpend = d ? d.channelBreakdown.googleAdsSpend + d.channelBreakdown.metaAdsSpend : 0;
-  const googleShare = d ? share(d.channelBreakdown.googleAdsSpend, totalSpend) / 100 : 0.5;
   const totalRevenue = d ? d.trend.reduce((s, t) => s + t.revenue, 0) : 0;
 
   return (
@@ -105,8 +105,18 @@ export default function AnalyticsPage() {
 
             {/* What actually moved — the half of the story a ratio cannot tell on its own. */}
             <div className="grid gap-4 border-t pt-5 sm:grid-cols-2 md:border-l md:border-t-0 md:pl-6 md:pt-0">
-              <Figure label="Revenue" value={usd(totalRevenue)} change={moved?.revenueChange} />
-              <Figure label="Ad spend" value={usd(totalSpend)} change={moved?.spendChange} />
+              <Figure
+                label="Revenue"
+                windowDays={d.trend.length}
+                value={usd(totalRevenue)}
+                change={moved?.revenueChange}
+              />
+              <Figure
+                label="Ad spend"
+                windowDays={d.trend.length}
+                value={usd(totalSpend)}
+                change={moved?.spendChange}
+              />
 
               <div className="sm:col-span-2">
                 <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
@@ -152,6 +162,12 @@ export default function AnalyticsPage() {
             </div>
           </Card>
 
+          <PlatformClaims
+            breakdown={d.channelBreakdown}
+            blendedRevenue={totalRevenue}
+            blendedMer={d.summary.blendedMER}
+          />
+
           <Card className="p-6">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="flex items-center gap-2 font-display text-lg font-semibold tracking-tight">
@@ -173,7 +189,7 @@ export default function AnalyticsPage() {
               />
             </div>
             <div className="mt-3">
-              <RevenueVsSpendChart trend={d.trend} googleShare={googleShare} />
+              <RevenueVsSpendChart trend={d.trend} />
             </div>
           </Card>
         </>
@@ -203,24 +219,34 @@ function Delta({ percent }: { percent: number }) {
   );
 }
 
+/**
+ * A window total, and the recent momentum under it.
+ *
+ * The two describe different periods and now both say so. The figure is the sum across the whole
+ * selected range, while `whatMoved` compares the last seven days with the seven before them - so
+ * the tile used to print a 30-day total under the words "vs prior 7d", and the value's period
+ * changed with the date picker while the delta's never did.
+ */
 function Figure({
   label,
+  windowDays,
   value,
   change,
 }: {
   label: string;
+  windowDays: number;
   value: string;
   change: number | undefined;
 }) {
   return (
     <div>
       <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-        {label}
+        {label} · {windowDays}d
       </p>
       <p className="mt-0.5 font-display text-xl font-semibold tabular-nums">{value}</p>
       {change !== undefined && (
         <p className="mt-0.5 font-mono text-[11px] tabular-nums text-muted-foreground">
-          {signedPercent(change)} vs prior 7d
+          {signedPercent(change)} last 7d vs prior 7d
         </p>
       )}
     </div>

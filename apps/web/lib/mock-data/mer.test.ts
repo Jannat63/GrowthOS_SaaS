@@ -99,6 +99,8 @@ describe("anomalyOf", () => {
       mer: i < 7 ? 4 : 8,
       spend: 100,
       revenue: 400,
+      googleSpend: 40,
+      metaSpend: 60,
     }));
     const a = anomalyOf(flat);
     expect(a.priorAvg).toBe(4);

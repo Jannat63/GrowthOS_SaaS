@@ -574,14 +574,36 @@ export interface TopOrganicPage {
 export interface MerTrendPoint {
   date: string;
   mer: number;
+  /** Google + Meta. Kept alongside the split so existing consumers need no arithmetic. */
   spend: number;
   revenue: number;
+  /**
+   * The real per-day split, not the window's ratio applied to every day.
+   *
+   * The API always had these - the query selects `sumIf(spend, platform = ...)` per day - but the
+   * mapper summed them into `spend` and dropped them, so the stacked chart downstream rebuilt the
+   * split by multiplying each day's total by the window-wide Google share. Every bar therefore drew
+   * the same proportion whatever actually happened that day.
+   */
+  googleSpend: number;
+  metaSpend: number;
 }
 
 export interface MerDashboard {
   trend: MerTrendPoint[];
   summary: { blendedMER: number; totalSpend: number; interpretation: string };
-  channelBreakdown: { googleAdsSpend: number; metaAdsSpend: number };
+  /**
+   * Window totals per channel. `*Revenue` is what each platform *claims* it drove, which is the
+   * point: summed, the two exceed the blended revenue whenever both platforms take credit for the
+   * same conversion. That gap is the attribution bias this page's subtitle names, and it cannot be
+   * shown without carrying each platform's self-reported figure beside the blended one.
+   */
+  channelBreakdown: {
+    googleAdsSpend: number;
+    metaAdsSpend: number;
+    googleAdsRevenue: number;
+    metaAdsRevenue: number;
+  };
   anomaly: { detected: boolean; changePercent: number };
 }
 

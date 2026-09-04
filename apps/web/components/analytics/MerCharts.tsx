@@ -140,19 +140,16 @@ export function MerTrendChart({ trend }: { trend: MerTrendPoint[] }) {
  * Spend stacks by channel so the mix is visible in the same read; revenue is a line above it, and
  * the gap between them is the margin.
  */
-export function RevenueVsSpendChart({
-  trend,
-  googleShare,
-}: {
-  trend: MerTrendPoint[];
-  /** Channel split of spend over the window — applied per day to stack the daily bars. */
-  googleShare: number;
-}) {
+export function RevenueVsSpendChart({ trend }: { trend: MerTrendPoint[] }) {
+  // The split arrives per day. It used to be rebuilt here from the window-wide Google share, which
+  // drew every bar at the same proportion whatever happened that day - a day Google did not run at
+  // all still showed a Google segment. The API had the real figures the whole time; it summed them
+  // into `spend` before returning, and now carries both.
   const data = trend.map((t) => ({
     date: t.date,
     revenue: t.revenue,
-    googleSpend: Math.round(t.spend * googleShare),
-    metaSpend: Math.round(t.spend * (1 - googleShare)),
+    googleSpend: t.googleSpend,
+    metaSpend: t.metaSpend,
   }));
 
   return (

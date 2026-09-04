@@ -26,13 +26,23 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function merMock(range: { from: string; to: string } | null, days: number): MerDashboard {
   const dates = new Set(seedWindow(range, days));
-  const rows = new Map<string, { googleSpend: number; metaSpend: number; convValue: number }>();
+  const rows = new Map<
+    string,
+    { googleSpend: number; metaSpend: number; convValue: number; googleConvValue: number; metaConvValue: number }
+  >();
 
   for (const d of seedPlatformDays()) {
     if (!dates.has(d.date)) continue;
-    const row = rows.get(d.date) ?? { googleSpend: 0, metaSpend: 0, convValue: 0 };
-    if (d.platform === "google_ads") row.googleSpend += d.spend;
-    else row.metaSpend += d.spend;
+    const row =
+      rows.get(d.date) ??
+      { googleSpend: 0, metaSpend: 0, convValue: 0, googleConvValue: 0, metaConvValue: 0 };
+    if (d.platform === "google_ads") {
+      row.googleSpend += d.spend;
+      row.googleConvValue += d.conversionValue;
+    } else {
+      row.metaSpend += d.spend;
+      row.metaConvValue += d.conversionValue;
+    }
     row.convValue += d.conversionValue;
     rows.set(d.date, row);
   }
@@ -48,6 +58,8 @@ export function merMock(range: { from: string; to: string } | null, days: number
       }).blendedMER,
       spend: round2(r.googleSpend + r.metaSpend),
       revenue,
+      googleSpend: round2(r.googleSpend),
+      metaSpend: round2(r.metaSpend),
     };
   });
 
@@ -62,6 +74,8 @@ export function merMock(range: { from: string; to: string } | null, days: number
     channelBreakdown: {
       googleAdsSpend: round2(googleAdsSpend),
       metaAdsSpend: round2(metaAdsSpend),
+      googleAdsRevenue: Math.round(all.reduce((s, r) => s + r.googleConvValue * REVENUE_FACTOR, 0)),
+      metaAdsRevenue: Math.round(all.reduce((s, r) => s + r.metaConvValue * REVENUE_FACTOR, 0)),
     },
     anomaly: anomalyOf(trend),
   };
