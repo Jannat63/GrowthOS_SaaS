@@ -11,11 +11,15 @@
 //   PUPPETEER_SKIP_DOWNLOAD=false pnpm install        # re-run install, letting it download
 // or, without reinstalling anything:
 //   npx puppeteer browsers install chrome
-const { join } = require("node:path");
-
+//
+// `cacheDirectory` is deliberately NOT set, which leaves Puppeteer's own default of
+// `~/.cache/puppeteer`. It used to point at `apps/api/.cache/puppeteer`, to keep the download out
+// of node_modules — but the home cache is out of node_modules too, and being per-project bought
+// nothing while costing a fresh ~180MB download per checkout. Worse, it made an already-installed
+// Chrome invisible: `npx puppeteer browsers install chrome` run anywhere else on the machine
+// populates the home cache, so a developer with the exact right build sitting on disk still got
+// "Could not find Chrome (ver. …)" here, and the API answered the Download PDF button with a 409
+// saying Chromium was not installed. It was, just not in this repo.
 module.exports = {
-  // Keep the downloaded browser out of node_modules (which pnpm may prune/rebuild) and somewhere
-  // stable across installs.
-  cacheDirectory: join(__dirname, ".cache", "puppeteer"),
   skipDownload: process.env.PUPPETEER_SKIP_DOWNLOAD !== "false",
 };
