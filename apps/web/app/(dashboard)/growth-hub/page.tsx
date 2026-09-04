@@ -231,7 +231,7 @@ export default function GrowthHubPage() {
           sparkline — so the row has no tall sibling to stretch to. Previously the MER tile (with
           a sparkline) and the Goal Simulator (a form) set the height of their rows and the plain
           tiles beside them padded out the difference with ~180px of nothing. */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <MerTile mer={mer} className="xl:col-span-2" />
         <StatTile
           icon={DollarSign}
@@ -437,13 +437,13 @@ function ChannelStrip({
         );
       })}
       {prominent ? (
-        <Button asChild size="sm" className="ml-auto">
+        <Button asChild size="sm" className="w-full sm:ml-auto sm:w-auto">
           <Link href="/settings">Connect a channel</Link>
         </Button>
       ) : (
         <Link
           href="/settings"
-          className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary"
+          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary sm:ml-auto"
         >
           Manage <ArrowUpRight className="h-3.5 w-3.5" />
         </Link>

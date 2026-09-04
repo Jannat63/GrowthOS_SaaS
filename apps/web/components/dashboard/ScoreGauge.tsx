@@ -40,7 +40,7 @@ export function ScoreGauge({ score, drivers }: { score: number; drivers?: ScoreD
 
   return (
     <div className="flex flex-wrap items-center gap-x-8 gap-y-5">
-      <div className="flex shrink-0 items-center gap-4">
+      <div className="flex min-w-0 items-center gap-4">
         <div className={cn("relative shrink-0", tier.className)} style={{ width: SIZE, height: SIZE }}>
           <svg
             width={SIZE}
@@ -79,7 +79,7 @@ export function ScoreGauge({ score, drivers }: { score: number; drivers?: ScoreD
             <span className="text-[0.65rem] text-muted-foreground">/100</span>
           </div>
         </div>
-        <div>
+        <div className="min-w-0">
           <p className={cn("text-sm font-semibold", tier.className)}>{tier.label}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Based on efficiency trend, creative health, and open priority work.
