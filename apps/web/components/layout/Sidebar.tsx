@@ -225,8 +225,14 @@ export function Sidebar() {
                     className={cn(
                       base,
                       spacing,
+                      // A light film rather than a fixed shade. `bg-ink-2` was an absolute colour
+                      // picked against a flat rail; once the rail gained a sheen and a glow the
+                      // surface under a row stopped being one constant value, and ink-2 collided
+                      // with the sheened top almost exactly - the active row went from raised to
+                      // indistinguishable. A percentage of the foreground always lands lighter
+                      // than whatever it happens to be sitting on.
                       active
-                        ? "bg-ink-2 text-ink-foreground"
+                        ? "bg-ink-foreground/10 text-ink-foreground"
                         : "text-ink-muted hover:bg-primary/10 hover:text-primary"
                     )}
                   >
@@ -264,7 +270,7 @@ export function Sidebar() {
             "group flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
             collapsed ? "justify-center px-0" : "gap-3 px-3",
             pathname === "/settings"
-              ? "bg-ink-2 text-ink-foreground"
+              ? "bg-ink-foreground/10 text-ink-foreground"
               : "text-ink-muted hover:bg-primary/10 hover:text-primary"
           )}
         >

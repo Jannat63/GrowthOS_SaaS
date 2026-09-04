@@ -159,7 +159,7 @@ export function AdminRail({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                 "group flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
                 collapsed ? "justify-center px-0" : "gap-3 px-3",
                 active
-                  ? "bg-ink-2 text-ink-foreground"
+                  ? "bg-ink-foreground/10 text-ink-foreground"
                   : "text-ink-muted hover:bg-primary/10 hover:text-primary"
               )}
             >
@@ -191,7 +191,7 @@ export function AdminRail({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             "group flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
             collapsed ? "justify-center px-0" : "gap-3 px-3",
             pathname === "/admin/security"
-              ? "bg-ink-2 text-ink-foreground"
+              ? "bg-ink-foreground/10 text-ink-foreground"
               : "text-ink-muted hover:bg-primary/10 hover:text-primary"
           )}
         >
