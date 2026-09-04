@@ -39,7 +39,11 @@ export function ScoreGauge({ score, drivers }: { score: number; drivers?: ScoreD
   const offset = CIRCUMFERENCE * (1 - clamped / 100);
 
   return (
-    <div className="flex flex-wrap items-center gap-x-8 gap-y-5">
+    // A container query, not a breakpoint: the card is as wide as the sidebar leaves it, so one
+    // viewport is two different cards depending on whether the rail is collapsed. Side by side
+    // needs ~56rem of card - a 120px ring, its verdict, and three drivers each holding a phrase
+    // like "+18.6% this window" - and below that the strip goes under the ring at full width.
+    <div className="@container flex flex-col gap-5 @4xl:flex-row @4xl:items-center @4xl:gap-8">
       <div className="flex min-w-0 items-center gap-4">
         <div className={cn("relative shrink-0", tier.className)} style={{ width: SIZE, height: SIZE }}>
           <svg
@@ -90,13 +94,20 @@ export function ScoreGauge({ score, drivers }: { score: number; drivers?: ScoreD
       {drivers && drivers.length > 0 && (
         // A real 3-up grid rather than a loosely gapped row: each cell is equal width and claims
         // its own third of whatever space is left, so the row reaches the card's edge instead of
-        // clustering left with the remainder trailing off as dead air. `divide-x` draws the seams
+        // clustering left with the remainder trailing off as dead air. Three-up only from `@lg`,
+        // which is the width at which a third of the strip still holds a label above its value;
+        // below that they stack, because a 3-column grid whose cells cannot shrink overflows
+        // rather than wraps - which is exactly what it did, straight out through the card's right
+        // edge, when the old `sm` let it try at 640px. `divide-x` draws the seams
         // between cells at full contrast — a single hairline border here (the ordinary `border`
         // token) sits within a few percent luminance of the card behind it and reads as no line
         // at all, which is why the first pass looked like three unrelated facts, not a strip.
-        <div className="grid flex-1 grid-cols-1 divide-y divide-border border-t pt-1 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:border-l sm:border-t-0 sm:pl-8 sm:pt-0">
+        <div className="grid min-w-0 flex-1 grid-cols-1 divide-y divide-border border-t pt-4 @lg:grid-cols-3 @lg:divide-x @lg:divide-y-0 @4xl:border-l @4xl:border-t-0 @4xl:pl-8 @4xl:pt-0">
           {drivers.map((d) => (
-            <div key={d.label} className="flex items-start gap-2.5 px-1 py-3 first:pt-0 sm:px-6 sm:py-0 sm:first:pl-0">
+            <div
+              key={d.label}
+              className="flex min-w-0 items-start gap-2.5 py-3 first:pt-0 @lg:px-4 @lg:py-0 @lg:first:pl-0 @lg:last:pr-0 @4xl:px-6 @4xl:first:pl-0 @4xl:last:pr-0"
+            >
               <d.icon
                 className={cn(
                   "mt-0.5 h-4 w-4 shrink-0",
@@ -104,7 +115,7 @@ export function ScoreGauge({ score, drivers }: { score: number; drivers?: ScoreD
                 )}
                 aria-hidden="true"
               />
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">{d.label}</p>
                 <p
                   className={cn(
