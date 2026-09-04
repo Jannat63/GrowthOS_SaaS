@@ -23,8 +23,35 @@ import { useOrganicTraffic } from "@/lib/hooks/useOrganicTraffic";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { SeoTile } from "@/components/seo/SeoTile";
+import { FigureList, type Figure } from "@/components/FigureList";
 
 const num = (n: number) => n.toLocaleString("en-US");
+
+type Page = OrganicTrafficResponse["pages"][number];
+
+/**
+ * The four numeric columns, defined once.
+ *
+ * The header, the table cells and the record below all read this, so the wide layout and the
+ * narrow one cannot end up calling a column two different things or ordering them differently.
+ */
+const COLUMNS: { key: string; label: string; value: (p: Page) => React.ReactNode }[] = [
+  { key: "clicks", label: "Clicks", value: (p) => num(p.clicks) },
+  {
+    key: "impressions",
+    label: "Impressions",
+    value: (p) => <span className="text-muted-foreground">{num(p.impressions)}</span>,
+  },
+  { key: "ctr", label: "CTR", value: (p) => `${p.ctr}%` },
+  {
+    key: "position",
+    label: "Avg pos.",
+    value: (p) => <span className="text-muted-foreground">{p.avgPosition}</span>,
+  },
+];
+
+const figuresFor = (p: Page): Figure[] =>
+  COLUMNS.map((c) => ({ key: c.key, label: c.label, value: c.value(p) }));
 
 /**
  * "18 Jun – 17 Jul", from the window the figures were actually measured over.
@@ -53,7 +80,9 @@ export function OrganicTraffic({ workspaceId }: { workspaceId: string | null }) 
   const period = periodLabel(t.period);
 
   return (
-    <div className="space-y-6">
+    // Measured against this column rather than the viewport: the four numeric columns plus a page
+    // URL need ~36rem, which 768px does not give once the sidebar takes its 240px.
+    <div className="@container space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         {period ? (
           <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
@@ -115,15 +144,27 @@ export function OrganicTraffic({ workspaceId }: { workspaceId: string | null }) 
         </div>
       </Card>
 
-      <Card className="p-0">
+      {/* Narrow: one record per page. `break-all` rather than `truncate` — a URL cut at 320px
+          usually loses the path, which is the only part that identifies the page. */}
+      <Card className="divide-y @xl:hidden">
+        {t.pages.map((p) => (
+          <div key={p.pageUrl} className="p-4">
+            <p className="break-all text-sm font-medium">{p.pageUrl}</p>
+            <FigureList figures={figuresFor(p)} className="mt-3 border-t pt-3" />
+          </div>
+        ))}
+      </Card>
+
+      <Card className="hidden p-0 @xl:block">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Page</TableHead>
-              <TableHead className="text-right">Clicks</TableHead>
-              <TableHead className="text-right">Impressions</TableHead>
-              <TableHead className="text-right">CTR</TableHead>
-              <TableHead className="text-right">Avg pos.</TableHead>
+              {COLUMNS.map((c) => (
+                <TableHead key={c.key} className="text-right">
+                  {c.label}
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -132,14 +173,11 @@ export function OrganicTraffic({ workspaceId }: { workspaceId: string | null }) 
                 <TableCell className="max-w-[320px] truncate font-medium" title={p.pageUrl}>
                   {p.pageUrl}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{num(p.clicks)}</TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {num(p.impressions)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{p.ctr}%</TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {p.avgPosition}
-                </TableCell>
+                {COLUMNS.map((c) => (
+                  <TableCell key={c.key} className="text-right tabular-nums">
+                    {c.value(p)}
+                  </TableCell>
+                ))}
               </TableRow>
             ))}
           </TableBody>

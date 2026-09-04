@@ -38,6 +38,7 @@ import { useWorkspaceStore } from "@/lib/stores/workspace";
 import { useReport, useReportPeriods } from "@/lib/hooks/useReport";
 import { useDownloadReportPdf } from "@/lib/hooks/useDownloadReportPdf";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
+import { FigureList } from "@/components/FigureList";
 import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 
 /**
@@ -585,20 +586,17 @@ function ChannelRecord({ channel: c }: { channel: ReportChannel }) {
   return (
     <div className="p-5">
       <ChannelIdentity channel={c} />
-      <dl className="mt-3 space-y-1.5 border-t pt-3">
-        {FIGURES.map((f) => (
-          <div key={f.key} className="flex items-baseline justify-between gap-4">
-            <dt className="text-xs text-muted-foreground">{f.recordLabel ?? f.label}</dt>
-            <dd className="text-sm tabular-nums">{f.value(c)}</dd>
-          </div>
-        ))}
-        <div className="flex items-center justify-between gap-4 pt-0.5">
-          <dt className="text-xs text-muted-foreground">ROAS</dt>
-          <dd>
-            <Roas channel={c} />
-          </dd>
-        </div>
-      </dl>
+      <FigureList
+        className="mt-3 border-t pt-3"
+        figures={[
+          ...FIGURES.map((f) => ({
+            key: f.key,
+            label: f.recordLabel ?? f.label,
+            value: f.value(c),
+          })),
+          { key: "roas", label: "ROAS", value: <Roas channel={c} /> },
+        ]}
+      />
     </div>
   );
 }

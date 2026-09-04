@@ -16,6 +16,7 @@ import { useKeywordRankings } from "@/lib/hooks/useKeywordRankings";
 import { DataSourceBadge } from "@/components/dashboard/DataSourceBadge";
 import { MODULE_PLATFORMS } from "@/lib/hooks/useDataProvenance";
 import { SeoTile } from "@/components/seo/SeoTile";
+import { FigureList, type Figure } from "@/components/FigureList";
 import { cn } from "@/lib/utils/cn";
 
 // Position is "lower is better", so invert the series — a rising line means improving rank.
@@ -70,6 +71,29 @@ function ChangeCell({ change }: { change: number }) {
   );
 }
 
+/**
+ * The three numeric columns, defined once.
+ *
+ * The header, the table cells and the record below all read this, so the wide layout and the
+ * narrow one cannot end up calling a column two different things or ordering them differently.
+ */
+const COLUMNS: { key: string; label: string; value: (k: KeywordRanking) => React.ReactNode }[] = [
+  {
+    key: "position",
+    label: "Position",
+    value: (k) => (
+      <Badge variant={k.position <= 3 ? "success" : k.position <= 10 ? "outline" : "muted"}>
+        {k.position}
+      </Badge>
+    ),
+  },
+  { key: "change", label: "Δ 7d", value: (k) => <ChangeCell change={k.change} /> },
+  { key: "best", label: "Best", value: (k) => <span className="text-muted-foreground">{k.best}</span> },
+];
+
+const figuresFor = (k: KeywordRanking): Figure[] =>
+  COLUMNS.map((c) => ({ key: c.key, label: c.label, value: c.value(k) }));
+
 export function RankTracker({ workspaceId }: { workspaceId: string | null }) {
   const { data: rankings } = useKeywordRankings(workspaceId);
   const r = rankings?.data;
@@ -77,7 +101,11 @@ export function RankTracker({ workspaceId }: { workspaceId: string | null }) {
   if (!r) return <Skeleton className="h-64 w-full rounded-lg" />;
 
   return (
-    <div className="space-y-6">
+    // A container query, because what decides whether the table fits is the width of this column,
+    // not the width of the screen. The three numeric columns plus the 128px trend cell come to
+    // ~370px, leaving a keyword phrase nothing to sit in until the column passes ~36rem — which a
+    // 768px viewport does NOT clear once the sidebar has taken its 240px, though a 640px one does.
+    <div className="@container space-y-6">
       <div className="flex justify-end">{rankings && <DataSourceBadge source={rankings.source} platform={MODULE_PLATFORMS.seo} />}</div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SeoTile label="Tracked keywords" value={r.summary.tracked} />
@@ -86,14 +114,31 @@ export function RankTracker({ workspaceId }: { workspaceId: string | null }) {
         <SeoTile label="Improved (7d)" value={r.summary.improved} />
       </div>
 
-      <Card className="p-0">
+      {/* Narrow: one record per keyword. The trend line is better off here than it was in the
+          table — it gets the full width of the card rather than a 128px cell, which is where a
+          30-day series was being asked to say something in four pixels a day. */}
+      <Card className="divide-y @xl:hidden">
+        {r.keywords.map((k) => (
+          <div key={k.keyword} className="p-4">
+            <p className="font-medium">{k.keyword}</p>
+            <div className="mt-2">
+              <RankSparkline ranking={k} />
+            </div>
+            <FigureList figures={figuresFor(k)} className="mt-3 border-t pt-3" />
+          </div>
+        ))}
+      </Card>
+
+      <Card className="hidden p-0 @xl:block">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Keyword</TableHead>
-              <TableHead className="text-right">Position</TableHead>
-              <TableHead className="text-right">Δ 7d</TableHead>
-              <TableHead className="text-right">Best</TableHead>
+              {COLUMNS.map((c) => (
+                <TableHead key={c.key} className="text-right">
+                  {c.label}
+                </TableHead>
+              ))}
               <TableHead className="w-32">Trend</TableHead>
             </TableRow>
           </TableHeader>
@@ -101,15 +146,11 @@ export function RankTracker({ workspaceId }: { workspaceId: string | null }) {
             {r.keywords.map((k) => (
               <TableRow key={k.keyword}>
                 <TableCell className="font-medium">{k.keyword}</TableCell>
-                <TableCell className="text-right">
-                  <Badge variant={k.position <= 3 ? "success" : k.position <= 10 ? "outline" : "muted"}>
-                    {k.position}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  <ChangeCell change={k.change} />
-                </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">{k.best}</TableCell>
+                {COLUMNS.map((c) => (
+                  <TableCell key={c.key} className="text-right tabular-nums">
+                    {c.value(k)}
+                  </TableCell>
+                ))}
                 <TableCell>
                   <RankSparkline ranking={k} />
                 </TableCell>

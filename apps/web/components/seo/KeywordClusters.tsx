@@ -71,8 +71,8 @@ export function KeywordClusters({ workspaceId }: { workspaceId: string | null })
       <div className="grid gap-4 md:grid-cols-2">
         {grouped.map((cluster) => (
           <Card key={cluster.clusterName + cluster.keywords[0]?.keyword} className="p-5">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="font-display text-lg font-semibold tracking-tight">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+              <h3 className="min-w-0 font-display text-lg font-semibold tracking-tight">
                 {cluster.clusterName}
               </h3>
               <div className="flex items-center gap-2">

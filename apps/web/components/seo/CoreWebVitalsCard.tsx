@@ -74,7 +74,7 @@ export function CoreWebVitalsCard({ workspaceId }: { workspaceId: string | null 
           placeholder="https://yoursite.com/page-to-check"
           aria-label="Page URL to check"
           required
-          className="min-w-64 flex-1"
+          className="min-w-0 flex-1 sm:min-w-64"
         />
         <div className="flex h-10 overflow-hidden rounded-md border" role="group" aria-label="Device">
           <button

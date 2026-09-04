@@ -55,7 +55,7 @@ export function SiteAuditPanel({ workspaceId }: { workspaceId: string | null }) 
           placeholder="https://yoursite.com"
           aria-label="Website URL to audit"
           disabled={running}
-          className="min-w-64 flex-1"
+          className="min-w-0 flex-1 sm:min-w-64"
         />
         <Button type="submit" disabled={running || trigger.isPending}>
           <RefreshCw className={cn("h-3.5 w-3.5", running && "animate-spin")} aria-hidden="true" />
