@@ -324,9 +324,16 @@
    broke it: at the old 0.55 alpha the rail let 45% of the page through, which is invisible against
    a dark backdrop and turned the whole rail into washed grey against a light one. Same CSS, two
    completely different surfaces, and only one of them was ever looked at.
-   6% is enough to read as glass at the edges and far too little to tint. The rail is a full-height
-   sticky panel at the viewport edge, so almost nothing passes behind it anyway - the frost comes
-   from the sheen and the glow blobs above this base, not from what is behind it.
+   6% is enough to read as glass at the edges and far too little to tint.
+
+   DELIBERATELY NO `backdrop-filter` - do not add one back. The rail is a flex *sibling* of the
+   content column in (dashboard)/layout.tsx, not an overlay, so nothing ever passes behind it: the
+   only thing back there is `body { background: var(--background) }`, one flat colour, and blurring
+   a flat colour returns the same flat colour. It rendered nothing while costing a full-height
+   compositing layer, re-evaluated every frame by the rail's own `transition-[width]` on collapse.
+   The frost people actually see is the sheen above and the two .ambient-glow blobs the rail
+   renders as children - both of which are unaffected by this. (TopBar and .glass-surface keep
+   theirs: content genuinely scrolls under those.)
    `border` is left to the element: the rail wants one edge, not four. */
 .glass-ink {
   background-color: color-mix(in oklab, var(--ink) 94%, transparent);
@@ -335,8 +342,6 @@
     color-mix(in oklab, var(--ink-foreground) 6%, transparent),
     transparent 32%
   );
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 @media (prefers-reduced-transparency: reduce) {
   .glass-surface {
@@ -346,8 +351,6 @@
   }
   .glass-ink {
     background-color: var(--ink);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
   }
 }
 
