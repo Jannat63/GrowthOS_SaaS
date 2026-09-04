@@ -261,6 +261,23 @@
   html {
     color-scheme: light;
     scroll-behavior: smooth;
+    /* Anchored targets clear the sticky chrome instead of landing underneath it. Both headers that
+       can be over a scrolling document - the dashboard TopBar and the marketing SiteHeader - are
+       `sticky top-0` over a 4rem bar; the extra rem keeps the heading off its underside rather than
+       flush against it. Without this, every in-page link (#priority, #bridges, #pricing) scrolled
+       its target exactly behind the header. */
+    scroll-padding-top: 5rem;
+  }
+
+  /* The console does not scroll the document: `(admin)/layout.tsx` is a full-height flex column
+     with its own `overflow-y-auto` region, so the rule above never reached it and the entire admin
+     app scrolled instantly while every other surface eased. Marked with an attribute rather than a
+     class so it reads as a structural role, and so the reduced-motion rule below can find it.
+
+     Deliberately not applied to menu and dialog interiors: Radix scrolls the highlighted item into
+     view on every arrow key, and easing that makes keyboard navigation feel like it is lagging. */
+  [data-scroll-region] {
+    scroll-behavior: smooth;
   }
   html.dark {
     color-scheme: dark;
@@ -286,7 +303,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html {
+  html,
+  [data-scroll-region] {
     scroll-behavior: auto;
   }
 }
